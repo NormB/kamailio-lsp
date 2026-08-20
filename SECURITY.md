@@ -25,7 +25,7 @@ impact assessment, and (optionally) your name/handle for credit.
   opened file, which dlopens the modules that file loads. Bypasses of
   the documented opt-out (`kamailioPath` empty), or ways to make the
   server run `-C` on files/paths the user did not open, are in scope.
-- **Parser robustness** — crafted cfg text, docbook/markdown module
+- **Parser robustness** — crafted cfg text, README/markdown module
   docs, or `kamailio -c` output that crashes the server or corrupts
   its responses (all three parsers are fuzz-adjacent surfaces; they
   must fail closed).
