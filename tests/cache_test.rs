@@ -151,3 +151,108 @@ fn cache_writes_are_atomic_and_leave_no_temp_files() {
     let _ = std::fs::remove_dir_all(&tree);
     let _ = std::fs::remove_dir_all(&cache);
 }
+
+#[test]
+fn editing_a_harvested_readme_invalidates_the_cache() {
+    // directory mtimes do not move when a FILE's content changes —
+    // the manifest must watch the harvested files themselves
+    let tree = mk_tree("edit");
+    let readme = tree.join("src/modules/m/README");
+    std::fs::write(
+        &readme,
+        "M Module\n\n2. Parameters\n\n2.1. p (int)\n\n   Doc A.\n",
+    )
+    .unwrap();
+    let cache = std::env::temp_dir().join(format!("kamlsp-cache-e-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&cache);
+    let (mods, core) = sample();
+    save_cache(&tree, None, &cache, &mods, &core).expect("save");
+    assert!(load_cached(&tree, None, &cache).is_some(), "warm hit");
+
+    let modules_dir = tree.join("src/modules");
+    let dir_mtime_before = std::fs::metadata(&modules_dir).unwrap().modified().unwrap();
+    // different content, different size: no sleep needed
+    std::fs::write(
+        &readme,
+        "M Module\n\n2. Parameters\n\n2.1. p (int)\n\n   Doc B, now longer than before.\n",
+    )
+    .unwrap();
+    let dir_mtime_after = std::fs::metadata(&modules_dir).unwrap().modified().unwrap();
+    assert_eq!(
+        dir_mtime_before, dir_mtime_after,
+        "precondition: editing the file must not touch the directory mtime"
+    );
+    assert!(
+        load_cached(&tree, None, &cache).is_none(),
+        "edited README content must invalidate the cache"
+    );
+    let _ = std::fs::remove_dir_all(&tree);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
+fn same_size_readme_edit_invalidates_via_mtime() {
+    let tree = mk_tree("mt");
+    let readme = tree.join("src/modules/m/README");
+    std::fs::write(&readme, "M Module\n\n2. Functions\n\n2.1. f()\n\n   AAA.\n").unwrap();
+    let cache = std::env::temp_dir().join(format!("kamlsp-cache-mt-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&cache);
+    let (mods, core) = sample();
+    save_cache(&tree, None, &cache, &mods, &core).expect("save");
+    // same byte count, different bytes; the mtime tick is the signal
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    std::fs::write(&readme, "M Module\n\n2. Functions\n\n2.1. f()\n\n   BBB.\n").unwrap();
+    assert!(
+        load_cached(&tree, None, &cache).is_none(),
+        "same-size edit must invalidate via the file mtime"
+    );
+    let _ = std::fs::remove_dir_all(&tree);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
+fn editing_a_wiki_cookbook_page_invalidates_the_cache() {
+    let tree = mk_tree("wedit");
+    let wiki = mk_wiki("wedit");
+    let cache = std::env::temp_dir().join(format!("kamlsp-cache-we-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&cache);
+    let (mods, core) = sample();
+    save_cache(&tree, Some(&wiki), &cache, &mods, &core).expect("save");
+    assert!(load_cached(&tree, Some(&wiki), &cache).is_some());
+    std::fs::write(
+        wiki.join("core.md"),
+        "# Core Cookbook\n\n## Core Functions\n\n### newfn()\n\nNew.\n",
+    )
+    .unwrap();
+    assert!(
+        load_cached(&tree, Some(&wiki), &cache).is_none(),
+        "edited core.md must invalidate the cache"
+    );
+    let _ = std::fs::remove_dir_all(&tree);
+    let _ = std::fs::remove_dir_all(&wiki);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
+fn adversarial_module_names_are_fingerprint_distinct_and_safe() {
+    // backslashes, quotes, pipes (the manifest separator), and
+    // spaces in module directory names must neither panic nor
+    // collide two different trees
+    let a = mk_tree("advA");
+    let b = mk_tree("advB");
+    for (tree, name) in [(&a, "we\"ird\\mod"), (&b, "we\"ird|mod")] {
+        let d = tree.join("src/modules").join(name);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("README"), "X Module\n").unwrap();
+    }
+    let fa = tree_fingerprint(&a, None);
+    let fb = tree_fingerprint(&b, None);
+    assert!(!fa.is_empty() && !fb.is_empty());
+    // identical except for the weird dir name: must not collide
+    // (note: the trees also differ by root path; the real assertion
+    // is per-tree stability + no panic on hostile names)
+    assert_eq!(fa, tree_fingerprint(&a, None), "fingerprint is stable");
+    assert_ne!(fa, fb);
+    let _ = std::fs::remove_dir_all(&a);
+    let _ = std::fs::remove_dir_all(&b);
+}

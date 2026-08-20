@@ -4,6 +4,15 @@ All notable changes to the Kamailio Routing Script extension.
 
 ## [Unreleased]
 
+- **Content-aware catalog cache**: the harvest cache is now keyed by
+  a manifest of every file it reads (size + mtime per module README
+  and cookbook page) plus a schema version — editing a doc file
+  re-harvests; before, only directory-level changes did.
+- **Harvest status**: the post-initialize harvest reports LSP
+  `workDoneProgress` (busy indicator in supporting editors), and a
+  configured source/wiki tree that yields zero symbols raises a
+  visible warning naming the path.
+
 - **Checker cwd parity**: the server now runs `kamailio -c` from the
   configuration's own directory (as the CLI always did), so relative
   `include_file`/`import_file` paths resolve identically in editor

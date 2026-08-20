@@ -38,6 +38,8 @@ pub struct Backend {
     change_gen: std::sync::Arc<DashMap<Url, u64>>,
     /// Reference-count code lenses on route definitions (init option).
     code_lens_refs: std::sync::RwLock<bool>,
+    /// Did the client advertise window.workDoneProgress support?
+    work_done_progress: std::sync::RwLock<bool>,
 }
 
 impl Backend {
@@ -65,6 +67,7 @@ impl Backend {
             analyzer_enabled: std::sync::RwLock::new(true),
             change_gen: std::sync::Arc::new(DashMap::new()),
             code_lens_refs: std::sync::RwLock::new(true),
+            work_done_progress: std::sync::RwLock::new(false),
         }
     }
 
@@ -555,6 +558,13 @@ struct CheckCtx {
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, p: InitializeParams) -> Result<InitializeResult> {
+        // progress is only sent to clients that can render it
+        *self.work_done_progress.write().unwrap() = p
+            .capabilities
+            .window
+            .as_ref()
+            .and_then(|w| w.work_done_progress)
+            .unwrap_or(false);
         // Resolution order: initializationOptions, then environment.
         let opts = p.initialization_options.unwrap_or_default();
         let bin = logic::resolve_bin(
@@ -670,10 +680,52 @@ impl LanguageServer for Backend {
         let wiki = self.wiki.read().unwrap().clone();
         let mut cached = false;
         if let Some(src) = src {
+            // progress reporting: only for clients that advertised
+            // window.workDoneProgress, and only if create succeeds
+            let token = NumberOrString::String("kamailio-lsp/harvest".into());
+            let progress_active = *self.work_done_progress.read().unwrap()
+                && self
+                    .client
+                    .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
+                        token: token.clone(),
+                    })
+                    .await
+                    .is_ok();
+            if progress_active {
+                self.client
+                    .send_notification::<notification::Progress>(ProgressParams {
+                        token: token.clone(),
+                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
+                            WorkDoneProgressBegin {
+                                title: "Harvesting Kamailio documentation".into(),
+                                cancellable: Some(false),
+                                message: Some(format!("scanning {src}")),
+                                percentage: None,
+                            },
+                        )),
+                    })
+                    .await;
+                self.client
+                    .send_notification::<notification::Progress>(ProgressParams {
+                        token: token.clone(),
+                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(
+                            WorkDoneProgressReport {
+                                cancellable: Some(false),
+                                message: Some("module READMEs and core cookbooks".into()),
+                                percentage: None,
+                            },
+                        )),
+                    })
+                    .await;
+            }
             // the harvest runs off the executor thread and outside the
             // handshake; results are cached per (tree, wiki) fingerprint
             let cache_opt = self.cache_dir_opt.read().unwrap().clone();
+            let src_for_task = src.clone();
+            let wiki_for_task = wiki.clone();
             let (harvested, core, hit) = tokio::task::spawn_blocking(move || {
+                let src = src_for_task;
+                let wiki = wiki_for_task;
                 let p = std::path::Path::new(&src);
                 let wiki_path = wiki.as_deref().map(std::path::Path::new);
                 let cache_dir = cache_opt
@@ -711,6 +763,47 @@ impl LanguageServer for Backend {
             *self.catalog.write().unwrap() = harvested;
             *self.core.write().unwrap() = core;
             cached = hit;
+            if progress_active {
+                let n = self.catalog.read().unwrap().len();
+                self.client
+                    .send_notification::<notification::Progress>(ProgressParams {
+                        token,
+                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(
+                            WorkDoneProgressEnd {
+                                message: Some(format!("{n} documented modules")),
+                            },
+                        )),
+                    })
+                    .await;
+            }
+            // a CONFIGURED tree that yields nothing deserves a visible
+            // warning, not just a quiet log line
+            if self.catalog.read().unwrap().is_empty() {
+                self.client
+                    .show_message(
+                        MessageType::WARNING,
+                        format!(
+                            "kamailio-lsp: no module documentation found under '{src}' (kamailioSrc)"
+                        ),
+                    )
+                    .await;
+            }
+            if let Some(w) = &wiki {
+                let empty = {
+                    let core = self.core.read().unwrap();
+                    core.functions.is_empty() && core.params.is_empty() && core.pvars.is_empty()
+                };
+                if empty {
+                    self.client
+                        .show_message(
+                            MessageType::WARNING,
+                            format!(
+                                "kamailio-lsp: no core documentation found under '{w}' (kamailioWiki)"
+                            ),
+                        )
+                        .await;
+                }
+            }
         }
         let n = self.catalog.read().unwrap().len();
         let c = self.core.read().unwrap().functions.len();
