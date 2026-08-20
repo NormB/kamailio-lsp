@@ -130,6 +130,7 @@ fn the_shipped_admin_doc_documents_every_init_option() {
         "checkTimeoutMs",
         "maxDiagnostics",
         "snippetCompletions",
+        "analyzerDiagnostics",
         "cacheDir",
     ] {
         assert!(
