@@ -25,11 +25,13 @@ module.exports = grammar({
     ),
 
     // #!KAMAILIO, #!define NAME value, #!ifdef/#!else/#!endif,
-    // #!subst*/#!trydef/... — one line, with backslash continuations
-    // (#!define bodies may span lines). Must outrank the # comment.
-    preproc: _ => token(prec(2, seq('#!', /(\\\r?\n|[^\n])*/))),
+    // #!subst*/#!trydef/... — PREP_START is "#!" or "!!" (cfg.lex),
+    // one line with backslash continuations (#!define bodies may span
+    // lines). Must outrank the # comment and the ! operator.
+    preproc: _ => token(prec(2, seq(choice('#!', '!!'), /(\\\r?\n|[^\n])*/))),
 
-    comment: _ => token(seq('#', /[^\n]*/)),
+    // line comments are "#" and "//" (cfg.lex COM_LINE)
+    comment: _ => token(choice(seq('#', /[^\n]*/), seq('//', /[^\n]*/))),
     block_comment: _ => token(seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')),
 
     include: $ => seq(choice('include_file', 'import_file'), $.string),
@@ -52,15 +54,22 @@ module.exports = grammar({
     // bare host/domain global values: alias=sip.example.com
     host_value: _ => token(prec(-1, /[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)+/)),
 
-    route_definition: $ => seq(
-      field('kind', $.route_kind),
-      optional(seq('[', field('name', choice($.event_name, $.identifier, $.number, $.string)), ']')),
-      field('body', $.block),
+    // request_route/reply_route take no name (verified: bracketed
+    // forms are rejected by the parser); the other kinds may be named
+    route_definition: $ => choice(
+      seq(field('kind', alias($.unnamed_route_kind, $.route_kind)), field('body', $.block)),
+      seq(
+        field('kind', alias($.named_route_kind, $.route_kind)),
+        optional(seq('[', field('name', choice($.event_name, $.identifier, $.number, $.string)), ']')),
+        field('body', $.block),
+      ),
     ),
 
-    route_kind: _ => choice(
-      'request_route', 'reply_route', 'onreply_route', 'failure_route',
-      'branch_route', 'event_route', 'onsend_route', 'route',
+    unnamed_route_kind: _ => choice('request_route', 'reply_route'),
+
+    named_route_kind: _ => choice(
+      'onreply_route', 'failure_route', 'branch_route', 'event_route',
+      'onsend_route', 'route',
     ),
 
     // event_route names carry module:event and dashes:
@@ -79,6 +88,7 @@ module.exports = grammar({
       $.assignment_statement,
       $.expression_statement,
       $.keyword_statement,
+      $.break_statement,
     ),
 
     // old documented style closes blocks with `};`
@@ -98,15 +108,22 @@ module.exports = grammar({
     case_clause: $ => seq('case', $._expression, ':', repeat($._statement)),
     default_clause: $ => seq('default', ':', repeat($._statement)),
 
+    // return/exit/drop take an optional expression, parenthesized or
+    // bare (`return 1;` and `return (1);` are both legal); break is
+    // bare only (cfg.y BREAK carries no argument)
     keyword_statement: $ => seq(
-      choice('exit', 'drop', 'return', 'break'),
-      optional(seq('(', optional($._expression), ')')),
+      choice('exit', 'drop', 'return'),
+      optional($._expression),
       ';',
     ),
 
+    break_statement: _ => seq('break', ';'),
+
+    // plain assignment only: ADDEQ is dead grammar in cfg.y and the
+    // binary rejects `$var(x) += 1;`
     assignment_statement: $ => seq(
       field('target', $.pseudo_variable),
-      choice('=', '+=', '-='),
+      '=',
       field('value', $._expression),
       ';',
     ),
@@ -133,19 +150,22 @@ module.exports = grammar({
 
     _argument: $ => $._expression,
 
+    // operator set per cfg.lex: word forms and/or/not, bitwise | &,
+    // modulo is the KEYWORD `mod` (no `%`); there is no `!~`
     binary_expression: $ => {
       const table = [
-        ['||', 1], ['&&', 2],
-        ['==', 3], ['!=', 3], ['=~', 3], ['!~', 3],
-        ['<', 4], ['>', 4], ['<=', 4], ['>=', 4],
-        ['+', 5], ['-', 5],
-        ['*', 6], ['/', 6], ['%', 6],
+        ['||', 1], ['or', 1], ['&&', 2], ['and', 2],
+        ['|', 3], ['&', 4],
+        ['==', 5], ['!=', 5], ['=~', 5],
+        ['<', 6], ['>', 6], ['<=', 6], ['>=', 6],
+        ['+', 7], ['-', 7],
+        ['*', 8], ['/', 8], ['mod', 8],
       ];
       return choice(...table.map(([op, p]) =>
         prec.left(p, seq($._expression, op, $._expression))));
     },
 
-    unary_expression: $ => prec(7, seq(choice('!', '-'), $._expression)),
+    unary_expression: $ => prec(9, seq(choice('!', 'not', '-'), $._expression)),
 
     // $ru, $var(x), $avp(name), $sht(t=>key), $(ru{s.len}),
     // $(avp(gw)[$var(i)]) — one nesting level inside the parens

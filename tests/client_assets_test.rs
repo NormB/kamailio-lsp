@@ -46,3 +46,65 @@ fn manifest_references_the_icon() {
     assert_eq!(lang["filenames"][0], "kamailio.cfg");
     assert_eq!(lang["firstLine"], "^#!KAMAILIO");
 }
+
+#[test]
+fn textmate_grammar_directive_set_matches_the_lexer() {
+    // cfg.lex PREP_START is "#!" | "!!" (not line-anchored) and the
+    // directive names are fixed; the TextMate grammar must highlight
+    // the real set, no inventions
+    let root = env!("CARGO_MANIFEST_DIR");
+    let g = std::fs::read_to_string(format!("{root}/client/syntaxes/kamailio.tmLanguage.json"))
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(&g).unwrap();
+    let pattern = v["patterns"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find_map(|p| {
+            let m = p["match"].as_str()?;
+            m.contains("ifdef").then(|| m.to_string())
+        })
+        .expect("directive pattern present");
+    for d in [
+        "KAMAILIO",
+        "define",
+        "def",
+        "ifdef",
+        "ifndef",
+        "ifexp",
+        "else",
+        "endif",
+        "trydefine",
+        "trydef",
+        "redefine",
+        "redef",
+        "subst",
+        "substdef",
+        "substdefs",
+        "defexp",
+        "defexps",
+        "defenv",
+        "defenvs",
+        "trydefenv",
+        "trydefenvs",
+        "include_file",
+        "import_file",
+    ] {
+        assert!(
+            pattern.contains(d),
+            "directive '{d}' missing from the TextMate pattern"
+        );
+    }
+    assert!(
+        !pattern.contains("defval"),
+        "defval is not a kamailio directive"
+    );
+    assert!(
+        !pattern.starts_with("^"),
+        "directives are not line-anchored (indentation is legal)"
+    );
+    assert!(
+        pattern.contains("!!"),
+        "the '!!' PREP_START spelling must be highlighted"
+    );
+}

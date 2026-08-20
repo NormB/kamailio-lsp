@@ -4,10 +4,11 @@
   "scopeName": "source.kamailio",
   "patterns": [
     { "name": "keyword.control.directive.kamailio",
-      "match": "^#!(KAMAILIO|define|ifdef|ifndef|ifexp|else|endif|trydef|redefine|subst|substdef|substdefs|defenv|defenvs|defexp|defexps|defval)\\b.*$" },
+      "match": "(#!|!!)(KAMAILIO|OPENSER|SER|MAXCOMPAT|ALL|define|def|ifdef|ifndef|ifexp|else|endif|trydefine|trydef|redefine|redef|subst|substdef|substdefs|defexp|defexps|defenv|defenvs|trydefenv|trydefenvs|include_file|import_file)\\b.*$" },
     { "name": "keyword.control.import.kamailio",
       "match": "\\b(include_file|import_file)\\b" },
     { "name": "comment.line.number-sign.kamailio", "match": "#(?!!).*$" },
+    { "name": "comment.line.double-slash.kamailio", "match": "//.*$" },
     { "name": "comment.block.kamailio", "begin": "/\\*", "end": "\\*/" },
     { "name": "string.quoted.double.kamailio", "begin": "\"", "end": "\"",
       "patterns": [{ "name": "constant.character.escape.kamailio", "match": "\\\\." }] },
