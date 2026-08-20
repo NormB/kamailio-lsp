@@ -59,6 +59,13 @@ fn disk_loader(p: &std::path::Path) -> Option<String> {
 /// G1: on every corpus config the REAL parser accepts, the analyzer
 /// must stay silent.  Any analyzer false positive on a real accepted
 /// config is a CI failure forever.
+///
+/// Scope: the GRAMMAR-derived analyzer only.  Catalog-pinned checks
+/// (`logic::catalog_diagnostics`) are deliberately excluded — they
+/// assert doc coverage of the configured tree, not parser truth, and
+/// a README gap on an accepted config is a documentation finding, not
+/// an analyzer bug.  (Probed separately 2026-08-20: with the fixed
+/// harvest the full accepted corpus has zero undocumented modparams.)
 #[test]
 fn analyzer_is_silent_on_every_accepted_corpus_config() {
     let Ok(tree) = std::env::var("KAMAILIO_LSP_TEST_TREE") else {

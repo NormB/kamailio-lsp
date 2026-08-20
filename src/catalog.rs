@@ -139,7 +139,9 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
                 // an item of the active section
                 match section {
                     Section::Params => {
-                        let (name, detail) = match title.split_once(" (") {
+                        // both `name (type)` and `name(type)` occur
+                        // (presence writes `db_url(str)` unspaced)
+                        let (name, detail) = match title.split_once('(') {
                             Some((n, rest)) => (
                                 n.trim().to_string(),
                                 rest.trim_end_matches(')').trim().to_string(),

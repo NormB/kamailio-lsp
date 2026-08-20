@@ -162,6 +162,7 @@ fn the_shipped_admin_doc_documents_every_init_option() {
         "maxDiagnostics",
         "snippetCompletions",
         "analyzerDiagnostics",
+        "codeLensReferences",
         "cacheDir",
     ] {
         assert!(

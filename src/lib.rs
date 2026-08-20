@@ -11,6 +11,8 @@
 pub mod analyze;
 /// Module documentation harvesting.
 pub mod catalog;
+/// The `check` CLI subcommand.
+pub mod cli;
 /// `kamailio -c` diagnostics.
 pub mod diag;
 /// Completion/hover/definition assembly.

@@ -230,6 +230,79 @@ pub fn includes(text: &str) -> Vec<Located> {
     out
 }
 
+/// One `modparam("module", "param", ...)` call site.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModparamCall {
+    /// First argument: the module name.
+    pub module: String,
+    /// Second argument: the parameter name.
+    pub param: String,
+    /// 0-based line of the PARAM name.
+    pub line: u32,
+    /// 0-based start column of the PARAM name (inside its quotes).
+    pub col: u32,
+}
+
+static_regex!(
+    re_modparam_call,
+    r#"modparamx?\s*\(\s*["']([^"'\n]+)["']\s*,\s*["']([^"'\n]+)["']"#
+);
+
+/// Every `modparam("m", "p", ...)` / `modparamx(...)` in code
+/// position, with the position of the parameter name.
+pub fn modparam_calls(text: &str) -> Vec<ModparamCall> {
+    let classes = classify(text);
+    let b = text.as_bytes();
+    let mut out = Vec::new();
+    for c in re_modparam_call().captures_iter(text) {
+        let whole = c.get(0).unwrap();
+        let start = whole.start();
+        if classes.get(start) != Some(&Class::Code) {
+            continue;
+        }
+        if start > 0 && is_word(b[start - 1]) {
+            continue;
+        }
+        let (module, param) = (&c[1], &c[2]);
+        if module.contains('\0') || param.contains('\0') {
+            continue;
+        }
+        let pm = c.get(2).unwrap();
+        let (line, col) = line_col(text, pm.start());
+        out.push(ModparamCall {
+            module: module.to_string(),
+            param: param.to_string(),
+            line,
+            col,
+        });
+    }
+    out
+}
+
+static_regex!(
+    re_pvar_tok,
+    r"\$[A-Za-z][A-Za-z0-9_.]*(?:\([A-Za-z0-9_.:>=-]*\))?"
+);
+
+/// Every pseudo-variable occurrence as (line, col, byte length).
+/// Pvars inside strings COUNT — both quote styles produce the same
+/// STRING token (cfg.lex STRING1/STRING2) and module fixups
+/// interpolate the value afterwards; comments and `#!` directives
+/// never contribute.
+pub fn pvars(text: &str) -> Vec<(u32, u32, u32)> {
+    let classes = classify(text);
+    let mut out = Vec::new();
+    for m in re_pvar_tok().find_iter(text) {
+        match classes.get(m.start()) {
+            Some(&Class::Code) | Some(&Class::Str) => {}
+            _ => continue,
+        }
+        let (line, col) = line_col(text, m.start());
+        out.push((line, col, (m.end() - m.start()) as u32));
+    }
+    out
+}
+
 /// Every route-family block definition (`request_route`,
 /// `failure_route[x]`, `event_route[mod:event]`, ...).  Unnamed
 /// blocks have an empty name: `request_route`/`reply_route` never

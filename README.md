@@ -15,6 +15,11 @@ configuration file language (`kamailio.cfg`).
 | **References / rename / highlights** | Every call site + definition of a route name; rename rewrites them all (charset-gated, quoted call sites handled). |
 | **Document symbols** | All route blocks (`request_route`, `route[...]`, `failure_route[...]`, `event_route[...]`, …) with full block extents, nested outline. |
 | **Folding** | Route-family blocks fold; brace matching is string/comment-safe. |
+| **Workspace symbols / code lenses** | Ctrl+T searches route definitions across open files + includes; named callable routes show closure-wide reference counts. |
+| **Quick fixes** | Load the module exporting an unknown command; create a stub for an undefined `route(x)`. |
+| **Catalog validation** | `modparam` parameters the configured tree does not document warn as you type. |
+| **Semantic tokens** | Route names + pseudo-variables (both string quote styles), UTF-16 delta-encoded. |
+| **CLI** | `kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` for CI and git hooks (exit 0/1/2). |
 
 Positions are exchanged in UTF-16 units (the LSP default) and are
 correct on multibyte lines; doc harvests are cached per source tree

@@ -393,3 +393,36 @@ fn single_quote_adversarial_do_not_panic() {
         let _ = includes(s);
     }
 }
+
+use kamailio_lsp::analyze::modparam_calls;
+
+#[test]
+fn modparam_calls_are_extracted_with_param_positions() {
+    let text = "modparam(\"tm\", \"fr_timer\", 5)\n# modparam(\"no\", \"x\", 1)\nmodparam('sq', 'p2', \"v\")\nmodparamx(\"htable\", \"htable\", \"a=>size=4;\")\n";
+    let mp = modparam_calls(text);
+    assert_eq!(mp.len(), 3, "{mp:?}");
+    assert_eq!(
+        (mp[0].module.as_str(), mp[0].param.as_str()),
+        ("tm", "fr_timer")
+    );
+    assert_eq!(mp[0].line, 0);
+    // col points at the PARAM name (inside its quotes)
+    assert_eq!(mp[0].col, 16);
+    assert_eq!((mp[1].module.as_str(), mp[1].param.as_str()), ("sq", "p2"));
+    // modparamx counts too (cfg.y MODPARAMX)
+    assert_eq!(mp[2].module.as_str(), "htable");
+    // adversarial
+    for s in [
+        "",
+        "modparam(",
+        "modparam(\"a\"",
+        "modparam(\"a\",\"\0\",1)",
+        "xmodparam(\"a\",\"b\",1)",
+    ] {
+        let _ = modparam_calls(s);
+    }
+    assert!(
+        modparam_calls("xmodparam(\"a\",\"b\",1)").is_empty(),
+        "identifier tails must not match"
+    );
+}

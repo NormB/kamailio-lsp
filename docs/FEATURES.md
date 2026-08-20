@@ -64,6 +64,48 @@ rewritten inside the quotes; illegal names are rejected — the legal
 charset includes `:` for `event_route` names); all occurrences of the
 route under the cursor are highlighted, the definition as a write.
 
+#### Workspace symbols, code lenses
+
+**Ctrl+T** searches route definitions across every open file and its
+includes (case-insensitive, capped at 256). Named `route` blocks show
+a **reference count** code lens (counted across the include closure;
+only `route()`-callable blocks get one — `failure_route` and friends
+are armed via module functions we don't count); disable with
+`kamailioLsp.codeLens.references`.
+
+#### Quick fixes
+
+The lightbulb offers: **Load module 'X'** when the parser reports
+`unknown command, missing loadmodule?` and the catalog knows which
+module exports the function called at that spot (inserted after the
+last `loadmodule`, any load form), and **Create route[x]** for an
+undefined `route(x)` target (a stub with an `exit;` body is appended
+— empty route bodies are not valid Kamailio).
+
+#### Catalog-pinned validation
+
+`modparam("m", "p", ...)` (and `modparamx`) warns as you type when
+the configured source tree documents module `m` but no parameter `p`
+— version-exact by construction, since the catalog IS your pinned
+tree. Unknown modules stay silent.
+
+#### Semantic highlighting
+
+Route names (definitions and call sites) and pseudo-variables get
+semantic tokens, so themes color them consistently — including pvars
+inside strings of either quote style (both produce the same STRING
+token and modules interpolate the value at fixup); comments and
+`#!` directives never light up.
+
+#### CLI check mode
+
+`kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` runs the
+same analyzer (plus the real `kamailio -c --all-errors` when a binary
+is given) for CI pipelines and git hooks. Findings print as
+`file:line:col: severity: message` (1-based); errors inside included
+files attach to the `include_file` directive. Exit codes: 0 clean,
+1 findings (or warnings under `--strict`), 2 usage.
+
 #### Folding
 
 Every route-family block folds (`request_route`, `failure_route[x]`,
@@ -92,7 +134,8 @@ clients that can't pass options.
 | `kamailioLsp.kamailioWiki` | `kamailioWiki` | `KAMAILIO_LSP_WIKI` | *(unset)* | kamailio-wiki checkout for core-language docs. |
 | `kamailioLsp.modulesPath` | `modulesPath` | — | *(unset)* | Module search path for the checker (`-L`). |
 | `kamailioLsp.diagnostics.enable` | *(maps to empty `kamailioPath`)* | — | `true` | Toggle diagnostics without losing the configured path. |
-| `kamailioLsp.diagnostics.analyzer` | `analyzerDiagnostics` | — | `true` | Fast analyzer warnings between saves (undefined `route()` targets, duplicate definitions). |
+| `kamailioLsp.diagnostics.analyzer` | `analyzerDiagnostics` | — | `true` | Fast analyzer warnings between saves (undefined `route()` targets, duplicate definitions, undocumented modparams). |
+| `kamailioLsp.codeLens.references` | `codeLensReferences` | — | `true` | Reference-count code lenses on route definitions. |
 | `kamailioLsp.diagnostics.maxProblems` | `maxDiagnostics` | — | `100` | Bound on published diagnostics per file. |
 | `kamailioLsp.checkTimeoutMs` | `checkTimeoutMs` | `KAMAILIO_LSP_CHECK_TIMEOUT_MS` | `10000` | Kill a `-c` run after this many ms. |
 | `kamailioLsp.completion.snippets` | `snippetCompletions` | — | `true` | Function completions as tabstop snippets. |

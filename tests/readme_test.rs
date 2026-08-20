@@ -289,3 +289,16 @@ fn nested_adversarial_do_not_panic() {
         let _ = parse_readme_txt("m", s);
     }
 }
+
+#[test]
+fn param_headings_without_a_space_before_the_type_parse() {
+    // real shape from the presence/presence_xml READMEs:
+    // `3.1. db_url(str)` — no space before the paren (found by the
+    // catalog-vs-accepted-corpus probe, 2026-08-20)
+    let txt = "Presence Module\n\n3. Parameters\n\n3.1. db_url(str)\n\n   Database URL.\n\n3.2. spaced (int)\n\n   Spaced form still works.\n";
+    let m = parse_readme_txt("presence", txt).expect("parses");
+    let names: Vec<&str> = m.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, vec!["db_url", "spaced"], "{m:?}");
+    assert_eq!(m.params[0].detail, "str");
+    assert_eq!(m.params[1].detail, "int");
+}
