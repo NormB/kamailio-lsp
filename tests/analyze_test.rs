@@ -426,3 +426,49 @@ fn modparam_calls_are_extracted_with_param_positions() {
         "identifier tails must not match"
     );
 }
+
+#[test]
+fn include_links_carry_the_path_span() {
+    use kamailio_lsp::analyze::include_links;
+    let text = "include_file \"inc/a.cfg\"\n#!import_file \"b.cfg\"\nrequest_route { exit; }\n";
+    let links = include_links(text);
+    assert_eq!(links.len(), 2, "{links:?}");
+    // spans cover the QUOTED PATH, not the directive keyword
+    assert_eq!(links[0].path, "inc/a.cfg");
+    assert_eq!(links[0].line, 0);
+    assert_eq!(links[0].col, 14, "starts inside the quotes");
+    assert_eq!(links[0].len, "inc/a.cfg".len() as u32);
+    assert_eq!(links[1].path, "b.cfg");
+    assert_eq!(links[1].line, 1);
+    assert_eq!(links[1].col, 15);
+    assert_eq!(links[1].len, 5);
+}
+
+#[test]
+fn include_links_skip_comments_strings_and_hostile_paths() {
+    use kamailio_lsp::analyze::include_links;
+    // commented, string-embedded, and NUL-carrying paths yield nothing
+    assert!(include_links("# include_file \"a.cfg\"\n").is_empty());
+    assert!(include_links("$var(x) = \"include_file \\\"a.cfg\\\"\";\n").is_empty());
+    assert!(include_links("include_file \"a\u{0}b.cfg\"\n").is_empty());
+    assert!(include_links("include_file \"\"\n").is_empty());
+    // adversarial soup must not panic
+    for s in [
+        "include_file \"\\\\\\\\weird\\\\path.cfg\"",
+        "include_file 'single.cfg'",
+        "!!include_file \"bang.cfg\"",
+        "include_file \"unterminated",
+        "\u{0}\u{0}include_file \"x\"",
+    ] {
+        let _ = include_links(s);
+    }
+    // single quotes and !! prefixes DO produce links
+    assert_eq!(
+        include_links("include_file 'single.cfg'\n")[0].path,
+        "single.cfg"
+    );
+    assert_eq!(
+        include_links("!!include_file \"bang.cfg\"\n")[0].path,
+        "bang.cfg"
+    );
+}

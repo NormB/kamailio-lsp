@@ -192,6 +192,36 @@ pub fn loaded_modules(text: &str) -> Vec<Located> {
 /// position or `#!`/`!!`-prefixed as a directive (both are legal per
 /// cfg.lex); `name` is the quoted path verbatim.
 pub fn includes(text: &str) -> Vec<Located> {
+    include_links(text)
+        .into_iter()
+        .map(|l| Located {
+            name: l.path,
+            line: l.dir_line,
+            col: l.dir_col,
+        })
+        .collect()
+}
+
+/// One include directive with the exact span of its quoted path (for
+/// documentLink) alongside the directive's own position.
+#[derive(Debug, Clone, PartialEq)]
+pub struct IncludeLink {
+    /// The quoted path, verbatim.
+    pub path: String,
+    /// 0-based line of the PATH (inside the quotes).
+    pub line: u32,
+    /// 0-based start byte column of the path.
+    pub col: u32,
+    /// Byte length of the path.
+    pub len: u32,
+    /// 0-based line of the directive keyword.
+    pub dir_line: u32,
+    /// 0-based start column of the directive keyword.
+    pub dir_col: u32,
+}
+
+/// [`includes`] with the path spans preserved.
+pub fn include_links(text: &str) -> Vec<IncludeLink> {
     let classes = classify(text);
     let b = text.as_bytes();
     let mut out = Vec::new();
@@ -216,15 +246,19 @@ pub fn includes(text: &str) -> Vec<Located> {
                 continue;
             }
         }
-        let path = c.get(1).unwrap().as_str();
-        if path.is_empty() || path.contains('\0') {
+        let path = c.get(1).unwrap();
+        if path.as_str().is_empty() || path.as_str().contains('\0') {
             continue;
         }
-        let (line, col) = line_col(text, start);
-        out.push(Located {
-            name: path.to_string(),
+        let (dir_line, dir_col) = line_col(text, start);
+        let (line, col) = line_col(text, path.start());
+        out.push(IncludeLink {
+            path: path.as_str().to_string(),
             line,
             col,
+            len: (path.end() - path.start()) as u32,
+            dir_line,
+            dir_col,
         });
     }
     out

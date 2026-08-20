@@ -648,7 +648,14 @@ impl LanguageServer for Backend {
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 references_provider: Some(OneOf::Left(true)),
                 document_highlight_provider: Some(OneOf::Left(true)),
-                rename_provider: Some(OneOf::Left(true)),
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                })),
+                document_link_provider: Some(DocumentLinkOptions {
+                    resolve_provider: Some(false),
+                    work_done_progress_options: Default::default(),
+                }),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 semantic_tokens_provider: Some(
@@ -1218,6 +1225,80 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(hls))
+    }
+
+    async fn prepare_rename(
+        &self,
+        p: TextDocumentPositionParams,
+    ) -> Result<Option<PrepareRenameResponse>> {
+        let uri = p.text_document.uri;
+        let pos = p.position;
+        let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
+            return Ok(None);
+        };
+        let Some((name, ns)) = Self::route_symbol_at(&text, pos) else {
+            // off-symbol: a null response makes the editor block F2
+            return Ok(None);
+        };
+        // per-kind names (event_route, failure_route, ...) are never
+        // renamable — rename() would reject them, so block at prepare
+        if !matches!(ns, logic::RouteNs::Main) {
+            return Ok(None);
+        }
+        let line = Self::doc_line(&text, pos.line);
+        let byte_col = analyze::utf16_to_byte(&line, pos.character) as u32;
+        let occ = logic::ns_occurrences(&text, &name, &ns)
+            .into_iter()
+            .find(|(l, _)| {
+                l.line == pos.line && byte_col >= l.col && byte_col < l.col + name.len() as u32
+            });
+        let Some((l, _)) = occ else {
+            return Ok(None);
+        };
+        Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
+            range: Self::occurrence_range(&text, &l),
+            placeholder: name,
+        }))
+    }
+
+    async fn document_link(&self, p: DocumentLinkParams) -> Result<Option<Vec<DocumentLink>>> {
+        let uri = p.text_document.uri;
+        let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
+            return Ok(None);
+        };
+        let base_dir = uri
+            .to_file_path()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+        let links: Vec<DocumentLink> = analyze::include_links(&text)
+            .into_iter()
+            .filter_map(|l| {
+                let p = std::path::Path::new(&l.path);
+                // resolution parity with the checker and the closure
+                // walker: absolute as written, relative against the
+                // document's own directory.  Missing files still get
+                // a link — the editor surfaces the miss on click.
+                let target = if p.is_absolute() {
+                    p.to_path_buf()
+                } else {
+                    base_dir.as_ref()?.join(p)
+                };
+                let target = Url::from_file_path(&target).ok()?;
+                let lt = Self::doc_line(&text, l.line);
+                let s = analyze::byte_to_utf16(&lt, l.col as usize);
+                let e = analyze::byte_to_utf16(&lt, (l.col + l.len) as usize);
+                Some(DocumentLink {
+                    range: Range {
+                        start: Position::new(l.line, s),
+                        end: Position::new(l.line, e),
+                    },
+                    target: Some(target),
+                    tooltip: None,
+                    data: None,
+                })
+            })
+            .collect();
+        Ok(Some(links))
     }
 
     async fn rename(&self, p: RenameParams) -> Result<Option<WorkspaceEdit>> {
