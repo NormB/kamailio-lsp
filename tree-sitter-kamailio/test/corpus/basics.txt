@@ -1,0 +1,280 @@
+================================================================================
+globals, loadmodule, modparam
+================================================================================
+
+log_stderror = 1
+loadmodule "tm.so"
+loadmodule "sl"
+modparam("tm", "fr_timer", 30000)
+modparam("htable", "htable", "a=>size=4;")
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (global_assignment
+    name: (identifier)
+    value: (number))
+  (loadmodule
+    (string))
+  (loadmodule
+    (string))
+  (modparam
+    (string)
+    (string)
+    (number))
+  (modparam
+    (string)
+    (string)
+    (string)))
+
+================================================================================
+preprocessor directives and include
+================================================================================
+
+#!KAMAILIO
+#!define WITH_NAT
+#!ifdef WITH_NAT
+loadmodule "nathelper.so"
+#!else
+loadmodule "sl.so"
+#!endif
+#!substdef "!MY_IP!203.0.113.5!g"
+include_file "kamailio-local.cfg"
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (preproc)
+  (preproc)
+  (preproc)
+  (loadmodule
+    (string))
+  (preproc)
+  (loadmodule
+    (string))
+  (preproc)
+  (preproc)
+  (include
+    (string)))
+
+================================================================================
+request_route with control flow and calls
+================================================================================
+
+request_route {
+    if (is_method("OPTIONS")) {
+        sl_send_reply("200", "OK");
+        exit;
+    } else {
+        route(OTHER);
+    }
+}
+
+route[OTHER] {
+    xlog("hi");
+}
+
+route["QUOTED"] {
+    exit;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    kind: (route_kind)
+    body: (block
+      (if_statement
+        (call_expression
+          function: (identifier)
+          (string))
+        (block
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              (string)
+              (string)))
+          (keyword_statement))
+        (block
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              (identifier)))))))
+  (route_definition
+    kind: (route_kind)
+    name: (identifier)
+    body: (block
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          (string)))))
+  (route_definition
+    kind: (route_kind)
+    name: (string)
+    body: (block
+      (keyword_statement))))
+
+================================================================================
+pseudo-variables, transformations, assignment, comments
+================================================================================
+
+# line comment
+/* block
+   comment */
+request_route {
+    $var(x) = 1;
+    $avp(dst) = $ru;
+    $var(l) = $(ru{s.len});
+    $sht(a=>k) = 2;
+    if ($si == "192.0.2.1" && $rp > 5060) {
+        drop;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (comment)
+  (block_comment)
+  (route_definition
+    kind: (route_kind)
+    body: (block
+      (assignment_statement
+        target: (pseudo_variable)
+        value: (number))
+      (assignment_statement
+        target: (pseudo_variable)
+        value: (pseudo_variable))
+      (assignment_statement
+        target: (pseudo_variable)
+        value: (pseudo_variable))
+      (assignment_statement
+        target: (pseudo_variable)
+        value: (number))
+      (if_statement
+        (binary_expression
+          (binary_expression
+            (pseudo_variable)
+            (string))
+          (binary_expression
+            (pseudo_variable)
+            (number)))
+        (block
+          (keyword_statement))))))
+
+================================================================================
+route kinds, event_route names, preproc inside a block
+================================================================================
+
+failure_route[NAT] { t_reply("500", "e"); }
+onreply_route[R] { exit; }
+branch_route[B] { exit; }
+onsend_route {
+    drop;
+}
+reply_route { exit; }
+event_route[htable:mod-init] {
+#!ifdef WITH_DEBUG
+    xlog("boot");
+#!endif
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    kind: (route_kind)
+    name: (identifier)
+    body: (block
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          (string)
+          (string)))))
+  (route_definition
+    kind: (route_kind)
+    name: (identifier)
+    body: (block
+      (keyword_statement)))
+  (route_definition
+    kind: (route_kind)
+    name: (identifier)
+    body: (block
+      (keyword_statement)))
+  (route_definition
+    kind: (route_kind)
+    body: (block
+      (keyword_statement)))
+  (route_definition
+    kind: (route_kind)
+    body: (block
+      (keyword_statement)))
+  (route_definition
+    kind: (route_kind)
+    name: (event_name)
+    body: (block
+      (preproc)
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          (string)))
+      (preproc))))
+
+================================================================================
+socket globals
+================================================================================
+
+listen=udp:127.0.0.1:5060
+listen=tls:*:5061
+debug = 2
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (global_assignment
+    name: (identifier)
+    value: (socket_value))
+  (global_assignment
+    name: (identifier)
+    value: (socket_value))
+  (global_assignment
+    name: (identifier)
+    value: (number)))
+
+================================================================================
+old-style block semicolons, alias globals, indexed pvars
+================================================================================
+
+alias=sip.example.com
+request_route {
+    if (1) {
+        exit;
+    };
+    while ( $(avp(gw)[$var(i)]) != $null ) {
+        xlog("x");
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (global_assignment
+    name: (identifier)
+    value: (host_value))
+  (route_definition
+    kind: (route_kind)
+    body: (block
+      (if_statement
+        (number)
+        (block
+          (keyword_statement)))
+      (empty_statement)
+      (while_statement
+        (binary_expression
+          (pseudo_variable)
+          (pseudo_variable))
+        (block
+          (expression_statement
+            (call_expression
+              function: (identifier)
+              (string))))))))

@@ -1,0 +1,142 @@
+{
+  "name": "kamailio-lsp",
+  "displayName": "Kamailio Routing Script",
+  "description": "Language support for kamailio.cfg configuration files (diagnostics via kamailio -c, completion, hover, go-to-definition).",
+  "version": "0.1.0",
+  "publisher": "NormB",
+  "license": "(MIT OR Apache-2.0)",
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "kamailio-cfg",
+        "aliases": [
+          "Kamailio config",
+          "kamailio"
+        ],
+        "filenames": [
+          "kamailio.cfg"
+        ],
+        "firstLine": "^#!KAMAILIO",
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kamailio-cfg",
+        "scopeName": "source.kamailio",
+        "path": "./syntaxes/kamailio.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Kamailio LSP",
+      "properties": {
+        "kamailioLsp.serverPath": {
+          "type": "string",
+          "default": "kamailio-lsp",
+          "description": "Path to the kamailio-lsp server binary. Leave at the default to use the server bundled with platform builds of this extension (falling back to a PATH lookup)."
+        },
+        "kamailioLsp.kamailioPath": {
+          "type": "string",
+          "default": "kamailio",
+          "description": "Path to the kamailio binary used for -c diagnostics."
+        },
+        "kamailioLsp.kamailioSrc": {
+          "type": "string",
+          "default": "",
+          "description": "Kamailio source tree to harvest module documentation from (completion/hover)."
+        },
+        "kamailioLsp.kamailioWiki": {
+          "type": "string",
+          "default": "",
+          "description": "kamailio-wiki checkout to harvest core-language documentation from (core parameters, functions, pseudo-variables)."
+        },
+        "kamailioLsp.modulesPath": {
+          "type": "string",
+          "default": "",
+          "description": "Module search path passed to the checker as -L (empty = the binary's compiled-in default)."
+        },
+        "kamailioLsp.checkTimeoutMs": {
+          "type": "number",
+          "default": 10000,
+          "description": "Upper bound (ms) on one 'kamailio -c' diagnostics run."
+        },
+        "kamailioLsp.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Kamailio language server (restart applies automatically)."
+        },
+        "kamailioLsp.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace the LSP traffic between VS Code and kamailio-lsp in the output channel."
+        },
+        "kamailioLsp.diagnostics.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run 'kamailio -c' checks on open/save. Diagnostics are also disabled automatically in untrusted workspaces."
+        },
+        "kamailioLsp.diagnostics.maxProblems": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum diagnostics published per file."
+        },
+        "kamailioLsp.completion.snippets": {
+          "type": "boolean",
+          "default": true,
+          "description": "Insert function completions as snippets with a tabstop between the parentheses."
+        },
+        "kamailioLsp.cacheDir": {
+          "type": "string",
+          "default": "",
+          "description": "Documentation-catalog cache directory (empty = the platform cache dir)."
+        }
+      }
+    },
+    "snippets": [
+      {
+        "language": "kamailio-cfg",
+        "path": "./snippets/kamailio.code-snippets"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.91.0",
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NormB/kamailio-lsp.git"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In untrusted workspaces, diagnostics are disabled: running 'kamailio -c' loads the modules the configuration references, which executes code. Completion, hover, and navigation stay available.",
+      "restrictedConfigurations": [
+        "kamailioLsp.kamailioPath"
+      ]
+    }
+  },
+  "icon": "icon.png"
+}

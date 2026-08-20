@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Kamailio config",
+  "scopeName": "source.kamailio",
+  "patterns": [
+    { "name": "keyword.control.directive.kamailio",
+      "match": "^#!(KAMAILIO|define|ifdef|ifndef|ifexp|else|endif|trydef|redefine|subst|substdef|substdefs|defenv|defenvs|defexp|defexps|defval)\\b.*$" },
+    { "name": "keyword.control.import.kamailio",
+      "match": "\\b(include_file|import_file)\\b" },
+    { "name": "comment.line.number-sign.kamailio", "match": "#(?!!).*$" },
+    { "name": "comment.block.kamailio", "begin": "/\\*", "end": "\\*/" },
+    { "name": "string.quoted.double.kamailio", "begin": "\"", "end": "\"",
+      "patterns": [{ "name": "constant.character.escape.kamailio", "match": "\\\\." }] },
+    { "name": "keyword.control.kamailio",
+      "match": "\\b(if|else|switch|case|default|break|while|exit|drop|return)\\b" },
+    { "name": "storage.type.function.kamailio",
+      "match": "\\b(request_route|reply_route|onreply_route|failure_route|branch_route|event_route|onsend_route|route)\\b" },
+    { "name": "support.function.kamailio",
+      "match": "\\b(loadmodule|loadpath|modparam|xlog|sl_send_reply|t_relay|forward|setflag|resetflag|isflagset|is_method)\\b" },
+    { "name": "variable.other.kamailio", "match": "\\$\\(?[A-Za-z_][A-Za-z0-9_]*(\\([^)\\n]*\\))?" },
+    { "name": "constant.numeric.kamailio", "match": "\\b(0[xX][0-9a-fA-F]+|[0-9]+)\\b" }
+  ]
+}

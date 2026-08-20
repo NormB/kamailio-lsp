@@ -1,0 +1,15 @@
+[package]
+name = "kamailio-lsp"
+version = "0.1.0"
+edition = "2024"
+description = "Language Server Protocol implementation for the Kamailio configuration file language"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/NormB/kamailio-lsp"
+
+[dependencies]
+dashmap = "6"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tower-lsp = "0.20"

@@ -1,0 +1,16 @@
+{
+  "name": "tree-sitter-kamailio",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the Kamailio configuration file language",
+  "license": "(MIT OR Apache-2.0)",
+  "main": "bindings/node",
+  "tree-sitter": [
+    {
+      "scope": "source.kamailio",
+      "file-types": [
+        "cfg"
+      ],
+      "injection-regex": "kamailio"
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  server:
+    name: Server (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            os: linux-gnu
+            runner: ubuntu-latest
+          - arch: aarch64
+            os: linux-gnu
+            runner: ubuntu-24.04-arm
+          - arch: aarch64
+            os: darwin
+            runner: macos-14
+          - arch: x86_64
+            os: darwin
+            runner: macos-14
+            # GitHub retired the Intel macos-13 runners; cross-compile
+            # the x86_64 slice on the arm64 runner instead
+            target: x86_64-apple-darwin
+          - arch: x86_64
+            os: windows
+            runner: windows-latest
+          - arch: aarch64
+            os: windows
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target || '' }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and package
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            cargo build --release --target "${{ matrix.target }}"
+            BINDIR="target/${{ matrix.target }}/release"
+          else
+            cargo build --release
+            BINDIR="target/release"
+          fi
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            # zip: what Windows users (and Explorer) expect
+            7z a -tzip \
+              kamailio-lsp-${GITHUB_REF_NAME}-${{ matrix.arch }}-windows.zip \
+              "./$BINDIR/kamailio-lsp.exe" >/dev/null
+          else
+            tar -C "$BINDIR" -czf \
+              kamailio-lsp-${GITHUB_REF_NAME}-${{ matrix.arch }}-${{ matrix.os }}.tar.gz \
+              kamailio-lsp
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.arch }}-${{ matrix.os }}
+          path: |
+            kamailio-lsp-*.tar.gz
+            kamailio-lsp-*.zip
+
+  vsix:
+    name: VS Code extension (platform builds)
+    needs: [server]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: server-*
+          path: dist
+          merge-multiple: true
+      - name: Package platform + universal builds
+        working-directory: client
+        run: |
+          npm install --no-audit --no-fund
+          npm run compile
+          # platform builds carry the matching server binary
+          for triple in "linux-x64 x86_64 linux-gnu" "linux-arm64 aarch64 linux-gnu" \
+                        "darwin-arm64 aarch64 darwin" "darwin-x64 x86_64 darwin" \
+                        "win32-x64 x86_64 windows" "win32-arm64 aarch64 windows"; do
+            set -- $triple
+            target=$1; arch=$2; os=$3
+            rm -rf server && mkdir server
+            if [ "$os" = "windows" ]; then
+              unzip -q -d server \
+                ../dist/kamailio-lsp-${GITHUB_REF_NAME}-${arch}-windows.zip
+            else
+              tar -C server -xzf \
+                ../dist/kamailio-lsp-${GITHUB_REF_NAME}-${arch}-${os}.tar.gz
+            fi
+            npx --yes @vscode/vsce package --target "$target" --out \
+              kamailio-lsp-ext-${GITHUB_REF_NAME}-${target}.vsix
+          done
+          # universal build: no binary, PATH/setting fallback
+          rm -rf server
+          npx --yes @vscode/vsce package --out \
+            kamailio-lsp-ext-${GITHUB_REF_NAME}.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: client/*.vsix
+
+  openvsx:
+    name: Open VSX
+    needs: [vsix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "OVSX_PAT secret not set — skipping Open VSX publish."
+            exit 0
+          fi
+          # first publish needs the namespace (derived from the vsix
+          # manifest so it can never drift); idempotent afterwards
+          NS=$(python3 -c "import zipfile,json,glob; \
+            print(json.loads(zipfile.ZipFile(sorted(glob.glob('*.vsix'))[0]).read('extension/package.json'))['publisher'])")
+          npx --yes ovsx create-namespace "$NS" -p "$OVSX_PAT" || true
+          for f in *.vsix; do
+            npx --yes ovsx publish "$f" -p "$OVSX_PAT" || exit 1
+          done
+
+  publish:
+    name: GitHub release
+    needs: [server, vsix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            kamailio-lsp-*.tar.gz kamailio-lsp-*.zip *.vsix

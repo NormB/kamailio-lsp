@@ -1,0 +1,86 @@
+#!/bin/sh
+# kamailio-lsp one-command installer.
+#
+#   curl -fsSL https://raw.githubusercontent.com/NormB/kamailio-lsp/main/install.sh | sh
+#
+# Downloads the latest release for this machine, installs the server
+# to ~/.local/bin/kamailio-lsp, and — when the `code` command is
+# available — installs the VS Code extension too. Overrides:
+#   KAMAILIO_LSP_VERSION   release tag        (default: latest)
+#   KAMAILIO_LSP_PREFIX    server install dir (default: ~/.local/bin)
+set -eu
+
+REPO="NormB/kamailio-lsp"
+PREFIX="${KAMAILIO_LSP_PREFIX:-$HOME/.local/bin}"
+
+say()  { printf '%s\n' "$*"; }
+fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+command -v curl >/dev/null 2>&1 || fail "curl is required"
+command -v tar  >/dev/null 2>&1 || fail "tar is required"
+
+case "$(uname -s)" in
+    Linux)  OS=linux-gnu ;;
+    Darwin) OS=darwin ;;
+    *) fail "no prebuilt binaries for $(uname -s); see README 'Build & test'" ;;
+esac
+case "$(uname -m)" in
+    x86_64|amd64)   ARCH=x86_64 ;;
+    aarch64|arm64)  ARCH=aarch64 ;;
+    *) fail "no prebuilt binary for $(uname -m); see README 'Build & test'" ;;
+esac
+
+if [ -n "${KAMAILIO_LSP_VERSION:-}" ]; then
+    TAG="$KAMAILIO_LSP_VERSION"
+else
+    TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+        | tr ',' '\n' | grep -m1 '"tag_name"' | cut -d'"' -f4)
+    [ -n "$TAG" ] || fail "could not determine the latest release"
+fi
+say "Installing kamailio-lsp $TAG for $ARCH ..."
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+BASE="https://github.com/$REPO/releases/download/$TAG"
+curl -fsSL -o "$TMP/server.tar.gz" \
+    "$BASE/kamailio-lsp-$TAG-$ARCH-$OS.tar.gz" \
+    || fail "download failed: $BASE/kamailio-lsp-$TAG-$ARCH-$OS.tar.gz"
+tar -C "$TMP" -xzf "$TMP/server.tar.gz"
+mkdir -p "$PREFIX"
+install -m755 "$TMP/kamailio-lsp" "$PREFIX/kamailio-lsp"
+say "Server installed: $PREFIX/kamailio-lsp"
+
+case ":$PATH:" in
+    *":$PREFIX:"*) ;;
+    *) say "NOTE: $PREFIX is not on your PATH — add it, e.g.:"
+       say "      echo 'export PATH=\"$PREFIX:\$PATH\"' >> ~/.profile" ;;
+esac
+
+INSTALLED_EDITOR=""
+for editor in code code-insiders codium; do
+    command -v "$editor" >/dev/null 2>&1 || continue
+    if [ ! -f "$TMP/ext.vsix" ]; then
+        curl -fsSL -o "$TMP/ext.vsix" "$BASE/kamailio-lsp-ext-$TAG.vsix" \
+            || fail "download failed: $BASE/kamailio-lsp-ext-$TAG.vsix"
+    fi
+    "$editor" --install-extension "$TMP/ext.vsix" --force >/dev/null
+    say "Extension installed into $editor."
+    INSTALLED_EDITOR=yes
+done
+if [ -n "$INSTALLED_EDITOR" ]; then
+    say
+    say "Done. Open any kamailio.cfg and it just works."
+    say "Optional settings (File > Preferences > Settings, search 'kamailio'):"
+    say "  - Kamailio Path: your kamailio binary (enables live error checking)"
+    say "  - Kamailio Src:  an Kamailio source tree (richer completion docs)"
+else
+    say
+    say "No 'code'/'code-insiders'/'codium' command was found, so the"
+    say "extension was not installed automatically."
+    say "To add it by hand:"
+    say "  1. Download: $BASE/kamailio-lsp-ext-$TAG.vsix"
+    say "  2. In VS Code press Ctrl+Shift+X, click the '...' menu"
+    say "     (top-right of the Extensions panel), choose"
+    say "     'Install from VSIX...' and pick the downloaded file."
+fi
