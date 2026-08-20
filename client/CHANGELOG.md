@@ -4,6 +4,15 @@ All notable changes to the Kamailio Routing Script extension.
 
 ## [Unreleased]
 
+- **Dynamic settings**: changing `diagnostics.analyzer`,
+  `completion.snippets`, `codeLens.references`,
+  `diagnostics.maxProblems`, or `checkTimeoutMs` no longer restarts
+  the language server — the client pushes
+  `workspace/didChangeConfiguration` and the server applies the
+  change live, republishing diagnostics for open files. Path
+  settings (server/kamailio binary, source/wiki trees, cache dir)
+  still restart automatically.
+
 - **Content-aware catalog cache**: the harvest cache is now keyed by
   a manifest of every file it reads (size + mtime per module README
   and cookbook page) plus a schema version — editing a doc file

@@ -157,8 +157,13 @@ clients that can't pass options.
   file; relative paths resolve against the including file's
   directory. `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` tunes the analyzer
   debounce (default 300).
-- Server-backed options apply at initialization; the VS Code client
-  restarts the server automatically when any `kamailioLsp.*` setting
-  changes, so edits take effect immediately.
+- Runtime toggles (`diagnostics.analyzer`, `completion.snippets`,
+  `codeLens.references`, `diagnostics.maxProblems`,
+  `checkTimeoutMs`) apply **live**: the VS Code client pushes them to
+  the running server via `workspace/didChangeConfiguration` and open
+  documents republish immediately. Settings that shape
+  initialization (`serverPath`, `kamailioPath`, `kamailioSrc`,
+  `kamailioWiki`, `modulesPath`, `cacheDir`, `enable`,
+  `diagnostics.enable`) still restart the server automatically.
 - Snippet completions and static snippets compose: static snippets
   scaffold blocks, completion snippets fill in calls.

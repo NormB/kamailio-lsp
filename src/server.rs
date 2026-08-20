@@ -872,6 +872,59 @@ impl LanguageServer for Backend {
         self.spawn_check(&p.text_document.uri);
     }
 
+    async fn did_change_configuration(&self, p: DidChangeConfigurationParams) {
+        // runtime-tunable settings, applied in place; the paths that
+        // shape initialization (server binary, kamailio binary,
+        // source/wiki trees, cache dir) still require a restart and
+        // are deliberately not read here.  Settings may arrive
+        // wrapped in a `kamailioLsp` section or flat; anything
+        // unparseable is ignored.
+        let s = &p.settings;
+        let s = s.get("kamailioLsp").unwrap_or(s);
+        if let Some(b) = s.get("analyzerDiagnostics").and_then(|v| v.as_bool()) {
+            *self.analyzer_enabled.write().unwrap() = b;
+        }
+        if let Some(b) = s.get("snippetCompletions").and_then(|v| v.as_bool()) {
+            *self.snippet_completions.write().unwrap() = b;
+        }
+        if let Some(b) = s.get("codeLensReferences").and_then(|v| v.as_bool()) {
+            *self.code_lens_refs.write().unwrap() = b;
+        }
+        if let Some(n) = s.get("maxDiagnostics").and_then(|v| v.as_u64()) {
+            *self.max_diagnostics.write().unwrap() = (n as usize).max(1);
+        }
+        if let Some(ms) = s.get("checkTimeoutMs").and_then(|v| v.as_u64()) {
+            *self.check_timeout.write().unwrap() = logic::resolve_timeout(
+                Some(ms),
+                std::env::var("KAMAILIO_LSP_CHECK_TIMEOUT_MS").ok(),
+            );
+        }
+        // retuned toggles must apply to what is already on screen:
+        // republish diagnostics for every open document
+        let analyzer_enabled = *self.analyzer_enabled.read().unwrap();
+        let cap = *self.max_diagnostics.read().unwrap();
+        let open_docs: Vec<(Url, i32, String)> = self
+            .docs
+            .iter()
+            .map(|e| (e.key().clone(), e.value().0, e.value().1.clone()))
+            .collect();
+        for (uri, version, text) in open_docs {
+            Self::merge_and_publish(
+                &self.client,
+                &self.check_diags,
+                analyzer_enabled,
+                cap,
+                &uri,
+                version,
+                &text,
+                self.open_docs_snapshot(),
+                &self.catalog,
+                false,
+            )
+            .await;
+        }
+    }
+
     async fn did_close(&self, p: DidCloseTextDocumentParams) {
         if let Some((_, task)) = self.check_tasks.remove(&p.text_document.uri) {
             task.abort();
