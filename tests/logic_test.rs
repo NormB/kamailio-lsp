@@ -352,3 +352,88 @@ fn pvar_tail_reports_replacement_length() {
     // "$x y" — space breaks the tail
     assert_eq!(pvar_tail("$x y"), None);
 }
+
+use kamailio_lsp::logic::{
+    analyzer_diagnostics, include_closure, loaded_modules_multi, route_defs_multi,
+};
+
+#[test]
+fn include_closure_follows_cycles_and_depth_safely() {
+    use std::path::Path;
+    // a.cfg includes b.cfg; b.cfg includes a.cfg (cycle) and missing.cfg
+    let loader = |p: &Path| -> Option<String> {
+        match p.to_str()? {
+            "/x/a.cfg" => Some("include_file \"b.cfg\"\nroute[A_R] { exit; }\n".into()),
+            "/x/b.cfg" => Some(
+                "include_file \"a.cfg\"\ninclude_file \"missing.cfg\"\nloadmodule \"tm.so\"\nroute[B_R] { exit; }\n"
+                    .into(),
+            ),
+            _ => None,
+        }
+    };
+    let root_text = loader(Path::new("/x/a.cfg")).unwrap();
+    let files = include_closure(Path::new("/x/a.cfg"), &root_text, &loader);
+    let paths: Vec<&str> = files.iter().map(|(p, _)| p.to_str().unwrap()).collect();
+    assert_eq!(
+        paths,
+        vec!["/x/a.cfg", "/x/b.cfg"],
+        "cycle visited once, missing skipped"
+    );
+    // multi-file views
+    let mods = loaded_modules_multi(&files);
+    assert_eq!(mods, vec!["tm"]);
+    let defs = route_defs_multi(&files);
+    let names: Vec<(&str, &str)> = defs
+        .iter()
+        .map(|(p, l)| (p.to_str().unwrap(), l.name.as_str()))
+        .collect();
+    assert!(names.contains(&("/x/a.cfg", "A_R")));
+    assert!(names.contains(&("/x/b.cfg", "B_R")));
+    // depth bomb: a chain of self-includes must terminate
+    let bomb = |_: &Path| -> Option<String> { Some("include_file \"z.cfg\"\n".into()) };
+    let files = include_closure(Path::new("/x/z.cfg"), "include_file \"z.cfg\"\n", &bomb);
+    assert_eq!(files.len(), 1);
+}
+
+#[test]
+fn analyzer_diagnostics_flag_undefined_and_duplicate_routes() {
+    use std::path::Path;
+    let loader = |_: &Path| -> Option<String> { None };
+    // undefined route ref
+    let text = "request_route {\n    route(NOPE);\n}\n";
+    let ds = analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+    assert!(ds[0].message.contains("NOPE"));
+    assert_eq!(ds[0].line, 1);
+    assert!(ds[0].col_start < ds[0].col_end);
+    // defined in an include → clean
+    let loader2 = |p: &Path| -> Option<String> {
+        (p.to_str() == Some("/x/inc.cfg")).then(|| "route[NOPE] { exit; }\n".to_string())
+    };
+    let text2 = "include_file \"inc.cfg\"\nrequest_route {\n    route(NOPE);\n}\n";
+    assert!(analyzer_diagnostics(Path::new("/x/t.cfg"), text2, &loader2).is_empty());
+    // duplicate definitions: the LATER one in this file is flagged
+    let text3 = "route[DUP] { exit; }\nroute[DUP] { exit; }\n";
+    let ds = analyzer_diagnostics(Path::new("/x/t.cfg"), text3, &loader);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+    assert_eq!(ds[0].line, 1);
+    assert!(ds[0].message.contains("DUP"));
+    // unnamed blocks never collide (request_route + reply_route + route)
+    let text4 = "request_route { exit; }\nreply_route { exit; }\nonsend_route { exit; }\n";
+    assert!(analyzer_diagnostics(Path::new("/x/t.cfg"), text4, &loader).is_empty());
+    // clean file → empty; adversarial → no panic
+    assert!(
+        analyzer_diagnostics(Path::new("/x/t.cfg"), "request_route { exit; }\n", &loader)
+            .is_empty()
+    );
+    for s in [
+        "",
+        "\0",
+        "route(",
+        "include_file \"\0\"",
+        "route(x) route[x]{}",
+        "request_route { route(\\ ); }",
+    ] {
+        let _ = analyzer_diagnostics(Path::new("/x/t.cfg"), s, &loader);
+    }
+}

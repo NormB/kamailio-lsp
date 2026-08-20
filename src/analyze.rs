@@ -105,6 +105,7 @@ static_regex!(
     re_route_ref,
     r#"route\s*\(\s*"?([A-Za-z0-9_.:-]+)"?\s*[,)]"#
 );
+static_regex!(re_include, r#"(?:include_file|import_file)\s*"([^"\n]+)""#);
 static_regex!(
     re_modparam_ctx,
     r#"modparam\s*\(\s*"([^"\n]+)"\s*,\s*("[^"\n]*)?$"#
@@ -132,6 +133,36 @@ pub fn loaded_modules(text: &str) -> Vec<Located> {
         let (line, col) = line_col(text, whole.start());
         out.push(Located {
             name: base.to_string(),
+            line,
+            col,
+        });
+    }
+    out
+}
+
+/// Every `include_file "x"` / `import_file "x"` in code position;
+/// `name` is the quoted path verbatim.
+pub fn includes(text: &str) -> Vec<Located> {
+    let classes = classify(text);
+    let b = text.as_bytes();
+    let mut out = Vec::new();
+    for c in re_include().captures_iter(text) {
+        let whole = c.get(0).unwrap();
+        let start = whole.start();
+        if classes.get(start) != Some(&Class::Code) {
+            continue;
+        }
+        // reject matches that are a tail of a longer identifier
+        if start > 0 && is_word(b[start - 1]) {
+            continue;
+        }
+        let path = c.get(1).unwrap().as_str();
+        if path.is_empty() || path.contains('\0') {
+            continue;
+        }
+        let (line, col) = line_col(text, start);
+        out.push(Located {
+            name: path.to_string(),
             line,
             col,
         });
