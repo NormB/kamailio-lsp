@@ -228,12 +228,21 @@ fn definition_resolves_dotted_route_names() {
 }
 
 #[test]
-fn valid_route_name_gate() {
+fn valid_route_name_gate_is_the_unquoted_id_charset() {
+    // kamailio's unquoted route_name is ID = [A-Za-z_][A-Za-z0-9_]*
+    // (cfg.lex; verified: route[a.b]/route[a:b]/route[a-b]/route[1ab]
+    // are all rejected by the 6.0.1 binary unless quoted) — rename
+    // must only ever produce names that are legal WITHOUT quotes,
+    // because definitions are commonly written unquoted
     assert!(valid_route_name("RELAY"));
-    // kamailio event-route names carry ':' and '-'
-    assert!(valid_route_name("htable:mod-init"));
-    assert!(valid_route_name("to.b_1:x-y"));
+    assert!(valid_route_name("_x1"));
+    assert!(valid_route_name("a_b9"));
     assert!(!valid_route_name(""));
+    assert!(!valid_route_name("1ab"), "leading digit is not an ID");
+    assert!(!valid_route_name("a.b"), "dot needs quoting");
+    assert!(!valid_route_name("a:b"), "colon is event-route grammar");
+    assert!(!valid_route_name("a-b"), "dash needs quoting");
+    assert!(!valid_route_name("htable:mod-init"));
     assert!(!valid_route_name("has space"));
     assert!(!valid_route_name("quote\""));
     assert!(!valid_route_name("nul\0"));
@@ -435,5 +444,47 @@ fn analyzer_diagnostics_flag_undefined_and_duplicate_routes() {
         "request_route { route(\\ ); }",
     ] {
         let _ = analyzer_diagnostics(Path::new("/x/t.cfg"), s, &loader);
+    }
+}
+
+#[test]
+fn include_diags_remap_to_the_include_directive() {
+    use kamailio_lsp::diag::{Diag, Severity};
+    use kamailio_lsp::logic::remap_include_diag;
+    let checked = std::path::Path::new("/w/main.cfg");
+    let root_text = "#!KAMAILIO\ninclude_file \"incdir/sub_bad.cfg\"\nrequest_route { exit; }\n";
+    let mk = |file: &str| Diag {
+        file: file.into(),
+        line: 1,
+        end_line: 1,
+        col_start: 15,
+        col_end: 16,
+        severity: Severity::Error,
+        message: "syntax error".into(),
+    };
+    // a diag for the checked file itself passes through unchanged
+    let d = remap_include_diag(checked, root_text, &mk("/w/main.cfg")).expect("own diag");
+    assert_eq!(d.line, 1);
+    assert_eq!(d.message, "syntax error");
+    // kamailio echoes the include path AS WRITTEN (relative): the diag
+    // must attach to the include_file directive in the root
+    let d = remap_include_diag(checked, root_text, &mk("incdir/sub_bad.cfg"))
+        .expect("include diag must not be dropped");
+    assert_eq!(d.line, 1, "attach at the include_file line");
+    assert!(
+        d.message.contains("incdir/sub_bad.cfg") && d.message.contains("line 2"),
+        "message names the include and the real line: {}",
+        d.message
+    );
+    assert!(d.message.contains("syntax error"));
+    // absolute spelling of the same include target also attaches
+    let d = remap_include_diag(checked, root_text, &mk("/w/incdir/sub_bad.cfg"))
+        .expect("absolute include diag");
+    assert_eq!(d.line, 1);
+    // an unrelated file stays dropped (caller falls back on rc!=0)
+    assert!(remap_include_diag(checked, root_text, &mk("/elsewhere/other.cfg")).is_none());
+    // adversarial: never panic
+    for f in ["", "\0", "..", "a\\b", "incdir/../incdir/sub_bad.cfg"] {
+        let _ = remap_include_diag(checked, root_text, &mk(f));
     }
 }
