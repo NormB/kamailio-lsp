@@ -151,10 +151,11 @@ fn complete_files(
         kind: CompKind::Route,
     };
     let route_names = || {
-        route_defs_multi(files)
+        // only main-table names are route() targets
+        route_blocks_multi(files)
             .into_iter()
-            .filter(|(_, r)| !r.name.is_empty())
-            .map(|(_, r)| r.name)
+            .filter(|(_, b)| b.kind == "route" && !b.name.is_empty())
+            .map(|(_, b)| b.name)
     };
     // route(<cursor>) → route names only
     if route_call_context(line_prefix) {
@@ -263,20 +264,42 @@ pub fn definition_of(doc: &str, line: u32, col: u32) -> Option<Located> {
         .into_iter()
         .find(|r| in_span(r, &r.name, line, col))?
         .name;
-    analyze::route_defs(doc)
+    // only main-table blocks are route() targets
+    analyze::route_blocks(doc)
         .into_iter()
+        .filter(|b| b.kind == "route")
+        .map(|b| Located {
+            name: b.name,
+            line: b.line,
+            col: b.col,
+        })
         .find(|d| d.name == name)
 }
 
-/// The route name whose span covers byte position (line, col) — at a
-/// `route(name)` call site or at the NAME inside a `route[name]`
-/// definition.  Unnamed blocks (`request_route`, ...) have no symbol.
-pub fn route_symbol_at(doc: &str, line: u32, col: u32) -> Option<String> {
+/// The namespace a route-name symbol lives in.  Kamailio keeps one
+/// route table per block kind: `route(NAME)` invokes only the main
+/// table (`route[NAME]` blocks); `failure_route[NAME]` and friends
+/// are armed through module functions and share nothing with the
+/// main table (same-name cross-kind configs are legal).
+#[derive(Debug, Clone, PartialEq)]
+pub enum RouteNs {
+    /// The main route table: `route[NAME]` defs + `route(NAME)` calls.
+    Main,
+    /// A per-kind table (`failure_route`, `event_route`, ...): just
+    /// that kind's bracket names.
+    Kind(String),
+}
+
+/// The route-name symbol whose span covers byte position (line, col)
+/// — at a `route(name)` call site or at the NAME inside any named
+/// block — together with its namespace.  Unnamed blocks have no
+/// symbol.
+pub fn route_symbol_ns_at(doc: &str, line: u32, col: u32) -> Option<(String, RouteNs)> {
     if let Some(r) = analyze::route_refs(doc)
         .into_iter()
         .find(|r| in_span(r, &r.name, line, col))
     {
-        return Some(r.name);
+        return Some((r.name, RouteNs::Main));
     }
     analyze::route_blocks(doc)
         .into_iter()
@@ -289,22 +312,45 @@ pub fn route_symbol_at(doc: &str, line: u32, col: u32) -> Option<String> {
             };
             in_span(&at, &b.name, line, col)
         })
-        .map(|b| b.name)
+        .map(|b| {
+            let ns = if b.kind == "route" {
+                RouteNs::Main
+            } else {
+                RouteNs::Kind(b.kind.clone())
+            };
+            (b.name, ns)
+        })
 }
 
-/// Every occurrence of route `name` in `doc`: call sites and the
-/// definition's name span.  The bool is `true` for the definition.
-pub fn route_occurrences(doc: &str, name: &str) -> Vec<(Located, bool)> {
+/// [`route_symbol_ns_at`], name only.
+pub fn route_symbol_at(doc: &str, line: u32, col: u32) -> Option<String> {
+    route_symbol_ns_at(doc, line, col).map(|(n, _)| n)
+}
+
+/// Every occurrence of `name` within its namespace in `doc`.  The
+/// bool is `true` for definitions.  Main-namespace occurrences are
+/// `route(NAME)` call sites plus `route[NAME]` definitions; per-kind
+/// namespaces list only that kind's definition name spans (their call
+/// sites are strings inside module functions like `t_on_failure`).
+pub fn ns_occurrences(doc: &str, name: &str, ns: &RouteNs) -> Vec<(Located, bool)> {
     if name.is_empty() {
         return Vec::new();
     }
-    let mut out: Vec<(Located, bool)> = analyze::route_refs(doc)
-        .into_iter()
-        .filter(|r| r.name == name)
-        .map(|r| (r, false))
-        .collect();
+    let mut out: Vec<(Located, bool)> = Vec::new();
+    if *ns == RouteNs::Main {
+        out.extend(
+            analyze::route_refs(doc)
+                .into_iter()
+                .filter(|r| r.name == name)
+                .map(|r| (r, false)),
+        );
+    }
+    let want_kind = match ns {
+        RouteNs::Main => "route",
+        RouteNs::Kind(k) => k.as_str(),
+    };
     for b in analyze::route_blocks(doc) {
-        if b.name == name {
+        if b.name == name && b.kind == want_kind {
             out.push((
                 Located {
                     name: b.name,
@@ -316,6 +362,11 @@ pub fn route_occurrences(doc: &str, name: &str) -> Vec<(Located, bool)> {
         }
     }
     out
+}
+
+/// Main-namespace occurrences of route `name` in `doc`.
+pub fn route_occurrences(doc: &str, name: &str) -> Vec<(Located, bool)> {
+    ns_occurrences(doc, name, &RouteNs::Main)
 }
 
 /// Is `s` legal as an UNQUOTED route name?  Kamailio's `route_name`
@@ -459,6 +510,21 @@ pub fn loaded_modules_multi(files: &[(std::path::PathBuf, String)]) -> Vec<Strin
     out
 }
 
+/// Route blocks (with kinds) across the closure, tagged with their
+/// file.
+pub fn route_blocks_multi(
+    files: &[(std::path::PathBuf, String)],
+) -> Vec<(std::path::PathBuf, analyze::Block)> {
+    files
+        .iter()
+        .flat_map(|(p, text)| {
+            analyze::route_blocks(text)
+                .into_iter()
+                .map(move |b| (p.clone(), b))
+        })
+        .collect()
+}
+
 /// Route definitions across the closure, tagged with their file.
 pub fn route_defs_multi(
     files: &[(std::path::PathBuf, String)],
@@ -496,15 +562,22 @@ pub fn analyzer_diagnostics(
     loader: &dyn Fn(&std::path::Path) -> Option<String>,
 ) -> Vec<AnalyzerDiag> {
     let files = include_closure(path, text, loader);
-    let defs = route_defs_multi(&files);
-    let defined: std::collections::HashSet<&str> = defs
+    let blocks = route_blocks_multi(&files);
+    // route(x) invokes only the MAIN table: route[x] blocks (kamailio
+    // keeps per-kind tables; failure_route[x] does not satisfy it)
+    let defined: std::collections::HashSet<&str> = blocks
         .iter()
-        .filter(|(_, l)| !l.name.is_empty())
-        .map(|(_, l)| l.name.as_str())
+        .filter(|(_, b)| b.kind == "route" && !b.name.is_empty())
+        .map(|(_, b)| b.name.as_str())
         .collect();
     let mut out = Vec::new();
     for r in analyze::route_refs(text) {
-        if !r.name.is_empty() && !defined.contains(r.name.as_str()) {
+        // route(N) is a runtime rval expression (index/name dispatch):
+        // purely numeric refs never warn
+        if r.name.is_empty() || r.name.bytes().all(|b| b.is_ascii_digit()) {
+            continue;
+        }
+        if !defined.contains(r.name.as_str()) {
             out.push(AnalyzerDiag {
                 line: r.line,
                 col_start: r.col,
@@ -516,20 +589,23 @@ pub fn analyzer_diagnostics(
             });
         }
     }
-    // duplicate definitions across the closure; flag current-file ones
-    let mut counts: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
-    for (p, l) in &defs {
-        if l.name.is_empty() {
+    // duplicate definitions across the closure, PER KIND (cross-kind
+    // same-name configs are legal); flag current-file ones
+    let mut counts: std::collections::HashMap<(&str, &str), u32> = std::collections::HashMap::new();
+    for (p, b) in &blocks {
+        if b.name.is_empty() {
             continue;
         }
-        let n = counts.entry(l.name.as_str()).or_insert(0);
+        let n = counts
+            .entry((b.kind.as_str(), b.name.as_str()))
+            .or_insert(0);
         *n += 1;
         if *n > 1 && p == path {
             out.push(AnalyzerDiag {
-                line: l.line,
-                col_start: l.col,
-                col_end: l.col + 1,
-                message: format!("route '{}' is defined more than once", l.name),
+                line: b.line,
+                col_start: b.col,
+                col_end: b.col + 1,
+                message: format!("{} '{}' is defined more than once", b.kind, b.name),
             });
         }
     }
