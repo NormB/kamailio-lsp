@@ -162,3 +162,62 @@ fn adversarial_inputs_do_not_panic() {
         let _ = word_at(s, 3);
     }
 }
+
+use kamailio_lsp::analyze::route_blocks;
+
+#[test]
+fn route_blocks_report_full_extents() {
+    let text = "loadmodule \"tm.so\"\nrequest_route {\n    if (1) {\n        exit;\n    }\n}\nfailure_route[FR] {\n    xlog(\"x\");\n}\n";
+    let blocks = route_blocks(text);
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].kind, "request_route");
+    assert_eq!(blocks[0].name, "");
+    assert_eq!((blocks[0].line, blocks[0].col), (1, 0));
+    // nested braces are matched: the block ends at line 5's `}`
+    assert_eq!((blocks[0].end_line, blocks[0].end_col), (5, 1));
+    assert_eq!(blocks[1].kind, "failure_route");
+    assert_eq!(blocks[1].name, "FR");
+    assert_eq!((blocks[1].line, blocks[1].end_line), (6, 8));
+}
+
+#[test]
+fn route_blocks_ignore_braces_in_strings_and_comments() {
+    let text = "request_route {\n    xlog(\"}\");\n    # }\n    /* } */\n    exit;\n}\n";
+    let blocks = route_blocks(text);
+    assert_eq!(blocks.len(), 1);
+    assert_eq!((blocks[0].end_line, blocks[0].end_col), (5, 1));
+}
+
+#[test]
+fn event_route_block_extents_carry_the_colon_name() {
+    let text = "event_route[htable:mod-init] {\n    exit;\n}\n";
+    let blocks = route_blocks(text);
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].kind, "event_route");
+    assert_eq!(blocks[0].name, "htable:mod-init");
+    assert_eq!(blocks[0].end_line, 2);
+}
+
+#[test]
+fn unterminated_route_block_extends_to_eof() {
+    let text = "request_route {\n    exit;\n";
+    let blocks = route_blocks(text);
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].end_line, 2);
+}
+
+#[test]
+fn route_blocks_adversarial_do_not_panic() {
+    for s in [
+        "",
+        "route {",
+        "route }{",
+        "route {{{{",
+        "route[\u{0}] {}",
+        "route[a] { \"unterminated",
+        "}}}}",
+        "request_route {\\",
+    ] {
+        let _ = route_blocks(s);
+    }
+}
