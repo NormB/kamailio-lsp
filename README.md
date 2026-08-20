@@ -7,11 +7,14 @@ configuration file language (`kamailio.cfg`).
 
 | Feature | How |
 |---|---|
-| **Diagnostics** | Runs `kamailio -c --all-errors -Y <tmpdir> -f <file>` on open/save and maps the parser's errors (line, column, column ranges, multi-line spans) to LSP diagnostics — full-fidelity, version-exact semantic validation by the real parser. |
-| **Completion** | Context-sensitive: module names after `loadmodule "` / `modparam("`, the module's parameters inside the second `modparam` argument, exported functions of *loaded* modules plus core functions/parameters, route names and keywords in route bodies, and pseudo-variables after `$`. |
+| **Diagnostics** | Runs `kamailio -c --all-errors -Y <tmpdir> -f <file>` on open/save and maps the parser's errors (line, column, column ranges, multi-line spans) to LSP diagnostics — full-fidelity, version-exact semantic validation by the real parser. A fast analyzer layer warns between saves (debounced on change): undefined `route()` targets and duplicate route definitions. |
+| **Completion** | Context-sensitive: module names after `loadmodule "` / `modparam("`, the module's parameters inside the second `modparam` argument, exported functions of *loaded* modules plus core functions/parameters, route names inside `route(` and in route bodies, keywords, and pseudo-variables after `$` (replacing the typed token). Duplicate labels collapse; `include_file`/`import_file` closures count. |
+| **Signature help** | The innermost unclosed call's signature with the active parameter, on `(` and `,`. |
 | **Hover** | Documentation for module functions, parameters, and modules, harvested from Kamailio's own docs. |
-| **Go to definition** | `route(NAME)` references resolve to their `route[NAME]` block. |
-| **Document symbols** | All route blocks (`request_route`, `route[...]`, `failure_route[...]`, `event_route[...]`, …). |
+| **Go to definition** | `route(NAME)` references resolve to their `route[NAME]` block — in this file or any included file. |
+| **References / rename / highlights** | Every call site + definition of a route name; rename rewrites them all (charset-gated, quoted call sites handled). |
+| **Document symbols** | All route blocks (`request_route`, `route[...]`, `failure_route[...]`, `event_route[...]`, …) with full block extents, nested outline. |
+| **Folding** | Route-family blocks fold; brace matching is string/comment-safe. |
 
 Positions are exchanged in UTF-16 units (the LSP default) and are
 correct on multibyte lines; doc harvests are cached per source tree
