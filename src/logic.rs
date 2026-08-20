@@ -708,7 +708,7 @@ pub fn semantic_spans(text: &str) -> Vec<SemSpan> {
 /// LSP semanticTokens/full data: delta-encoded quintuples with
 /// UTF-16 columns and lengths.
 pub fn encode_semantic_tokens(text: &str) -> Vec<u32> {
-    encode_spans(text, semantic_spans(text))
+    encode_spans(text, &semantic_spans(text))
 }
 
 /// LSP semanticTokens/range data: the document's spans whose START
@@ -717,9 +717,20 @@ pub fn encode_semantic_tokens(text: &str) -> Vec<u32> {
 /// the LSP spec the first token's deltas are document-absolute, so a
 /// range result stands alone.
 pub fn encode_semantic_tokens_range(text: &str, start: (u32, u32), end: (u32, u32)) -> Vec<u32> {
+    encode_semantic_tokens_range_from(text, &semantic_spans(text), start, end)
+}
+
+/// [`encode_semantic_tokens_range`] over prebuilt spans (the
+/// memoized path).
+pub fn encode_semantic_tokens_range_from(
+    text: &str,
+    spans: &[SemSpan],
+    start: (u32, u32),
+    end: (u32, u32),
+) -> Vec<u32> {
     let lines: Vec<&str> = text.lines().collect();
-    let spans = semantic_spans(text)
-        .into_iter()
+    let spans: Vec<SemSpan> = spans
+        .iter()
         .filter(|s| {
             let Some(line) = lines.get(s.line as usize) else {
                 return false;
@@ -727,12 +738,13 @@ pub fn encode_semantic_tokens_range(text: &str, start: (u32, u32), end: (u32, u3
             let col = analyze::byte_to_utf16(line, s.col as usize);
             (s.line, col) >= start && (s.line, col) < end
         })
+        .cloned()
         .collect();
-    encode_spans(text, spans)
+    encode_spans(text, &spans)
 }
 
 /// Delta-encode `spans` (sorted) against `text`.
-fn encode_spans(text: &str, spans: Vec<SemSpan>) -> Vec<u32> {
+pub fn encode_spans(text: &str, spans: &[SemSpan]) -> Vec<u32> {
     let lines: Vec<&str> = text.lines().collect();
     let mut data = Vec::new();
     let (mut prev_line, mut prev_start) = (0u32, 0u32);
@@ -1116,4 +1128,113 @@ pub fn hover_markdown_with_core(
         return Some(format!("**{}** — {}\n\n{}", v.name, v.detail, v.doc));
     }
     None
+}
+
+/// The per-document computations the hot request handlers share
+/// (semantic tokens, code lens, document symbols, references,
+/// folding): computed once per (document, version).
+pub struct DocIndex {
+    /// [`analyze::route_blocks`] of the document.
+    pub blocks: Vec<analyze::Block>,
+    /// [`analyze::route_refs`] of the document.
+    pub refs: Vec<Located>,
+    /// [`semantic_spans`] of the document.
+    pub spans: Vec<SemSpan>,
+}
+
+/// Total [`DocIndex`] builds in this process — an instrumentation
+/// seam for the memoization tests (and cheap enough to always keep).
+static DOC_INDEX_BUILDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many [`DocIndex`] builds have run in this process.
+pub fn doc_index_builds() -> usize {
+    DOC_INDEX_BUILDS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+impl DocIndex {
+    fn build(text: &str) -> Self {
+        DOC_INDEX_BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Self {
+            blocks: analyze::route_blocks(text),
+            refs: analyze::route_refs(text),
+            spans: semantic_spans(text),
+        }
+    }
+}
+
+/// A get-or-compute cache of [`DocIndex`] keyed by document, valid
+/// for exactly one version at a time: asking for a different version
+/// rebuilds and replaces (stale versions evict on the spot).  The
+/// shard lock held across the entry guarantees concurrent requests
+/// for the same (key, version) race safely to a single build.
+pub struct DocCache<K: std::hash::Hash + Eq>(dashmap::DashMap<K, (i32, std::sync::Arc<DocIndex>)>);
+
+impl<K: std::hash::Hash + Eq> Default for DocCache<K> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: std::hash::Hash + Eq> DocCache<K> {
+    /// An empty cache.
+    pub fn new() -> Self {
+        Self(dashmap::DashMap::new())
+    }
+
+    /// The index for (`key`, `version`): reused when cached, built
+    /// (and cached, replacing any other version) otherwise.
+    pub fn get_or_index(&self, key: K, version: i32, text: &str) -> std::sync::Arc<DocIndex> {
+        let mut entry = self
+            .0
+            .entry(key)
+            .or_insert_with(|| (version, std::sync::Arc::new(DocIndex::build(text))));
+        if entry.0 != version {
+            *entry = (version, std::sync::Arc::new(DocIndex::build(text)));
+        }
+        entry.1.clone()
+    }
+
+    /// Drop a document's entry (e.g. on didClose).
+    pub fn evict(&self, key: &K) {
+        self.0.remove(key);
+    }
+}
+
+/// [`ns_occurrences`] over a prebuilt index (the hot handlers'
+/// memoized path); the free-standing function delegates here.
+pub fn ns_occurrences_from(
+    blocks: &[analyze::Block],
+    refs: &[Located],
+    name: &str,
+    ns: &RouteNs,
+) -> Vec<(Located, bool)> {
+    if name.is_empty() {
+        return Vec::new();
+    }
+    let mut out: Vec<(Located, bool)> = Vec::new();
+    if *ns == RouteNs::Main {
+        out.extend(
+            refs.iter()
+                .filter(|r| r.name == name)
+                .cloned()
+                .map(|r| (r, false)),
+        );
+    }
+    let want_kind = match ns {
+        RouteNs::Main => "route",
+        RouteNs::Kind(k) => k.as_str(),
+    };
+    for b in blocks {
+        if b.name == name && b.kind == want_kind {
+            out.push((
+                Located {
+                    name: b.name.clone(),
+                    line: b.name_line,
+                    col: b.name_col,
+                },
+                true,
+            ));
+        }
+    }
+    out
 }

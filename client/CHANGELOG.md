@@ -4,6 +4,13 @@ All notable changes to the Kamailio Routing Script extension.
 
 ## [Unreleased]
 
+- **Per-version memoization** (internal): the per-document
+  computations (route blocks, references, semantic spans) are cached
+  per (document, version) and shared by the hot handlers — semantic
+  tokens (full and range), code lenses, document symbols, references
+  — instead of being recomputed per request; stale versions evict in
+  place and closed documents drop their entry.
+
 - **Semantic tokens range**: `textDocument/semanticTokens/range` is
   served (and advertised) alongside `full` — editors can request
   just the visible slice of a large config.
