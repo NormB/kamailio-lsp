@@ -118,6 +118,13 @@ inside strings of either quote style (both produce the same STRING
 token and modules interpolate the value at fixup); comments and
 `#!` directives never light up.
 
+Both `textDocument/semanticTokens/full` and **`/range`** are served:
+editors that request only the visible slice of a large config get
+exactly the tokens whose start position falls inside the range,
+delta-encoded from a fresh document-absolute origin per the LSP
+spec. (Token deltas/`resultId` are deliberately not implemented —
+configs are small enough that full/range recomputation wins.)
+
 #### CLI check mode
 
 `kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` runs the

@@ -708,10 +708,35 @@ pub fn semantic_spans(text: &str) -> Vec<SemSpan> {
 /// LSP semanticTokens/full data: delta-encoded quintuples with
 /// UTF-16 columns and lengths.
 pub fn encode_semantic_tokens(text: &str) -> Vec<u32> {
+    encode_spans(text, semantic_spans(text))
+}
+
+/// LSP semanticTokens/range data: the document's spans whose START
+/// position falls inside `[start, end)` (positions as LSP UTF-16
+/// (line, character) pairs), delta-encoded from a fresh origin — per
+/// the LSP spec the first token's deltas are document-absolute, so a
+/// range result stands alone.
+pub fn encode_semantic_tokens_range(text: &str, start: (u32, u32), end: (u32, u32)) -> Vec<u32> {
+    let lines: Vec<&str> = text.lines().collect();
+    let spans = semantic_spans(text)
+        .into_iter()
+        .filter(|s| {
+            let Some(line) = lines.get(s.line as usize) else {
+                return false;
+            };
+            let col = analyze::byte_to_utf16(line, s.col as usize);
+            (s.line, col) >= start && (s.line, col) < end
+        })
+        .collect();
+    encode_spans(text, spans)
+}
+
+/// Delta-encode `spans` (sorted) against `text`.
+fn encode_spans(text: &str, spans: Vec<SemSpan>) -> Vec<u32> {
     let lines: Vec<&str> = text.lines().collect();
     let mut data = Vec::new();
     let (mut prev_line, mut prev_start) = (0u32, 0u32);
-    for s in semantic_spans(text) {
+    for s in spans {
         let Some(line) = lines.get(s.line as usize) else {
             continue;
         };

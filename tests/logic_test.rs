@@ -781,3 +781,35 @@ fn semantic_tokens_delta_encoding() {
     // second token on line 1 → deltaLine 1, absolute col 10
     assert_eq!(&data[5..10], &[1, 10, 2, 0, 0]);
 }
+
+#[test]
+fn semantic_tokens_range_filters_and_reencodes() {
+    use kamailio_lsp::logic::encode_semantic_tokens_range;
+    // three routes over five lines; the middle slice covers only B
+    let text =
+        "route[A] {\n    exit;\n}\nroute[B] {\n    route(B);\n}\nroute[C] {\n    route(A);\n}\n";
+    // range covering lines 3..=5 only
+    let data = encode_semantic_tokens_range(text, (3, 0), (6, 0));
+    assert_eq!(data.len(), 10, "exactly B's def and call: {data:?}");
+    // first token restarts the delta chain at the DOCUMENT origin:
+    // deltaLine is the absolute line of the first in-range token
+    assert_eq!(&data[..5], &[3, 6, 1, 0, 0]);
+    assert_eq!(&data[5..10], &[1, 10, 1, 0, 0]);
+    // a range starting mid-line excludes spans before its column
+    let data = encode_semantic_tokens_range(text, (3, 7), (6, 0));
+    assert_eq!(
+        &data[..5],
+        &[4, 10, 1, 0, 0],
+        "B's def starts before the range: {data:?}"
+    );
+    // empty range yields nothing; inverted/absurd ranges do not panic
+    assert!(encode_semantic_tokens_range(text, (4, 0), (4, 0)).is_empty());
+    let _ = encode_semantic_tokens_range(text, (99, 0), (0, 0));
+    let _ = encode_semantic_tokens_range("", (0, 0), (99, 99));
+    let _ = encode_semantic_tokens_range("\u{0}route[A]{}", (0, 0), (9, 9));
+    // whole-document range equals the full encoding
+    assert_eq!(
+        encode_semantic_tokens_range(text, (0, 0), (999, 0)),
+        kamailio_lsp::logic::encode_semantic_tokens(text)
+    );
+}

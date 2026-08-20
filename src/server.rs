@@ -669,7 +669,7 @@ impl LanguageServer for Backend {
                                 token_modifiers: vec![],
                             },
                             full: Some(SemanticTokensFullOptions::Bool(true)),
-                            range: None,
+                            range: Some(true),
                             work_done_progress_options: Default::default(),
                         },
                     ),
@@ -1430,6 +1430,34 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data,
+        })))
+    }
+
+    async fn semantic_tokens_range(
+        &self,
+        p: SemanticTokensRangeParams,
+    ) -> Result<Option<SemanticTokensRangeResult>> {
+        let Some(text) = self.docs.get(&p.text_document.uri).map(|d| d.1.clone()) else {
+            return Ok(None);
+        };
+        let r = p.range;
+        let data = logic::encode_semantic_tokens_range(
+            &text,
+            (r.start.line, r.start.character),
+            (r.end.line, r.end.character),
+        )
+        .chunks(5)
+        .map(|c| SemanticToken {
+            delta_line: c[0],
+            delta_start: c[1],
+            length: c[2],
+            token_type: c[3],
+            token_modifiers_bitset: c[4],
+        })
+        .collect();
+        Ok(Some(SemanticTokensRangeResult::Tokens(SemanticTokens {
             result_id: None,
             data,
         })))
