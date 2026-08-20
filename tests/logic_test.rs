@@ -170,3 +170,74 @@ fn hover_covers_core_items() {
     let h = hover_markdown_with_core(&catalog(), &core(), DOC, "t_relay").unwrap();
     assert!(h.contains("module tm"));
 }
+
+use kamailio_lsp::logic::{route_occurrences, route_symbol_at, valid_route_name};
+
+#[test]
+fn route_symbol_at_finds_refs_and_def_names() {
+    let doc = "request_route {\n    route(to.b);\n}\nroute[to.b] {\n    exit;\n}\n";
+    // on the ref name (line 1, "to.b" starts at byte col 10)
+    assert_eq!(route_symbol_at(doc, 1, 10), Some("to.b".to_string()));
+    assert_eq!(route_symbol_at(doc, 1, 13), Some("to.b".to_string()));
+    // one past the name → no symbol
+    assert_eq!(route_symbol_at(doc, 1, 14), None);
+    // on the def name (line 3, "to.b" starts at byte col 6)
+    assert_eq!(route_symbol_at(doc, 3, 6), Some("to.b".to_string()));
+    // on the keyword, not the name
+    assert_eq!(route_symbol_at(doc, 3, 0), None);
+    // out of range must not panic
+    assert_eq!(route_symbol_at(doc, 99, 99), None);
+    assert_eq!(route_symbol_at("", 0, 0), None);
+}
+
+#[test]
+fn event_route_names_with_colon_are_symbols() {
+    let doc = "event_route[htable:mod-init] {\n    exit;\n}\n";
+    // cursor inside the bracketed name (byte col 12 = "htable:mod-init")
+    assert_eq!(
+        route_symbol_at(doc, 0, 15),
+        Some("htable:mod-init".to_string())
+    );
+    let occ = route_occurrences(doc, "htable:mod-init");
+    assert_eq!(occ.len(), 1);
+    assert!(occ[0].1, "the event_route name span is the definition");
+}
+
+#[test]
+fn route_occurrences_cover_defs_and_refs() {
+    let doc = "request_route {\n    route(A);\n    route(\"A\");\n}\nroute[A] {\n    route(A);\n}\nroute[B] { exit; }\n";
+    let occ = route_occurrences(doc, "A");
+    // 3 refs + 1 def
+    assert_eq!(occ.len(), 4);
+    assert_eq!(occ.iter().filter(|(_, is_def)| *is_def).count(), 1);
+    let def = occ.iter().find(|(_, d)| *d).unwrap();
+    assert_eq!((def.0.line, def.0.col), (4, 6));
+    // no occurrences of an unknown name
+    assert!(route_occurrences(doc, "ZZ").is_empty());
+    // adversarial: the empty name never matches unnamed blocks
+    assert!(route_occurrences(doc, "").is_empty());
+}
+
+#[test]
+fn definition_resolves_dotted_route_names() {
+    let doc = "request_route {\n    route(to.b);\n}\nroute[to.b] {\n    exit;\n}\n";
+    // cursor on the dot: word_at-based matching used to split here
+    let d = definition_of(doc, 1, 12).expect("definition of dotted name");
+    assert_eq!(d.name, "to.b");
+    assert_eq!(d.line, 3);
+}
+
+#[test]
+fn valid_route_name_gate() {
+    assert!(valid_route_name("RELAY"));
+    // kamailio event-route names carry ':' and '-'
+    assert!(valid_route_name("htable:mod-init"));
+    assert!(valid_route_name("to.b_1:x-y"));
+    assert!(!valid_route_name(""));
+    assert!(!valid_route_name("has space"));
+    assert!(!valid_route_name("quote\""));
+    assert!(!valid_route_name("nul\0"));
+    assert!(!valid_route_name("paren("));
+    assert!(!valid_route_name("bracket]"));
+    assert!(!valid_route_name("back\\slash"));
+}
