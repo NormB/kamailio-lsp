@@ -438,31 +438,72 @@ pub fn harvest_core(wiki_root: &Path) -> CoreDocs {
     }
 }
 
-/// A cheap change-detector for a harvest: canonical paths plus the
-/// modification times of the modules dir and the cookbook dir (module
-/// or page additions/removals bump the directory mtimes).
-pub fn tree_fingerprint(tree_root: &Path, wiki_root: Option<&Path>) -> String {
+/// Cache format/keying version: fold into the fingerprint so any
+/// future change to what the harvest reads (or how it is keyed or
+/// serialized) auto-invalidates every older cache entry.
+pub const CACHE_SCHEMA_VERSION: u32 = 2;
+
+/// `(size, mtime-in-millis)` of one file; `(0, 0)` when unreadable.
+fn file_stamp(p: &Path) -> (u64, u128) {
     use std::time::UNIX_EPOCH;
-    let mtime = |p: &Path| -> u128 {
-        std::fs::metadata(p)
-            .and_then(|m| m.modified())
-            .ok()
-            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-            .map(|d| d.as_millis())
-            .unwrap_or(0)
+    let Ok(md) = std::fs::metadata(p) else {
+        return (0, 0);
     };
+    let mtime = md
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    (md.len(), mtime)
+}
+
+/// A change-detector for a harvest: a manifest of every file the
+/// harvest reads — each module's `README` (size + mtime; module
+/// directories without one still contribute an entry, so additions
+/// and removals register) and the wiki cookbook pages — plus the
+/// canonical roots and [`CACHE_SCHEMA_VERSION`], hashed.  Editing a
+/// harvested file's CONTENT invalidates even though no directory
+/// mtime moves.
+pub fn tree_fingerprint(tree_root: &Path, wiki_root: Option<&Path>) -> String {
     let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
     let tree = canon(tree_root);
     let mods = modules_dir(&tree);
+    // sorted (name, README size, README mtime) per module directory;
+    // names are length-prefixed so hostile names (separators,
+    // backslashes, quotes) cannot forge manifest boundaries
+    let mut entries: Vec<String> = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(&mods) {
+        for e in rd.flatten() {
+            if !e.path().is_dir() {
+                continue;
+            }
+            let name = e.file_name().to_string_lossy().into_owned();
+            let (size, mtime) = file_stamp(&e.path().join("README"));
+            entries.push(format!("{}:{name}|{size}|{mtime}", name.len()));
+        }
+    }
+    entries.sort();
     let wiki_part = match wiki_root {
         Some(w) => {
             let w = canon(w);
             let book = cookbook_dir(&w).unwrap_or_else(|| w.clone());
-            format!("{}|{}", w.display(), mtime(&book))
+            let pages: Vec<String> = ["core.md", "pseudovariables.md"]
+                .iter()
+                .map(|f| {
+                    let (size, mtime) = file_stamp(&book.join(f));
+                    format!("{f}|{size}|{mtime}")
+                })
+                .collect();
+            format!("{}|{}", w.display(), pages.join("|"))
         }
         None => "none".to_string(),
     };
-    let raw = format!("{}|{}|{}", tree.display(), mtime(&mods), wiki_part);
+    let raw = format!(
+        "v{CACHE_SCHEMA_VERSION}|{}|{}|{wiki_part}",
+        tree.display(),
+        entries.join("|")
+    );
     // stable, filesystem-safe name
     let mut h: u64 = 0xcbf29ce484222325;
     for b in raw.bytes() {

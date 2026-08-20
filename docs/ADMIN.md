@@ -116,12 +116,22 @@ exceeds it is killed and reported via a client log message.
 
 Harvest results are cached per (source tree, wiki) pair under
 `$XDG_CACHE_HOME/kamailio-lsp` (or `~/.cache/kamailio-lsp`), keyed by
-a fingerprint of the canonical paths and the modification times of
-the tree's `src/modules/` directory and the wiki's cookbook directory
-— adding or removing a module or cookbook page invalidates the cache
-automatically. The readiness log message says `, cached` on a hit.
-Override the location with the `KAMAILIO_LSP_CACHE_DIR` environment
-variable (env-only knob); delete the directory to force a re-harvest.
+a fingerprint of the canonical paths plus a manifest of every file
+the harvest reads — each module's `README` and the wiki cookbook
+pages, by size and modification time — folded together with a cache
+schema version. Adding, removing, or **editing** a module README or
+cookbook page invalidates the cache automatically; cache format
+changes invalidate via the schema version. The readiness log message
+says `, cached` on a hit. Override the location with the
+`KAMAILIO_LSP_CACHE_DIR` environment variable (env-only knob);
+deleting the directory also forces a re-harvest.
+
+During the harvest the server reports progress via LSP
+`workDoneProgress` (clients that advertise
+`window.workDoneProgress` show a busy indicator). If a **configured**
+`kamailioSrc` yields zero documented modules, or a configured
+`kamailioWiki` yields zero core symbols, a visible
+`window/showMessage` warning names the offending path.
 
 #### maxDiagnostics (integer)
 
@@ -214,9 +224,11 @@ the wiki checkout (`kamailioWiki`).
 
 #### Completion looks stale after I updated the source tree
 
-Editing a file inside a module does not bump the directory mtimes the
-cache fingerprint watches. Delete the cache directory (see Caching)
-or touch `src/modules/` to force a re-harvest.
+The cache fingerprint watches every harvested file's size and mtime,
+so editing a module `README` or a cookbook page re-harvests on the
+next start. If something still looks stale (e.g. a tool rewrote a
+file preserving both size and mtime), delete the cache directory
+(see Caching) to force a re-harvest.
 
 #### The checker complains it cannot find modules
 
