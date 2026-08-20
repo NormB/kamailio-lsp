@@ -278,3 +278,74 @@ request_route {
             (call_expression
               function: (identifier)
               (string))))))))
+
+================================================================================
+word and bitwise operators, mod, paren-less return, bare break
+================================================================================
+
+request_route {
+    if (1 mod 2 and not 0 or 1) {
+        return 1;
+    }
+    if (1 & 3 | 4) {
+        return (0);
+    }
+    while (1) {
+        break;
+    }
+    return -1;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    kind: (route_kind)
+    body: (block
+      (if_statement
+        (binary_expression
+          (binary_expression
+            (binary_expression
+              (number)
+              (number))
+            (unary_expression
+              (number)))
+          (number))
+        (block
+          (keyword_statement
+            (number))))
+      (if_statement
+        (binary_expression
+          (binary_expression
+            (number)
+            (number))
+          (number))
+        (block
+          (keyword_statement
+            (parenthesized_expression
+              (number)))))
+      (while_statement
+        (number)
+        (block
+          (break_statement)))
+      (keyword_statement
+        (unary_expression
+          (number))))))
+
+================================================================================
+double-bang directives, prefixed include, // comments
+================================================================================
+
+!!define WITH_X
+#!include_file "extra.cfg"
+// a line comment
+loadmodule "tm.so"
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (preproc)
+  (preproc)
+  (comment)
+  (loadmodule
+    (string)))
