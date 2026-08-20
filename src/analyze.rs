@@ -99,12 +99,13 @@ macro_rules! static_regex {
 static_regex!(re_loadmodule, r#"loadmodule\s*"([^"\n]+)""#);
 static_regex!(
     re_route_def,
-    r#"(?s)(?:request_route|reply_route|onreply_route|failure_route|branch_route|event_route|onsend_route|route)\s*(?:\[\s*"?([A-Za-z0-9_.:-]+)"?\s*\])?\s*\{"#
+    r#"(?s)(request_route|reply_route|onreply_route|failure_route|branch_route|event_route|onsend_route|route)\s*(?:\[\s*"?([A-Za-z0-9_.:-]+)"?\s*\])?\s*\{"#
 );
 static_regex!(
     re_route_ref,
     r#"route\s*\(\s*"?([A-Za-z0-9_.:-]+)"?\s*[,)]"#
 );
+static_regex!(re_include, r#"(?:include_file|import_file)\s*"([^"\n]+)""#);
 static_regex!(
     re_modparam_ctx,
     r#"modparam\s*\(\s*"([^"\n]+)"\s*,\s*("[^"\n]*)?$"#
@@ -139,11 +140,77 @@ pub fn loaded_modules(text: &str) -> Vec<Located> {
     out
 }
 
+/// Every `include_file "x"` / `import_file "x"` in code position;
+/// `name` is the quoted path verbatim.
+pub fn includes(text: &str) -> Vec<Located> {
+    let classes = classify(text);
+    let b = text.as_bytes();
+    let mut out = Vec::new();
+    for c in re_include().captures_iter(text) {
+        let whole = c.get(0).unwrap();
+        let start = whole.start();
+        if classes.get(start) != Some(&Class::Code) {
+            continue;
+        }
+        // reject matches that are a tail of a longer identifier
+        if start > 0 && is_word(b[start - 1]) {
+            continue;
+        }
+        let path = c.get(1).unwrap().as_str();
+        if path.is_empty() || path.contains('\0') {
+            continue;
+        }
+        let (line, col) = line_col(text, start);
+        out.push(Located {
+            name: path.to_string(),
+            line,
+            col,
+        });
+    }
+    out
+}
+
 /// Every route-family block definition (`request_route`,
 /// `failure_route[x]`, `event_route[mod:event]`, ...); unnamed blocks
 /// (`request_route`, `reply_route`, `onsend_route`) have an empty name.
 pub fn route_defs(text: &str) -> Vec<Located> {
+    route_blocks(text)
+        .into_iter()
+        .map(|b| Located {
+            name: b.name,
+            line: b.line,
+            col: b.col,
+        })
+        .collect()
+}
+
+/// A route-family block definition with its full brace extent.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Block {
+    /// Route name; empty for unnamed blocks (`request_route`, ...).
+    pub name: String,
+    /// Block keyword (`request_route`, `failure_route`, ...).
+    pub kind: String,
+    /// 0-based line of the keyword.
+    pub line: u32,
+    /// 0-based start column of the keyword.
+    pub col: u32,
+    /// 0-based line of the closing brace (last line if unterminated).
+    pub end_line: u32,
+    /// 0-based column just past the closing brace.
+    pub end_col: u32,
+    /// 0-based line of the route NAME (keyword line if unnamed).
+    pub name_line: u32,
+    /// 0-based start column of the route NAME (keyword col if unnamed).
+    pub name_col: u32,
+}
+
+/// [`route_defs`] with block extents: braces are matched through the
+/// comment/string classifier, so a `}` in a string or comment does not
+/// close a block; an unterminated block extends to end of text.
+pub fn route_blocks(text: &str) -> Vec<Block> {
     let classes = classify(text);
+    let b = text.as_bytes();
     let mut out = Vec::new();
     for c in re_route_def().captures_iter(text) {
         let whole = c.get(0).unwrap();
@@ -152,12 +219,51 @@ pub fn route_defs(text: &str) -> Vec<Located> {
             continue;
         }
         // reject matches that are a tail of a longer identifier
-        if start > 0 && is_word(text.as_bytes()[start - 1]) {
+        if start > 0 && is_word(b[start - 1]) {
             continue;
         }
-        let name = c.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+        // the match ends just past the opening brace
+        let mut depth = 1usize;
+        let mut i = whole.end();
+        let mut close = None;
+        while i < b.len() {
+            if classes[i] == Class::Code {
+                match b[i] {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            close = Some(i);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            i += 1;
+        }
         let (line, col) = line_col(text, start);
-        out.push(Located { name, line, col });
+        let (end_line, end_col) = match close {
+            Some(p) => {
+                let (l, c2) = line_col(text, p);
+                (l, c2 + 1)
+            }
+            None => line_col(text, text.len()),
+        };
+        let (name_line, name_col) = c
+            .get(2)
+            .map(|m| line_col(text, m.start()))
+            .unwrap_or((line, col));
+        out.push(Block {
+            name: c.get(2).map(|m| m.as_str().to_string()).unwrap_or_default(),
+            kind: c.get(1).unwrap().as_str().to_string(),
+            line,
+            col,
+            end_line,
+            end_col,
+            name_line,
+            name_col,
+        });
     }
     out
 }

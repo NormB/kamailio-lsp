@@ -89,6 +89,11 @@
           "default": true,
           "description": "Run 'kamailio -c' checks on open/save. Diagnostics are also disabled automatically in untrusted workspaces."
         },
+        "kamailioLsp.diagnostics.analyzer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fast analyzer warnings between saves (undefined route() targets, duplicate route definitions), independent of 'kamailio -c'."
+        },
         "kamailioLsp.diagnostics.maxProblems": {
           "type": "number",
           "default": 100,

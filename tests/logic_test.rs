@@ -170,3 +170,270 @@ fn hover_covers_core_items() {
     let h = hover_markdown_with_core(&catalog(), &core(), DOC, "t_relay").unwrap();
     assert!(h.contains("module tm"));
 }
+
+use kamailio_lsp::logic::{route_occurrences, route_symbol_at, valid_route_name};
+
+#[test]
+fn route_symbol_at_finds_refs_and_def_names() {
+    let doc = "request_route {\n    route(to.b);\n}\nroute[to.b] {\n    exit;\n}\n";
+    // on the ref name (line 1, "to.b" starts at byte col 10)
+    assert_eq!(route_symbol_at(doc, 1, 10), Some("to.b".to_string()));
+    assert_eq!(route_symbol_at(doc, 1, 13), Some("to.b".to_string()));
+    // one past the name → no symbol
+    assert_eq!(route_symbol_at(doc, 1, 14), None);
+    // on the def name (line 3, "to.b" starts at byte col 6)
+    assert_eq!(route_symbol_at(doc, 3, 6), Some("to.b".to_string()));
+    // on the keyword, not the name
+    assert_eq!(route_symbol_at(doc, 3, 0), None);
+    // out of range must not panic
+    assert_eq!(route_symbol_at(doc, 99, 99), None);
+    assert_eq!(route_symbol_at("", 0, 0), None);
+}
+
+#[test]
+fn event_route_names_with_colon_are_symbols() {
+    let doc = "event_route[htable:mod-init] {\n    exit;\n}\n";
+    // cursor inside the bracketed name (byte col 12 = "htable:mod-init")
+    assert_eq!(
+        route_symbol_at(doc, 0, 15),
+        Some("htable:mod-init".to_string())
+    );
+    let occ = route_occurrences(doc, "htable:mod-init");
+    assert_eq!(occ.len(), 1);
+    assert!(occ[0].1, "the event_route name span is the definition");
+}
+
+#[test]
+fn route_occurrences_cover_defs_and_refs() {
+    let doc = "request_route {\n    route(A);\n    route(\"A\");\n}\nroute[A] {\n    route(A);\n}\nroute[B] { exit; }\n";
+    let occ = route_occurrences(doc, "A");
+    // 3 refs + 1 def
+    assert_eq!(occ.len(), 4);
+    assert_eq!(occ.iter().filter(|(_, is_def)| *is_def).count(), 1);
+    let def = occ.iter().find(|(_, d)| *d).unwrap();
+    assert_eq!((def.0.line, def.0.col), (4, 6));
+    // no occurrences of an unknown name
+    assert!(route_occurrences(doc, "ZZ").is_empty());
+    // adversarial: the empty name never matches unnamed blocks
+    assert!(route_occurrences(doc, "").is_empty());
+}
+
+#[test]
+fn definition_resolves_dotted_route_names() {
+    let doc = "request_route {\n    route(to.b);\n}\nroute[to.b] {\n    exit;\n}\n";
+    // cursor on the dot: word_at-based matching used to split here
+    let d = definition_of(doc, 1, 12).expect("definition of dotted name");
+    assert_eq!(d.name, "to.b");
+    assert_eq!(d.line, 3);
+}
+
+#[test]
+fn valid_route_name_gate() {
+    assert!(valid_route_name("RELAY"));
+    // kamailio event-route names carry ':' and '-'
+    assert!(valid_route_name("htable:mod-init"));
+    assert!(valid_route_name("to.b_1:x-y"));
+    assert!(!valid_route_name(""));
+    assert!(!valid_route_name("has space"));
+    assert!(!valid_route_name("quote\""));
+    assert!(!valid_route_name("nul\0"));
+    assert!(!valid_route_name("paren("));
+    assert!(!valid_route_name("bracket]"));
+    assert!(!valid_route_name("back\\slash"));
+}
+
+use kamailio_lsp::logic::{completions_with_core, pvar_tail, signature_at};
+
+fn sig_catalog() -> Vec<ModuleDoc> {
+    vec![ModuleDoc {
+        name: "tm".into(),
+        params: vec![],
+        functions: vec![Item {
+            name: "t_relay".into(),
+            detail: "t_relay([host, port])".into(),
+            doc: "Relays the request.".into(),
+        }],
+    }]
+}
+
+#[test]
+fn signature_at_finds_active_parameter() {
+    let core = kamailio_lsp::catalog::CoreDocs::default();
+    let doc = "loadmodule \"tm.so\"\nrequest_route {\n}\n";
+    // first argument
+    let s = signature_at(&sig_catalog(), &core, doc, "    t_relay(").expect("sig");
+    assert_eq!(s.0, "t_relay([host, port])");
+    assert_eq!(s.2, 0);
+    // second argument (comma inside a string must not count)
+    let s = signature_at(&sig_catalog(), &core, doc, r#"    t_relay("a,b", "#).expect("sig");
+    assert_eq!(s.2, 1);
+    // nested call: innermost unclosed wins
+    let core_with_fn = kamailio_lsp::catalog::CoreDocs {
+        functions: vec![Item {
+            name: "xlog".into(),
+            detail: "xlog([level], format)".into(),
+            doc: String::new(),
+        }],
+        ..Default::default()
+    };
+    let s = signature_at(&sig_catalog(), &core_with_fn, doc, "    t_relay(xlog(").expect("sig");
+    assert_eq!(s.0, "xlog([level], format)");
+    // a CLOSED nested call pops back to the outer one
+    let s = signature_at(
+        &sig_catalog(),
+        &core_with_fn,
+        doc,
+        "    t_relay(xlog(\"x\"), ",
+    )
+    .expect("sig");
+    assert_eq!(s.0, "t_relay([host, port])");
+    assert_eq!(s.2, 1);
+    // unknown function → none
+    assert!(signature_at(&sig_catalog(), &core, doc, "    nope(").is_none());
+    // adversarial: never panic
+    for p in ["", "(", ")))((", "\"", "t_relay(\"\\", "#t_relay(", "\0("] {
+        let _ = signature_at(&sig_catalog(), &core, doc, p);
+    }
+}
+
+#[test]
+fn completions_dedup_prefers_richer_items() {
+    // "xlog" exists as a core KEYWORD and as a core function: one item
+    // must survive, and it must be the function (it carries docs)
+    let core = kamailio_lsp::catalog::CoreDocs {
+        functions: vec![Item {
+            name: "xlog".into(),
+            detail: "xlog([level], format)".into(),
+            doc: "Logs.".into(),
+        }],
+        ..Default::default()
+    };
+    let out = completions_with_core(&[], &core, "request_route {\n}\n", "    ");
+    let xlogs: Vec<_> = out.iter().filter(|c| c.label == "xlog").collect();
+    assert_eq!(xlogs.len(), 1, "duplicate labels must collapse");
+    assert_eq!(xlogs[0].kind, CompKind::Function);
+}
+
+#[test]
+fn route_call_argument_completes_route_names() {
+    let doc = "route[RELAY] {\n    exit;\n}\nrequest_route {\n}\n";
+    let out = completions_with_core(
+        &[],
+        &kamailio_lsp::catalog::CoreDocs::default(),
+        doc,
+        "    route(",
+    );
+    assert!(!out.is_empty());
+    assert!(
+        out.iter().all(|c| c.kind == CompKind::Route),
+        "inside route( only route names complete: {:?}",
+        out.iter().map(|c| &c.label).collect::<Vec<_>>()
+    );
+    assert!(out.iter().any(|c| c.label == "RELAY"));
+    // quoted form and partial names too
+    let out = completions_with_core(
+        &[],
+        &kamailio_lsp::catalog::CoreDocs::default(),
+        doc,
+        "    route(\"RE",
+    );
+    assert!(out.iter().any(|c| c.label == "RELAY"));
+}
+
+#[test]
+fn pvar_tail_reports_replacement_length() {
+    // "$ru" → replace "$ru" (3 bytes)
+    assert_eq!(pvar_tail("    $ru"), Some(3));
+    assert_eq!(pvar_tail("$"), Some(1));
+    assert_eq!(pvar_tail("xlog($si"), Some(3));
+    // not a pvar context
+    assert_eq!(pvar_tail("xlog("), None);
+    assert_eq!(pvar_tail(""), None);
+    // "$x y" — space breaks the tail
+    assert_eq!(pvar_tail("$x y"), None);
+}
+
+use kamailio_lsp::logic::{
+    analyzer_diagnostics, include_closure, loaded_modules_multi, route_defs_multi,
+};
+
+#[test]
+fn include_closure_follows_cycles_and_depth_safely() {
+    use std::path::Path;
+    // a.cfg includes b.cfg; b.cfg includes a.cfg (cycle) and missing.cfg
+    let loader = |p: &Path| -> Option<String> {
+        match p.to_str()? {
+            "/x/a.cfg" => Some("include_file \"b.cfg\"\nroute[A_R] { exit; }\n".into()),
+            "/x/b.cfg" => Some(
+                "include_file \"a.cfg\"\ninclude_file \"missing.cfg\"\nloadmodule \"tm.so\"\nroute[B_R] { exit; }\n"
+                    .into(),
+            ),
+            _ => None,
+        }
+    };
+    let root_text = loader(Path::new("/x/a.cfg")).unwrap();
+    let files = include_closure(Path::new("/x/a.cfg"), &root_text, &loader);
+    let paths: Vec<&str> = files.iter().map(|(p, _)| p.to_str().unwrap()).collect();
+    assert_eq!(
+        paths,
+        vec!["/x/a.cfg", "/x/b.cfg"],
+        "cycle visited once, missing skipped"
+    );
+    // multi-file views
+    let mods = loaded_modules_multi(&files);
+    assert_eq!(mods, vec!["tm"]);
+    let defs = route_defs_multi(&files);
+    let names: Vec<(&str, &str)> = defs
+        .iter()
+        .map(|(p, l)| (p.to_str().unwrap(), l.name.as_str()))
+        .collect();
+    assert!(names.contains(&("/x/a.cfg", "A_R")));
+    assert!(names.contains(&("/x/b.cfg", "B_R")));
+    // depth bomb: a chain of self-includes must terminate
+    let bomb = |_: &Path| -> Option<String> { Some("include_file \"z.cfg\"\n".into()) };
+    let files = include_closure(Path::new("/x/z.cfg"), "include_file \"z.cfg\"\n", &bomb);
+    assert_eq!(files.len(), 1);
+}
+
+#[test]
+fn analyzer_diagnostics_flag_undefined_and_duplicate_routes() {
+    use std::path::Path;
+    let loader = |_: &Path| -> Option<String> { None };
+    // undefined route ref
+    let text = "request_route {\n    route(NOPE);\n}\n";
+    let ds = analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+    assert!(ds[0].message.contains("NOPE"));
+    assert_eq!(ds[0].line, 1);
+    assert!(ds[0].col_start < ds[0].col_end);
+    // defined in an include → clean
+    let loader2 = |p: &Path| -> Option<String> {
+        (p.to_str() == Some("/x/inc.cfg")).then(|| "route[NOPE] { exit; }\n".to_string())
+    };
+    let text2 = "include_file \"inc.cfg\"\nrequest_route {\n    route(NOPE);\n}\n";
+    assert!(analyzer_diagnostics(Path::new("/x/t.cfg"), text2, &loader2).is_empty());
+    // duplicate definitions: the LATER one in this file is flagged
+    let text3 = "route[DUP] { exit; }\nroute[DUP] { exit; }\n";
+    let ds = analyzer_diagnostics(Path::new("/x/t.cfg"), text3, &loader);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+    assert_eq!(ds[0].line, 1);
+    assert!(ds[0].message.contains("DUP"));
+    // unnamed blocks never collide (request_route + reply_route + route)
+    let text4 = "request_route { exit; }\nreply_route { exit; }\nonsend_route { exit; }\n";
+    assert!(analyzer_diagnostics(Path::new("/x/t.cfg"), text4, &loader).is_empty());
+    // clean file → empty; adversarial → no panic
+    assert!(
+        analyzer_diagnostics(Path::new("/x/t.cfg"), "request_route { exit; }\n", &loader)
+            .is_empty()
+    );
+    for s in [
+        "",
+        "\0",
+        "route(",
+        "include_file \"\0\"",
+        "route(x) route[x]{}",
+        "request_route { route(\\ ); }",
+    ] {
+        let _ = analyzer_diagnostics(Path::new("/x/t.cfg"), s, &loader);
+    }
+}

@@ -133,6 +133,21 @@ Bound on the diagnostics published per file.
 { "maxDiagnostics": 50 }
 ```
 
+#### analyzerDiagnostics (boolean)
+
+Fast analyzer warnings between saves, debounced as you type:
+`route(NAME)` calls whose target is defined nowhere in the file or
+its `include_file`/`import_file` closure, and duplicate route
+definitions. Severity warning, source `kamailio-lsp`; merged with the
+stored `kamailio -c` results on every publish. The debounce is
+tunable via `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` (default 300).
+
+*Default value is `true`.*
+
+```json title="Set analyzerDiagnostics parameter"
+{ "analyzerDiagnostics": false }
+```
+
 #### snippetCompletions (boolean)
 
 Insert function completions as tabstop snippets.
