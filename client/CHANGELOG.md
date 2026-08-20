@@ -4,6 +4,14 @@ All notable changes to the Kamailio Routing Script extension.
 
 ## [Unreleased]
 
+- **Semantic tokens range**: `textDocument/semanticTokens/range` is
+  served (and advertised) alongside `full` — editors can request
+  just the visible slice of a large config.
+- **Grammar↔scanner drift gate** (internal): corpus-driven tests
+  prove the tree-sitter grammar and the server's scanner agree on
+  route definitions (total and named), `loadmodule`, and `modparam`
+  counts; extending one without the other fails CI.
+
 - **Prepare rename**: F2 is validated server-side before the rename
   box opens — exact range + placeholder on renamable route names,
   blocked outright off-symbol and on per-kind names (`event_route`
