@@ -101,6 +101,37 @@ fn harvests_the_real_kamailio_tree_when_present() {
         .find(|m| m.name == "dispatcher")
         .expect("dispatcher");
     assert!(disp.functions.iter().any(|f| f.name == "ds_select_dst"));
+    // modules whose READMEs use lowercase "Exported parameters" ...
+    let nat = mods
+        .iter()
+        .find(|m| m.name == "nat_traversal")
+        .expect("nat_traversal");
+    assert!(
+        nat.params.iter().any(|p| p.name == "keepalive_interval"),
+        "nat_traversal params: {:?}",
+        nat.params.iter().map(|p| &p.name).collect::<Vec<_>>()
+    );
+    assert!(nat.functions.iter().any(|f| f.name == "nat_keepalive"));
+    let cc = mods
+        .iter()
+        .find(|m| m.name == "call_control")
+        .expect("call_control");
+    assert!(!cc.params.is_empty(), "call_control params empty");
+    // ... and modules with nested chapters (2.3. Parameters)
+    let kafka = mods.iter().find(|m| m.name == "kafka").expect("kafka");
+    assert!(
+        kafka.functions.iter().any(|f| f.name == "kafka_send"),
+        "kafka functions: {:?}",
+        kafka.functions.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+    assert!(kafka.params.iter().any(|p| p.name == "brokers"));
+    for m in ["keepalive", "lrkproxy", "seas"] {
+        let md = mods.iter().find(|x| x.name == m).expect(m);
+        assert!(
+            !md.params.is_empty() || !md.functions.is_empty(),
+            "{m} harvested empty"
+        );
+    }
     // sanity: no harvested doc may carry raw HTML into hover popups
     for m in &mods {
         for i in m.params.iter().chain(m.functions.iter()) {
