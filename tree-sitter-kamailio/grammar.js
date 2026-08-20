@@ -180,7 +180,12 @@ module.exports = grammar({
       ),
     )),
 
-    string: _ => token(seq('"', repeat(choice(/[^"\\\n]/, /\\./)), '"')),
+    // double-quoted strings escape with backslash; single-quoted
+    // strings (cfg.lex STRING2) have NO escapes and may span lines
+    string: _ => token(choice(
+      seq('"', repeat(choice(/[^"\\\n]/, /\\./)), '"'),
+      seq("'", /[^']*/, "'"),
+    )),
 
     number: _ => /0[xX][0-9a-fA-F]+|[0-9]+/,
 

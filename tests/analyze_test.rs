@@ -344,3 +344,52 @@ fn modparamx_context_is_recognized() {
         Some("htable".to_string())
     );
 }
+
+#[test]
+fn single_quoted_strings_are_strings() {
+    // cfg.lex STRING2: tick-delimited strings are legal anywhere
+    // (verified rc=0: loadmodule 'tm.so', route['SQ'], 'a' == 'a')
+    let text = "loadmodule 'tm.so'\nrequest_route {\n    xlog('loadmodule \"fake.so\"');\n    route('SQ');\n}\nroute['SQ'] {\n    exit;\n}\n";
+    let mods: Vec<String> = loaded_modules(text).into_iter().map(|m| m.name).collect();
+    // the single-quoted loadmodule argument IS collected; the one
+    // inside the single-quoted xlog string is NOT
+    assert_eq!(mods, vec!["tm"], "{mods:?}");
+    let refs: Vec<String> = route_refs(text).into_iter().map(|r| r.name).collect();
+    assert_eq!(refs, vec!["SQ"]);
+    let defs: Vec<String> = route_defs(text)
+        .into_iter()
+        .map(|d| d.name)
+        .filter(|n| !n.is_empty())
+        .collect();
+    assert_eq!(defs, vec!["SQ"]);
+}
+
+#[test]
+fn single_quoted_strings_span_lines_without_escapes() {
+    // STRING2 consumes CRs and has no escape processing: a backslash
+    // does not extend the string past the closing tick
+    let text = "request_route {\n    xlog('line one\nroute[IN_STR] { exit; }\n');\n    xlog('ends here\\');\n    route(AFTER);\n}\n";
+    assert!(
+        route_defs(text).iter().all(|d| d.name != "IN_STR"),
+        "multi-line single-quoted interior is a string"
+    );
+    let refs: Vec<String> = route_refs(text).into_iter().map(|r| r.name).collect();
+    assert_eq!(refs, vec!["AFTER"], "backslash does not escape the tick");
+}
+
+#[test]
+fn single_quote_adversarial_do_not_panic() {
+    for s in [
+        "'",
+        "''",
+        "'unterminated",
+        "route[']",
+        "'\0'",
+        "loadmodule '",
+    ] {
+        let _ = loaded_modules(s);
+        let _ = route_defs(s);
+        let _ = route_refs(s);
+        let _ = includes(s);
+    }
+}

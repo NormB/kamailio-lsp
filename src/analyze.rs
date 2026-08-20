@@ -93,6 +93,18 @@ fn classify(text: &str) -> Vec<Class> {
                     i += 1; // closing quote
                 }
             }
+            b'\'' => {
+                // single-quoted string (cfg.lex STRING2): no escape
+                // processing, may span lines
+                i += 1;
+                while i < b.len() && b[i] != b'\'' {
+                    out[i] = Class::Str;
+                    i += 1;
+                }
+                if i < b.len() {
+                    i += 1; // closing tick
+                }
+            }
             _ => i += 1,
         }
     }
@@ -125,18 +137,18 @@ macro_rules! static_regex {
     };
 }
 
-static_regex!(re_loadmodule, r#"loadmodulex?\s*\(?\s*"([^"\n]+)""#);
+static_regex!(re_loadmodule, r#"loadmodulex?\s*\(?\s*["']([^"'\n]+)["']"#);
 static_regex!(
     re_route_def,
-    r#"(?s)(request_route|reply_route|onreply_route|failure_route|branch_route|event_route|onsend_route|route)\s*(?:\[\s*"?([A-Za-z0-9_.:-]+)"?\s*\])?\s*\{"#
+    r#"(?s)(request_route|reply_route|onreply_route|failure_route|branch_route|event_route|onsend_route|route)\s*(?:\[\s*["']?([A-Za-z0-9_.:-]+)["']?\s*\])?\s*\{"#
 );
 static_regex!(
     re_route_ref,
-    r#"route\s*\(\s*"?([A-Za-z0-9_.:-]+)"?\s*[,)]"#
+    r#"route\s*\(\s*["']?([A-Za-z0-9_.:-]+)["']?\s*[,)]"#
 );
 static_regex!(
     re_include,
-    r#"(?:#!|!!)?(?:include_file|import_file)\s*"([^"\n]+)""#
+    r#"(?:#!|!!)?(?:include_file|import_file)\s*["']([^"'\n]+)["']"#
 );
 static_regex!(
     re_modparam_ctx,

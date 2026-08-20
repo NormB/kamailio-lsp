@@ -12,6 +12,7 @@
     { "name": "comment.block.kamailio", "begin": "/\\*", "end": "\\*/" },
     { "name": "string.quoted.double.kamailio", "begin": "\"", "end": "\"",
       "patterns": [{ "name": "constant.character.escape.kamailio", "match": "\\\\." }] },
+    { "name": "string.quoted.single.kamailio", "begin": "'", "end": "'" },
     { "name": "keyword.control.kamailio",
       "match": "\\b(if|else|switch|case|default|break|while|exit|drop|return)\\b" },
     { "name": "storage.type.function.kamailio",

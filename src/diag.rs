@@ -105,8 +105,10 @@ pub fn parse_check_output(output: &str, rc: i32) -> Vec<Diag> {
         let line = s_line.saturating_sub(1);
         let end_line = e_line.saturating_sub(1).max(line);
         let col_start = s_col.saturating_sub(1);
-        // inclusive 1-based end == exclusive 0-based end; never
-        // narrower than one column, never reversed
+        // KAMAILIO's C2 is INCLUSIVE (verified live: `blah` at bytes
+        // 6..10 reports `column 7-10`), unlike OpenSIPS's exclusive
+        // end — inclusive 1-based end == exclusive 0-based end, so no
+        // +-1 here; never narrower than one column, never reversed
         let col_end = if end_line == line {
             e_col.max(s_col).max(1)
         } else {

@@ -2,6 +2,28 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.1.3] — 2026-08-20
+
+- **References and rename cross the include closure**: renaming a
+  route defined in an `include_file` rewrites every file, and
+  Shift+F12 lists the include's definition.
+- **Route namespaces**: `route(X)` is satisfied only by `route[X]`
+  blocks (Kamailio keeps per-kind route tables — a `failure_route[X]`
+  no longer masks an undefined target); duplicate-definition warnings
+  are per kind; purely numeric `route(N)` calls are runtime dispatch
+  and never warn; `route(` completion offers only callable names;
+  renaming `failure_route`/`branch_route`/... names is rejected with
+  an explanation (their call sites are module-function arguments).
+- **Single-quoted strings** (`loadmodule 'tm.so'`, `route['SQ']`,
+  `xlog('hi')`) are recognized everywhere: analysis, completion
+  contexts, tree-sitter, and TextMate highlighting — with Kamailio's
+  real semantics (no escapes, may span lines).
+- **Signature help labels** split on top-level commas only — nested
+  calls, bracket groups (`t_relay([host, port])`), and quoted commas
+  stay whole.
+- Release workflow: a failed Open VSX publish no longer bypasses the
+  rerun tolerance (exit-status capture under `bash -e`).
+
 ## [0.1.2] — 2026-08-20
 
 - **Rename is parser-safe**: new names are gated on the charset
