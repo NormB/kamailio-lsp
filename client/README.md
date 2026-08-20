@@ -31,8 +31,15 @@ extension and it just works.
   pops up with the active parameter highlighted.
 - **References & rename** — Shift+F12 lists every call site of a
   route; F2 renames it everywhere, quoted call sites included.
-- **Instant warnings** — undefined `route()` targets and duplicate
-  route definitions are flagged as you type, no save needed.
+- **Instant warnings** — undefined `route()` targets, duplicate
+  route definitions, and modparam names your source tree does not
+  document are flagged as you type, no save needed.
+- **Workspace symbols & code lenses** — Ctrl+T finds any route across
+  open files and includes; callable routes show reference counts.
+- **Quick fixes** — the lightbulb loads the module exporting an
+  unknown command, or creates a stub for an undefined route.
+- **Semantic highlighting** — route names and pseudo-variables get
+  consistent theme colors, inside strings too.
 - **Snippets** — `route`, `failure_route`, `ifmethod`, `modparam`,
   `switch`, `xlog`, and more.
 - **Safe by default** — in untrusted workspaces diagnostics stay off
@@ -69,6 +76,7 @@ covers installation and usage click by click.
 | `kamailioLsp.diagnostics.analyzer` | `true` | As-you-type analyzer warnings. |
 | `kamailioLsp.diagnostics.maxProblems` | `100` | Diagnostics cap per file. |
 | `kamailioLsp.checkTimeoutMs` | `10000` | Bound on one `-c` run. |
+| `kamailioLsp.codeLens.references` | `true` | Reference-count code lenses. |
 | `kamailioLsp.completion.snippets` | `true` | Function completions as snippets. |
 | `kamailioLsp.cacheDir` | platform | Documentation-cache location. |
 | `kamailioLsp.trace.server` | `off` | LSP traffic tracing. |

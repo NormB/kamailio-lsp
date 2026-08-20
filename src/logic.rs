@@ -613,6 +613,221 @@ pub fn analyzer_diagnostics(
     out
 }
 
+/// Catalog-pinned validation: flag `modparam("m", "p", ...)` where
+/// the configured source tree documents module `m` but no parameter
+/// `p`.  Version-exact by construction — the catalog IS the user's
+/// pinned tree; unknown modules stay silent (the catalog may simply
+/// not cover them).  Doc-derived, so kept separate from the
+/// grammar-derived [`analyzer_diagnostics`] (and from the G1
+/// differential gate, which proves the GRAMMAR model only).
+pub fn catalog_diagnostics(catalog: &[ModuleDoc], text: &str) -> Vec<AnalyzerDiag> {
+    if catalog.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for call in analyze::modparam_calls(text) {
+        let Some(m) = catalog.iter().find(|m| m.name == call.module) else {
+            continue;
+        };
+        if m.params.iter().any(|p| p.name == call.param) {
+            continue;
+        }
+        out.push(AnalyzerDiag {
+            line: call.line,
+            col_start: call.col,
+            col_end: call.col + call.param.len() as u32,
+            message: format!(
+                "parameter '{}' is not documented for module '{}' in the configured source tree",
+                call.param, call.module
+            ),
+        });
+    }
+    out
+}
+
+/// Semantic-token categories the server emits.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SemKind {
+    /// A route name at a definition or call site (legend index 0).
+    RouteName,
+    /// A pseudo-variable (legend index 1).
+    Pvar,
+}
+
+/// One semantic span, in BYTE columns on its line.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SemSpan {
+    /// 0-based line.
+    pub line: u32,
+    /// 0-based start byte column.
+    pub col: u32,
+    /// Byte length.
+    pub len: u32,
+    /// Category.
+    pub kind: SemKind,
+}
+
+/// Semantic spans for a document: route names (definitions and call
+/// sites) and pseudo-variables.  Pvars inside strings count — both
+/// quote styles yield the same STRING token (cfg.lex STRING1/STRING2,
+/// lines 1299-1316) and modules interpolate the value at fixup;
+/// comments and `#!`/`!!` directives never contribute.
+pub fn semantic_spans(text: &str) -> Vec<SemSpan> {
+    let mut out = Vec::new();
+    for b in analyze::route_blocks(text) {
+        if !b.name.is_empty() {
+            out.push(SemSpan {
+                line: b.name_line,
+                col: b.name_col,
+                len: b.name.len() as u32,
+                kind: SemKind::RouteName,
+            });
+        }
+    }
+    for r in analyze::route_refs(text) {
+        out.push(SemSpan {
+            line: r.line,
+            col: r.col,
+            len: r.name.len() as u32,
+            kind: SemKind::RouteName,
+        });
+    }
+    for (line, col, len) in analyze::pvars(text) {
+        out.push(SemSpan {
+            line,
+            col,
+            len,
+            kind: SemKind::Pvar,
+        });
+    }
+    out.sort_by_key(|s| (s.line, s.col));
+    out.dedup_by_key(|s| (s.line, s.col));
+    out
+}
+
+/// LSP semanticTokens/full data: delta-encoded quintuples with
+/// UTF-16 columns and lengths.
+pub fn encode_semantic_tokens(text: &str) -> Vec<u32> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut data = Vec::new();
+    let (mut prev_line, mut prev_start) = (0u32, 0u32);
+    for s in semantic_spans(text) {
+        let Some(line) = lines.get(s.line as usize) else {
+            continue;
+        };
+        let start = analyze::byte_to_utf16(line, s.col as usize);
+        let end = analyze::byte_to_utf16(line, (s.col + s.len) as usize);
+        let delta_line = s.line - prev_line;
+        let delta_start = if delta_line == 0 {
+            start - prev_start
+        } else {
+            start
+        };
+        data.extend_from_slice(&[
+            delta_line,
+            delta_start,
+            end - start,
+            match s.kind {
+                SemKind::RouteName => 0,
+                SemKind::Pvar => 1,
+            },
+            0,
+        ]);
+        prev_line = s.line;
+        prev_start = start;
+    }
+    data
+}
+
+/// One quick-fix: a single text insertion with a title.
+#[derive(Debug, Clone, PartialEq)]
+pub struct QuickFix {
+    /// Human-readable action title.
+    pub title: String,
+    /// 0-based insertion line.
+    pub line: u32,
+    /// 0-based insertion column.
+    pub col: u32,
+    /// Text to insert.
+    pub insert: String,
+}
+
+static_regex!(re_call_ident, r"([A-Za-z_][A-Za-z0-9_]*)\s*\(");
+static_regex!(
+    re_undefined_route,
+    r"route '([A-Za-z0-9_.:-]+)' is not defined"
+);
+
+/// The function name called at/near byte column `col` on `line_text`:
+/// kamailio's "unknown command, missing loadmodule?" names no
+/// function and positions at the call's CLOSING paren (captured live,
+/// 2026-08-20), so the identifier is recovered from the line — the
+/// last `ident(` starting before the column, else the last on the
+/// line.
+fn called_function_at(line_text: &str, col: u32) -> Option<String> {
+    let mut best: Option<String> = None;
+    for c in re_call_ident().captures_iter(line_text) {
+        let m = c.get(1).unwrap();
+        if m.start() <= col as usize || best.is_none() {
+            best = Some(m.as_str().to_string());
+        }
+    }
+    best
+}
+
+/// Quick fixes for a diagnostic `message` positioned at 0-based
+/// (`line`, `col`) in `doc`:
+/// - `unknown command, missing loadmodule?` → load the module that
+///   exports the function called at that position (one action per
+///   exporting module, skipped when already loaded);
+/// - `route 'x' is not defined` → append a `route[x]` stub (with an
+///   `exit;` body — empty route bodies are not valid kamailio).
+pub fn quick_fixes(
+    catalog: &[ModuleDoc],
+    doc: &str,
+    message: &str,
+    line: u32,
+    col: u32,
+) -> Vec<QuickFix> {
+    let mut out = Vec::new();
+    if message.contains("unknown command") {
+        let line_text = doc.lines().nth(line as usize).unwrap_or("");
+        if let Some(f) = called_function_at(line_text, col) {
+            let loaded: Vec<String> = analyze::loaded_modules(doc)
+                .into_iter()
+                .map(|m| m.name)
+                .collect();
+            // insertion point: right after the LAST loadmodule line
+            let insert_line = analyze::loaded_modules(doc)
+                .into_iter()
+                .map(|m| m.line + 1)
+                .max()
+                .unwrap_or(0);
+            for m in catalog {
+                if loaded.contains(&m.name) || !m.functions.iter().any(|x| x.name == f) {
+                    continue;
+                }
+                out.push(QuickFix {
+                    title: format!("Load module '{}' (exports {f})", m.name),
+                    line: insert_line,
+                    col: 0,
+                    insert: format!("loadmodule \"{}.so\"\n", m.name),
+                });
+            }
+        }
+    }
+    if let Some(c) = re_undefined_route().captures(message) {
+        let name = &c[1];
+        out.push(QuickFix {
+            title: format!("Create route[{name}]"),
+            line: doc.lines().count() as u32,
+            col: 0,
+            insert: format!("\nroute[{name}] {{\n\texit;\n}}\n"),
+        });
+    }
+    out
+}
+
 /// Resolve the kamailio binary used for `-c` diagnostics.
 ///
 /// Order: explicit initializationOption, then environment, then a

@@ -633,3 +633,151 @@ fn split_params_is_depth_and_quote_aware() {
         let _ = split_params(s);
     }
 }
+
+use kamailio_lsp::logic::{
+    SemKind, catalog_diagnostics, encode_semantic_tokens, quick_fixes, semantic_spans,
+};
+
+#[test]
+fn quick_fixes_offer_loadmodule_and_route_stub() {
+    // kamailio's message names NO function ("unknown command, missing
+    // loadmodule?" — captured live 2026-08-20, position at the call's
+    // closing paren), so the function is read from the document at
+    // the diagnostic position
+    let cat = sig_catalog(); // tm exports t_relay
+    let doc = "loadmodule \"sl.so\"\nrequest_route {\n    t_relay();\n}\n";
+    // diagnostic at line 2, 0-based col 12 (the `)`; 1-based column 13
+    // in the capture)
+    let fixes = quick_fixes(&cat, doc, "unknown command, missing loadmodule?", 2, 12);
+    assert_eq!(fixes.len(), 1, "{fixes:?}");
+    assert!(fixes[0].title.contains("tm"), "{}", fixes[0].title);
+    assert_eq!(
+        (fixes[0].line, fixes[0].col),
+        (1, 0),
+        "after the last loadmodule"
+    );
+    assert_eq!(fixes[0].insert, "loadmodule \"tm.so\"\n");
+    // module already loaded → no fix
+    let doc2 = "loadmodule \"tm.so\"\nrequest_route {\n    t_relay();\n}\n";
+    assert!(quick_fixes(&cat, doc2, "unknown command, missing loadmodule?", 2, 12).is_empty());
+    // paren load form still counts as "loaded" and as insert anchor
+    let doc3 = "loadmodule(\"tm.so\")\nrequest_route {\n    t_relay();\n}\n";
+    assert!(quick_fixes(&cat, doc3, "unknown command, missing loadmodule?", 2, 12).is_empty());
+    // no loadmodule lines at all → insert at the top
+    let fixes = quick_fixes(
+        &cat,
+        "request_route {\n    t_relay();\n}\n",
+        "unknown command, missing loadmodule?",
+        1,
+        12,
+    );
+    assert_eq!((fixes[0].line, fixes[0].col), (0, 0));
+    // a function nobody exports → no fix
+    let fixes = quick_fixes(
+        &cat,
+        "request_route {\n    nosuch_fn(\"a\");\n}\n",
+        "unknown command, missing loadmodule?",
+        1,
+        17,
+    );
+    assert!(fixes.is_empty(), "{fixes:?}");
+
+    // undefined route → create a stub at end of file (exit; body —
+    // empty route bodies are not valid kamailio)
+    let doc4 = "request_route {\n    route(MISSING);\n}\n";
+    let fixes = quick_fixes(
+        &[],
+        doc4,
+        "route 'MISSING' is not defined here or in included files",
+        1,
+        10,
+    );
+    assert_eq!(fixes.len(), 1);
+    assert!(fixes[0].title.contains("MISSING"));
+    assert_eq!(fixes[0].line, 3, "appended at end of file");
+    assert!(fixes[0].insert.contains("route[MISSING]"));
+    assert!(fixes[0].insert.contains("exit;"));
+    // adversarial messages/positions → no panic, no bogus fix
+    for (m, l, c) in [
+        ("", 0, 0),
+        ("unknown command, missing loadmodule?", 99, 99),
+        ("route '' is not defined", 0, 0),
+        ("unknown command, missing loadmodule?", 0, 0),
+    ] {
+        let _ = quick_fixes(&cat, doc, m, l, c);
+    }
+}
+
+#[test]
+fn catalog_diagnostics_flag_undocumented_modparams() {
+    let cat = catalog(); // tm documents fr_timer; htable documents htable
+    // unknown param of a KNOWN module → warning at the param
+    let text = "modparam(\"tm\", \"fr_tmer\", 5)\n";
+    let ds = catalog_diagnostics(&cat, text);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+    assert!(ds[0].message.contains("fr_tmer") && ds[0].message.contains("tm"));
+    assert_eq!(ds[0].line, 0);
+    assert!(ds[0].col_start < ds[0].col_end);
+    // documented param → clean
+    assert!(catalog_diagnostics(&cat, "modparam(\"tm\", \"fr_timer\", 5)\n").is_empty());
+    // UNKNOWN module → silent (the catalog may simply not cover it)
+    assert!(catalog_diagnostics(&cat, "modparam(\"nope\", \"x\", 1)\n").is_empty());
+    // empty catalog → silent everywhere
+    assert!(catalog_diagnostics(&[], text).is_empty());
+    // modparamx counts
+    let ds = catalog_diagnostics(&cat, "modparamx(\"tm\", \"fr_tmer\", 5)\n");
+    assert_eq!(ds.len(), 1);
+}
+
+#[test]
+fn semantic_spans_cover_routes_and_pvars() {
+    // pvars interpolate in BOTH quote styles: cfg.lex STRING1 and
+    // STRING2 both return the same STRING token (cfg.lex:1309-1316),
+    // and module fixups interpolate the string value afterwards
+    let text = "route[RELAY] {\n    xlog(\"$ru\");\n    xlog('$rU');\n    $var(x) = 1;\n}\nrequest_route {\n    route(RELAY);\n}\n";
+    let spans = semantic_spans(text);
+    let routes: Vec<_> = spans
+        .iter()
+        .filter(|s| s.kind == SemKind::RouteName)
+        .collect();
+    assert_eq!(routes.len(), 2, "{spans:?}");
+    assert_eq!((routes[0].line, routes[0].col, routes[0].len), (0, 6, 5));
+    assert_eq!((routes[1].line, routes[1].col, routes[1].len), (6, 10, 5));
+    let pvars: Vec<_> = spans.iter().filter(|s| s.kind == SemKind::Pvar).collect();
+    assert!(
+        pvars.iter().any(|p| p.line == 1),
+        "$ru inside the double-quoted string"
+    );
+    assert!(
+        pvars.iter().any(|p| p.line == 2),
+        "$rU inside the single-quoted string"
+    );
+    assert!(pvars.iter().any(|p| p.line == 3 && p.len == 7), "$var(x)");
+    // comments and directives contribute nothing
+    assert!(semantic_spans("# $ru route(x)\n").is_empty());
+    assert!(semantic_spans("// $ru\n").is_empty());
+    assert!(semantic_spans("#!define X $ru \\\\\n  $rd\n").is_empty());
+    // a '#' inside a string does not comment out the rest of the line
+    let s2 = semantic_spans("request_route { xlog(\"#\"); xlog(\"$ru\"); }\n");
+    assert!(
+        s2.iter().any(|s| s.kind == SemKind::Pvar),
+        "string '#' must not eat the line: {s2:?}"
+    );
+    // adversarial: no panic
+    for s in ["", "$", "$(", "route[", "\0$ru"] {
+        let _ = semantic_spans(s);
+    }
+}
+
+#[test]
+fn semantic_tokens_delta_encoding() {
+    let text = "route[AB] {\n    route(AB);\n}\n";
+    let data = encode_semantic_tokens(text);
+    // LSP quintuples: deltaLine, deltaStart, length, tokenType, mods
+    assert_eq!(data.len() % 5, 0);
+    assert!(!data.is_empty());
+    // first token: line 0, col 6, len 2, type 0 (route name)
+    assert_eq!(&data[..5], &[0, 6, 2, 0, 0]);
+    // second token on line 1 → deltaLine 1, absolute col 10
+    assert_eq!(&data[5..10], &[1, 10, 2, 0, 0]);
+}

@@ -148,6 +148,18 @@ tunable via `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` (default 300).
 { "analyzerDiagnostics": false }
 ```
 
+#### codeLensReferences (boolean)
+
+Show a reference-count code lens above every named `route` block
+(only main-table blocks are `route()`-callable, so only they get a
+count; references are counted across the include closure).
+
+*Default value is `true`.*
+
+```json title="Set codeLensReferences parameter"
+{ "codeLensReferences": false }
+```
+
 #### snippetCompletions (boolean)
 
 Insert function completions as tabstop snippets.

@@ -2,6 +2,33 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.2.0] — 2026-08-20
+
+- **Workspace symbols**: Ctrl+T searches route definitions across
+  every open file and its include closure (case-insensitive,
+  capped).
+- **Code lenses**: named callable `route` blocks show a reference
+  count (closure-wide); `failure_route` and friends carry none —
+  their arming isn't `route()`-countable. Setting
+  `kamailioLsp.codeLens.references`.
+- **Quick fixes**: "Load module 'X'" when the parser says
+  `unknown command, missing loadmodule?` (Kamailio names no function
+  in the message, so it is read from the call under the diagnostic)
+  and "Create route[x]" (stub with an `exit;` body) for undefined
+  targets.
+- **Catalog-pinned validation**: modparam parameters the configured
+  source tree does not document warn as you type; unknown modules
+  stay silent. Found and fixed a real harvest gap along the way:
+  presence-style `db_url(str)` headings (no space before the type)
+  now parse.
+- **Semantic tokens** for route names and pseudo-variables —
+  including inside single- OR double-quoted strings, which produce
+  the same STRING token (cfg.lex) and interpolate identically.
+- **CLI**: `kamailio-lsp check [--strict] [--bin <kamailio>]
+  <file>...` — analyzer + real-parser findings as grep-able
+  `file:line:col` lines with include-error remapping; exit codes
+  0/1/2 for CI and git hooks.
+
 ## [0.1.3] — 2026-08-20
 
 - **References and rename cross the include closure**: renaming a

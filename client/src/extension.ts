@@ -54,6 +54,7 @@ function buildClient(context: vscode.ExtensionContext): LanguageClient {
             checkTimeoutMs: cfg.get<number>('checkTimeoutMs', 10000),
             snippetCompletions: cfg.get<boolean>('completion.snippets', true),
             analyzerDiagnostics: cfg.get<boolean>('diagnostics.analyzer', true),
+            codeLensReferences: cfg.get<boolean>('codeLens.references', true),
             maxDiagnostics: cfg.get<number>('diagnostics.maxProblems', 100),
             cacheDir: cfg.get<string>('cacheDir', ''),
         },
