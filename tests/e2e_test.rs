@@ -503,16 +503,16 @@ fn references_rename_highlight_over_stdio() {
         hls.iter().any(|h| h["kind"] == 3),
         "def highlighted as Write"
     );
-    // rename to a valid name (colon included: kamailio charset)
+    // rename to a valid unquoted ID
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":5,"method":"textDocument/rename","params":{
-        "textDocument":{"uri":uri},"position":{"line":1,"character":11},"newName":"fwd:1"}}),
+        "textDocument":{"uri":uri},"position":{"line":1,"character":11},"newName":"fwd_1"}}),
     );
     let v = wait_for(&rx, |v| v["id"] == 5, "rename");
     let edits = v["result"]["changes"][&uri].as_array().expect("edits");
     assert_eq!(edits.len(), 3);
-    assert!(edits.iter().all(|e| e["newText"] == "fwd:1"));
+    assert!(edits.iter().all(|e| e["newText"] == "fwd_1"));
     // the quoted ref's edit replaces only the name inside the quotes
     let quoted = edits
         .iter()
@@ -520,16 +520,216 @@ fn references_rename_highlight_over_stdio() {
         .unwrap();
     assert_eq!(quoted["range"]["start"]["character"], 11);
     assert_eq!(quoted["range"]["end"]["character"], 16);
-    // rename to an ILLEGAL name is rejected with an error
+    // rename to an ILLEGAL name is rejected with an error — including
+    // names the parser only accepts QUOTED (colon/dot/dash/leading
+    // digit): definitions are commonly unquoted, so such a rename
+    // would emit a config kamailio rejects
+    for (id, bad) in [(6, "has space"), (7, "fwd:1"), (8, "a.b"), (9, "1ab")] {
+        write_msg(
+            &mut stdin,
+            &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"textDocument/rename","params":{
+            "textDocument":{"uri":uri},"position":{"line":1,"character":11},"newName":bad}}),
+        );
+        let v = wait_for(&rx, |v| v["id"] == id, "rename-bad");
+        assert!(
+            !v["error"].is_null(),
+            "illegal new name '{bad}' must be a jsonrpc error: {v}"
+        );
+    }
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn event_route_names_cannot_be_renamed_but_still_highlight() {
+    let dir = std::env::temp_dir().join(format!("kamlsp-evr-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let cfg = dir.join("ev.cfg");
+    let text = "event_route[htable:mod-init] {\n    exit;\n}\n";
+    std::fs::write(&cfg, text).unwrap();
+    let uri = format!("file://{}", cfg.display());
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .env("KAMAILIO_LSP_BIN", "")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
     write_msg(
         &mut stdin,
-        &serde_json::json!({"jsonrpc":"2.0","id":6,"method":"textDocument/rename","params":{
-        "textDocument":{"uri":uri},"position":{"line":1,"character":11},"newName":"has space"}}),
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 6, "rename-bad");
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    // highlights on the colon name keep working
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentHighlight","params":{
+        "textDocument":{"uri":uri},"position":{"line":0,"character":15}}}),
+    );
+    let v = wait_for(&rx, |v| v["id"] == 2, "highlight");
+    assert_eq!(v["result"].as_array().unwrap().len(), 1);
+    // rename on the event-route name is rejected: the name is the
+    // module's event identifier, not a script symbol
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":3,"method":"textDocument/rename","params":{
+        "textDocument":{"uri":uri},"position":{"line":0,"character":15},"newName":"valid_id"}}),
+    );
+    let v = wait_for(&rx, |v| v["id"] == 3, "rename-event");
     assert!(
         !v["error"].is_null(),
-        "illegal new name must be a jsonrpc error: {v}"
+        "event-route rename must be rejected: {v}"
+    );
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn include_file_errors_surface_on_the_include_directive() {
+    // kamailio attributes errors in included files to the include path
+    // AS WRITTEN (often relative to its own cwd); such diagnostics
+    // must attach to the include_file directive, never vanish
+    let dir = std::env::temp_dir().join(format!("kamlsp-incdiag-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("incdir")).unwrap();
+    std::fs::write(
+        dir.join("incdir/sub_bad.cfg"),
+        "route[SUB] {\n    bogus_stuff;\n}\n",
+    )
+    .unwrap();
+    let text = "#!KAMAILIO\ninclude_file \"incdir/sub_bad.cfg\"\nrequest_route { exit; }\n";
+    let cfg = dir.join("main.cfg");
+    std::fs::write(&cfg, text).unwrap();
+    let uri = format!("file://{}", cfg.display());
+
+    // stub echoing the REAL capture shape: relative include path
+    let stub = dir.join("stub.sh");
+    std::fs::write(
+        &stub,
+        "#!/bin/sh\necho \" 0(1) CRITICAL: <core> [core/cfg.y:4048]: yyerror_at(): parse error in config file incdir/sub_bad.cfg, line 2, column 16: syntax error\" >&2\nexit 255\n",
+    )
+    .unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    let mut perm = std::fs::metadata(&stub).unwrap().permissions();
+    perm.set_mode(0o755);
+    std::fs::set_permissions(&stub, perm).unwrap();
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    let d = wait_for(
+        &rx,
+        |v| v["method"] == "textDocument/publishDiagnostics",
+        "publish",
+    );
+    let ds = d["params"]["diagnostics"].as_array().unwrap();
+    assert!(
+        !ds.is_empty(),
+        "a broken include must NOT produce zero diagnostics: {d}"
+    );
+    assert_eq!(
+        ds[0]["range"]["start"]["line"], 1,
+        "attached at the include_file directive: {ds:?}"
+    );
+    let msg = ds[0]["message"].as_str().unwrap();
+    assert!(
+        msg.contains("incdir/sub_bad.cfg") && msg.contains("syntax error"),
+        "message carries the include context: {msg}"
+    );
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn filtered_out_diags_still_yield_a_root_fallback() {
+    // rc!=0 with positioned errors pointing at a file OUTSIDE the
+    // include closure (e.g. a nested include): everything would be
+    // filtered — a fallback diagnostic must still surface
+    let dir = std::env::temp_dir().join(format!("kamlsp-fallb-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let cfg = dir.join("main.cfg");
+    let text = "#!KAMAILIO\nrequest_route { exit; }\n";
+    std::fs::write(&cfg, text).unwrap();
+    let uri = format!("file://{}", cfg.display());
+    let stub = dir.join("stub.sh");
+    std::fs::write(
+        &stub,
+        "#!/bin/sh\necho \" 0(1) CRITICAL: <core> [core/cfg.y:4048]: yyerror_at(): parse error in config file deep/nested.cfg, line 7, column 2: syntax error\" >&2\nexit 255\n",
+    )
+    .unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    let mut perm = std::fs::metadata(&stub).unwrap().permissions();
+    perm.set_mode(0o755);
+    std::fs::set_permissions(&stub, perm).unwrap();
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    let d = wait_for(
+        &rx,
+        |v| v["method"] == "textDocument/publishDiagnostics",
+        "publish",
+    );
+    let ds = d["params"]["diagnostics"].as_array().unwrap();
+    assert_eq!(ds.len(), 1, "one fallback diagnostic: {d}");
+    assert_eq!(ds[0]["range"]["start"]["line"], 0);
+    let msg = ds[0]["message"].as_str().unwrap();
+    assert!(
+        msg.contains("deep/nested.cfg") && msg.contains("syntax error"),
+        "fallback carries the dropped context: {msg}"
     );
     child.kill().ok();
     let _ = std::fs::remove_dir_all(&dir);

@@ -319,13 +319,75 @@ pub fn route_occurrences(doc: &str, name: &str) -> Vec<(Located, bool)> {
     out
 }
 
-/// Is `s` a legal route name (`[A-Za-z0-9_.:-]+` — the same charset
-/// the parser accepts, `:` included for event-route names)?  Gates
-/// rename.
+/// Is `s` legal as an UNQUOTED route name?  Kamailio's `route_name`
+/// accepts a NUMBER, an ID (`[A-Za-z_][A-Za-z0-9_]*`, cfg.lex), or a
+/// quoted string; dotted/dashed/colon names parse only when quoted
+/// (verified against the 6.0.1 binary).  Rename must only ever
+/// produce names that survive unquoted definitions, so it gates on
+/// the ID charset.
 pub fn valid_route_name(s: &str) -> bool {
-    !s.is_empty()
-        && s.bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b':' | b'-'))
+    let b = s.as_bytes();
+    !b.is_empty()
+        && (b[0].is_ascii_alphabetic() || b[0] == b'_')
+        && b[1..]
+            .iter()
+            .all(|c| c.is_ascii_alphanumeric() || *c == b'_')
+}
+
+/// Remap one `kamailio -c` diagnostic onto the checked root file.
+///
+/// Kamailio attributes errors inside included files to the include
+/// path AS WRITTEN — often relative to ITS cwd, which is not the
+/// editor's.  A diagnostic for the checked file passes through; one
+/// for a resolvable `include_file`/`import_file` target attaches to
+/// the include directive in the root (context preserved in the
+/// message); anything else is dropped (the caller falls back on
+/// rc != 0).
+pub fn remap_include_diag(
+    checked: &std::path::Path,
+    root_text: &str,
+    d: &crate::diag::Diag,
+) -> Option<crate::diag::Diag> {
+    if diag_matches_file(&d.file, checked) {
+        return Some(d.clone());
+    }
+    if d.file.is_empty() || d.file.contains('\0') {
+        return None;
+    }
+    let norm = |p: &std::path::Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let diag_path = std::path::Path::new(&d.file);
+    let root_dir = checked.parent().unwrap_or_else(|| std::path::Path::new(""));
+    // candidate spellings of the diag's file: as written; relative to
+    // the checked file's directory; relative to our own cwd (the
+    // subprocess inherited it)
+    let mut cands: Vec<std::path::PathBuf> = vec![norm(diag_path)];
+    if diag_path.is_relative() {
+        cands.push(norm(&root_dir.join(diag_path)));
+        if let Ok(cwd) = std::env::current_dir() {
+            cands.push(norm(&cwd.join(diag_path)));
+        }
+    }
+    for inc in analyze::includes(root_text) {
+        let target = norm(&resolve_include(checked, &inc.name));
+        if cands.contains(&target) {
+            return Some(crate::diag::Diag {
+                file: checked.display().to_string(),
+                line: inc.line,
+                end_line: inc.line,
+                col_start: inc.col,
+                // span the directive keyword; the range mapper clamps
+                col_end: inc.col + 12,
+                severity: d.severity,
+                message: format!(
+                    "in included file {}, line {}: {}",
+                    inc.name,
+                    d.line + 1,
+                    d.message
+                ),
+            });
+        }
+    }
+    None
 }
 
 /// Transitive include limits: a hostile config must stay cheap.

@@ -386,9 +386,30 @@ impl Backend {
         }
         // kamailio reports byte columns; the client expects UTF-16 units
         let doc_text = snap_text.clone();
-        let diags: Vec<Diagnostic> = diag::parse_check_output(&text, rc)
+        let parsed = diag::parse_check_output(&text, rc);
+        let mut mapped: Vec<diag::Diag> = parsed
+            .iter()
+            .filter_map(|d| logic::remap_include_diag(&path, &doc_text, d))
+            .collect();
+        if mapped.is_empty() && rc != 0 {
+            // every positioned error pointed elsewhere (e.g. a nested
+            // include): a failed check must never render as clean
+            let context = parsed
+                .first()
+                .map(|d| format!("{}, line {}: {}", d.file, d.line + 1, d.message))
+                .unwrap_or_else(|| format!("kamailio -c failed (rc={rc})"));
+            mapped.push(diag::Diag {
+                file: path_str.clone(),
+                line: 0,
+                end_line: 0,
+                col_start: 0,
+                col_end: 1,
+                severity: diag::Severity::Error,
+                message: format!("check failed in {context}"),
+            });
+        }
+        let diags: Vec<Diagnostic> = mapped
             .into_iter()
-            .filter(|d| logic::diag_matches_file(&d.file, &path))
             .map(|d| Diagnostic {
                 range: {
                     let start_lt = Self::doc_line(&doc_text, d.line);
@@ -938,7 +959,7 @@ impl LanguageServer for Backend {
         let new_name = p.new_name;
         if !logic::valid_route_name(&new_name) {
             return Err(tower_lsp::jsonrpc::Error::invalid_params(format!(
-                "'{new_name}' is not a legal route name ([A-Za-z0-9_.:-]+)"
+                "'{new_name}' is not a legal unquoted route name ([A-Za-z_][A-Za-z0-9_]*)"
             )));
         }
         let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
@@ -947,6 +968,13 @@ impl LanguageServer for Backend {
         let Some(name) = Self::route_name_at(&text, pos) else {
             return Ok(None);
         };
+        if name.contains(':') {
+            // event_route[mod:event]: the name is the module's event
+            // identifier, not a script symbol
+            return Err(tower_lsp::jsonrpc::Error::invalid_params(
+                "event route names are defined by their module and cannot be renamed",
+            ));
+        }
         let edits: Vec<TextEdit> = logic::route_occurrences(&text, &name)
             .into_iter()
             .map(|(l, _)| TextEdit {
