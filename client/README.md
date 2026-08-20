@@ -11,8 +11,9 @@ extension and it just works.
 
 - **Diagnostics you can trust** — every save runs `kamailio -c`, so
   the squiggles are the *real* parser's verdict, at the exact line
-  and column, for exactly your Kamailio version:
-  `parameter <fr_timeot> of type <2:int> not found in module <tm>`.
+  and column, for exactly your Kamailio version — misspell a modparam
+  name (`fr_tmer` for tm's `fr_timer`) and that line is flagged with
+  `Can't set module parameter`.
 - **Completion that knows context**
   - `loadmodule "` → every module in your source tree
   - `modparam("tm", "` → tm's parameters, with their documentation
@@ -42,7 +43,7 @@ extension and it just works.
 
 1. Install this extension (the platform packages bundle the server —
    Linux, macOS, and Windows, x64 and arm64).
-2. Open a folder containing an `kamailio.cfg` — syntax colors,
+2. Open a folder containing a `kamailio.cfg` — syntax colors,
    completion, and navigation work immediately.
 3. For live error checking, point
    **Settings → Kamailio Lsp: Kamailio Path** at your `kamailio`
@@ -78,7 +79,7 @@ Full reference:
 ## Requirements
 
 None to start — the server is bundled. Optional, for the full
-experience: an `kamailio` binary (diagnostics) and an Kamailio source
+experience: an `kamailio` binary (diagnostics) and a Kamailio source
 tree plus a kamailio-wiki checkout (documentation). Version-proven
 against Kamailio 6.0.x.
 

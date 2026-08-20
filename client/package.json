@@ -2,7 +2,7 @@
   "name": "kamailio-lsp",
   "displayName": "Kamailio Routing Script",
   "description": "Language support for kamailio.cfg configuration files (diagnostics via kamailio -c, completion, hover, go-to-definition).",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "NormB",
   "license": "(MIT OR Apache-2.0)",
   "engines": {
@@ -139,7 +139,9 @@
       "supported": "limited",
       "description": "In untrusted workspaces, diagnostics are disabled: running 'kamailio -c' loads the modules the configuration references, which executes code. Completion, hover, and navigation stay available.",
       "restrictedConfigurations": [
-        "kamailioLsp.kamailioPath"
+        "kamailioLsp.kamailioPath",
+        "kamailioLsp.serverPath",
+        "kamailioLsp.modulesPath"
       ]
     }
   },

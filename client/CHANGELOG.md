@@ -2,6 +2,45 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.1.2] — 2026-08-20
+
+- **Rename is parser-safe**: new names are gated on the charset
+  Kamailio accepts for unquoted route names (`[A-Za-z_][A-Za-z0-9_]*`
+  — dotted/dashed/colon names only parse quoted), and event-route
+  names (`event_route[mod:event]`) are excluded from rename entirely
+  (the module defines the event); references/highlights on them keep
+  working.
+- **Errors inside included files now surface**: Kamailio reports them
+  against the include path as written (often relative), which used to
+  be filtered out — a broken include showed a clean editor. They now
+  attach to the `include_file` directive with the real file and line
+  in the message, with a root-level fallback when nothing else could
+  be attached.
+- **Preprocessor-aware analysis**: `#!`/`!!` directives (indented
+  too) are no longer treated as comments — multi-line `#!define`
+  bodies can't leak phantom routes/modules, `#!include_file` and
+  `!!import_file` are followed, and `//` line comments are
+  recognized.
+- **Six more modules documented**: READMEs titled `Exported
+  parameters` (nat_traversal, call_control) and nested chapters
+  (kafka, keepalive, lrkproxy, seas) now harvest.
+- **All load forms recognized**: `loadmodule("x.so")`,
+  `loadmodule("x", "opts")`, `loadmodulex`, `modparamx`; `xlog` is no
+  longer offered as a core keyword (it is a module function).
+- **Grammars match the lexer**: tree-sitter drops `!~`/`%`/`+=`/`-=`/
+  `break(arg)`/named `request_route`, gains `and`/`or`/`not`/`mod`/
+  `|`/`&`, paren-less `return`, `!!` directives, `//` comments; the
+  TextMate directive set is now the real one (no `defval`; `def`,
+  `trydefine`, `redef`, `trydefenv(s)`, prefixed includes, indented
+  directives).
+- **Untrusted workspaces** additionally restrict
+  `kamailioLsp.serverPath` and `kamailioLsp.modulesPath`, closing a
+  workspace-settings code-execution vector.
+- Docs: the diagnostics demo misspells a real Kamailio parameter
+  (`fr_tmer` vs tm's `fr_timer`) and quotes the message the squiggle
+  actually shows (`Can't set module parameter`); realistic module
+  counts; assorted wording fixes.
+
 ## [0.1.1] — 2026-08-20
 
 - Documentation: the check flag is Kamailio's lowercase `-c`

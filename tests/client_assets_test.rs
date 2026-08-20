@@ -108,3 +108,32 @@ fn textmate_grammar_directive_set_matches_the_lexer() {
         "the '!!' PREP_START spelling must be highlighted"
     );
 }
+
+#[test]
+fn untrusted_workspaces_restrict_every_execution_vector() {
+    // a workspace-committed settings.json in an UNTRUSTED folder must
+    // not be able to point the extension at an attacker-controlled
+    // binary: the server binary itself (serverPath), the checker
+    // (kamailioPath), and the checker's dlopen path (modulesPath) all
+    // have to be restricted
+    let root = env!("CARGO_MANIFEST_DIR");
+    let manifest = std::fs::read_to_string(format!("{root}/client/package.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    let restricted: Vec<&str> =
+        v["capabilities"]["untrustedWorkspaces"]["restrictedConfigurations"]
+            .as_array()
+            .expect("restrictedConfigurations present")
+            .iter()
+            .filter_map(|x| x.as_str())
+            .collect();
+    for key in [
+        "kamailioLsp.kamailioPath",
+        "kamailioLsp.serverPath",
+        "kamailioLsp.modulesPath",
+    ] {
+        assert!(
+            restricted.contains(&key),
+            "{key} must be restricted in untrusted workspaces: {restricted:?}"
+        );
+    }
+}

@@ -102,6 +102,11 @@ clients that can't pass options.
 
 ## Notes
 
+- The analyzer resolves `route(NAME)` literally: a route addressed
+  through a `#!define` alias (`#!define RELAY 1` + `route(RELAY)`)
+  can be flagged as undefined even though the preprocessor expands it
+  — silence such spots by naming the route directly or disabling
+  `kamailioLsp.diagnostics.analyzer`.
 - Include handling is capped for safety: depth 8, 64 files, 1 MiB per
   file; relative paths resolve against the including file's
   directory. `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` tunes the analyzer

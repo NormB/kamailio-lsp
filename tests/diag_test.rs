@@ -97,14 +97,17 @@ fn clean_output_zero_rc_is_empty() {
 
 #[test]
 fn nonzero_rc_with_no_positioned_error_yields_fallback() {
-    // verbatim module-lookup failure (kamailio -c -L <empty dir>)
-    let out = " 0(77) ERROR: <core> [core/sr_module.c:531]: ksr_locate_module(): could not find module <tm> in </tmp/kamtest/mods>\n";
+    // a missing module is NOT this case (it emits a positioned
+    // "failed to load module" line); the true unpositioned failure is
+    // e.g. a missing runtime dir — verbatim capture of `kamailio -c`
+    // without -Y (2026-08-20)
+    let out = " 0(99) ERROR: <core> [main.c:3141]: main(): failed to create runtime dir /var/run/kamailio/, check directory permissions\n";
     let ds = parse_check_output(out, 255);
     assert_eq!(ds.len(), 1);
     assert_eq!(ds[0].line, 0);
     assert_eq!(ds[0].end_line, 0);
     assert!(
-        ds[0].message.contains("could not find module <tm>"),
+        ds[0].message.contains("failed to create runtime dir"),
         "fallback message: {}",
         ds[0].message
     );
@@ -170,4 +173,23 @@ fn absurdly_long_messages_are_truncated() {
         ds[0].message.len()
     );
     assert!(ds[0].message.ends_with('…'), "truncation must be visible");
+}
+
+// Kamailio 5.x prints the same yyerror_at() format strings (they
+// predate 6.x); only the log prefix differs — older trees log the
+// grammar file without the core/ dir and builds may carry timestamps.
+// The parser must treat both generations identically.
+const FIVE_X: &str = r#"Aug 20 05:01:02 kamailio 0(29) CRITICAL: <core> [cfg.y:3423]: yyerror_at(): parse error in config file /tmp/kamtest/five.cfg, line 12, column 4-7: syntax error
+ 0(29) CRITICAL: <core> [cfg.y:3423]: yyerror_at(): parse error in config file /tmp/kamtest/five.cfg, line 13, column 2: unknown command, missing loadmodule?
+"#;
+
+#[test]
+fn parses_5x_style_output_identically() {
+    let ds = parse_check_output(FIVE_X, 255);
+    assert_eq!(ds.len(), 2);
+    assert_eq!(ds[0].line, 11);
+    assert_eq!(ds[0].col_start, 3);
+    assert_eq!(ds[0].col_end, 7);
+    assert_eq!(ds[1].line, 12);
+    assert!(ds[1].message.contains("unknown command"));
 }

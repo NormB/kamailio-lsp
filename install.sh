@@ -73,7 +73,7 @@ if [ -n "$INSTALLED_EDITOR" ]; then
     say "Done. Open any kamailio.cfg and it just works."
     say "Optional settings (File > Preferences > Settings, search 'kamailio'):"
     say "  - Kamailio Path: your kamailio binary (enables live error checking)"
-    say "  - Kamailio Src:  an Kamailio source tree (richer completion docs)"
+    say "  - Kamailio Src:  a Kamailio source tree (richer completion docs)"
 else
     say
     say "No 'code'/'code-insiders'/'codium' command was found, so the"
