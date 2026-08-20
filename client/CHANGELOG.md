@@ -2,7 +2,7 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
-## [Unreleased]
+## [0.3.0] — 2026-08-20
 
 - **Per-version memoization** (internal): the per-document
   computations (route blocks, references, semantic spans) are cached
@@ -10,7 +10,6 @@ All notable changes to the Kamailio Routing Script extension.
   tokens (full and range), code lenses, document symbols, references
   — instead of being recomputed per request; stale versions evict in
   place and closed documents drop their entry.
-
 - **Semantic tokens range**: `textDocument/semanticTokens/range` is
   served (and advertised) alongside `full` — editors can request
   just the visible slice of a large config.
@@ -18,7 +17,6 @@ All notable changes to the Kamailio Routing Script extension.
   prove the tree-sitter grammar and the server's scanner agree on
   route definitions (total and named), `loadmodule`, and `modparam`
   counts; extending one without the other fails CI.
-
 - **Prepare rename**: F2 is validated server-side before the rename
   box opens — exact range + placeholder on renamable route names,
   blocked outright off-symbol and on per-kind names (`event_route`
@@ -35,7 +33,6 @@ All notable changes to the Kamailio Routing Script extension.
   change live, republishing diagnostics for open files. Path
   settings (server/kamailio binary, source/wiki trees, cache dir)
   still restart automatically.
-
 - **Content-aware catalog cache**: the harvest cache is now keyed by
   a manifest of every file it reads (size + mtime per module README
   and cookbook page) plus a schema version — editing a doc file
@@ -44,7 +41,6 @@ All notable changes to the Kamailio Routing Script extension.
   `workDoneProgress` (busy indicator in supporting editors), and a
   configured source/wiki tree that yields zero symbols raises a
   visible warning naming the path.
-
 - **Checker cwd parity**: the server now runs `kamailio -c` from the
   configuration's own directory (as the CLI always did), so relative
   `include_file`/`import_file` paths resolve identically in editor
