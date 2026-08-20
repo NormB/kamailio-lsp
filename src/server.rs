@@ -11,7 +11,7 @@ use crate::{analyze, catalog, diag, logic};
 pub struct Backend {
     client: Client,
     /// Open documents: (version, full text).
-    docs: DashMap<Url, (i32, String)>,
+    docs: std::sync::Arc<DashMap<Url, (i32, String)>>,
     catalog: std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
     core: std::sync::RwLock<catalog::CoreDocs>,
     src: std::sync::RwLock<Option<String>>,
@@ -19,7 +19,11 @@ pub struct Backend {
     modules_path: std::sync::RwLock<Option<String>>,
     kamailio_bin: std::sync::RwLock<Option<String>>,
     /// Serializes `kamailio -c` runs: one at a time, no process storm.
-    check_gate: tokio::sync::Mutex<()>,
+    check_gate: std::sync::Arc<tokio::sync::Mutex<()>>,
+    /// In-flight check task per document: a newer check for the same
+    /// URI aborts the old one (latest wins; `kill_on_drop` reaps the
+    /// superseded child process).
+    check_tasks: DashMap<Url, tokio::task::JoinHandle<()>>,
     snippet_completions: std::sync::RwLock<bool>,
     max_diagnostics: std::sync::RwLock<usize>,
     cache_dir_opt: std::sync::RwLock<Option<String>>,
@@ -41,14 +45,15 @@ impl Backend {
     pub fn new(client: Client) -> Self {
         Self {
             client,
-            docs: DashMap::new(),
+            docs: std::sync::Arc::new(DashMap::new()),
             catalog: std::sync::Arc::new(std::sync::RwLock::new(Vec::new())),
             core: std::sync::RwLock::new(catalog::CoreDocs::default()),
             src: std::sync::RwLock::new(None),
             wiki: std::sync::RwLock::new(None),
             modules_path: std::sync::RwLock::new(None),
             kamailio_bin: std::sync::RwLock::new(None),
-            check_gate: tokio::sync::Mutex::new(()),
+            check_gate: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+            check_tasks: DashMap::new(),
             snippet_completions: std::sync::RwLock::new(true),
             max_diagnostics: std::sync::RwLock::new(100),
             cache_dir_opt: std::sync::RwLock::new(None),
@@ -66,8 +71,15 @@ impl Backend {
     /// Snapshot of open file-scheme buffers, for include resolution
     /// that prefers editor contents over disk.
     fn open_docs_snapshot(&self) -> std::collections::HashMap<std::path::PathBuf, String> {
-        self.docs
-            .iter()
+        Self::open_docs_snapshot_of(&self.docs)
+    }
+
+    /// [`Self::open_docs_snapshot`] over a shared document map (for
+    /// spawned check tasks that no longer hold `&self`).
+    fn open_docs_snapshot_of(
+        docs: &DashMap<Url, (i32, String)>,
+    ) -> std::collections::HashMap<std::path::PathBuf, String> {
+        docs.iter()
             .filter_map(|e| {
                 let url = e.key();
                 if url.scheme() != "file" {
@@ -212,10 +224,37 @@ impl Backend {
             .unwrap_or_default()
     }
 
-    async fn check(&self, uri: &Url) {
+    /// Launch (or relaunch) the `-c` check for one document.  Any
+    /// in-flight check for the same URI is aborted first: the newest
+    /// snapshot always wins, and `kill_on_drop` reaps a superseded
+    /// child process.
+    fn spawn_check(&self, uri: &Url) {
         if uri.scheme() != "file" {
             return;
         }
+        let ctx = CheckCtx {
+            client: self.client.clone(),
+            docs: self.docs.clone(),
+            catalog: self.catalog.clone(),
+            check_diags: self.check_diags.clone(),
+            check_gate: self.check_gate.clone(),
+            bin: self.kamailio_bin.read().unwrap().clone(),
+            modules_path: self.modules_path.read().unwrap().clone(),
+            check_timeout: *self.check_timeout.read().unwrap(),
+            analyzer_enabled: *self.analyzer_enabled.read().unwrap(),
+            cap: *self.max_diagnostics.read().unwrap(),
+            uri: uri.clone(),
+        };
+        if let Some((_, old)) = self.check_tasks.remove(uri) {
+            old.abort();
+        }
+        self.check_tasks
+            .insert(uri.clone(), tokio::spawn(Self::run_check(ctx)));
+    }
+
+    /// The body of one check task; state was snapshotted at spawn.
+    async fn run_check(ctx: CheckCtx) {
+        let uri = &ctx.uri;
         let Ok(path) = uri.to_file_path() else {
             return;
         };
@@ -223,27 +262,27 @@ impl Backend {
         // snapshot the buffer BEFORE the subprocess runs: ranges are
         // mapped through exactly this text, and the publish carries
         // exactly this version
-        let (snap_version, snap_text) = self
+        let (snap_version, snap_text) = ctx
             .docs
             .get(uri)
             .map(|d| d.clone())
             .unwrap_or((0, String::new()));
-        let analyzer_enabled = *self.analyzer_enabled.read().unwrap();
-        let cap = *self.max_diagnostics.read().unwrap();
-        let Some(bin) = self.kamailio_bin.read().unwrap().clone() else {
+        let analyzer_enabled = ctx.analyzer_enabled;
+        let cap = ctx.cap;
+        let Some(bin) = ctx.bin.clone() else {
             // -c disabled: analyzer-only pass.  skip_if_empty keeps the
             // no-checks contract quiet for clean documents.
-            self.check_diags.insert(uri.clone(), Vec::new());
+            ctx.check_diags.insert(uri.clone(), Vec::new());
             Self::merge_and_publish(
-                &self.client,
-                &self.check_diags,
+                &ctx.client,
+                &ctx.check_diags,
                 analyzer_enabled,
                 cap,
                 uri,
                 snap_version,
                 &snap_text,
-                self.open_docs_snapshot(),
-                &self.catalog,
+                Self::open_docs_snapshot_of(&ctx.docs),
+                &ctx.catalog,
                 true,
             )
             .await;
@@ -251,7 +290,7 @@ impl Backend {
         };
         // one -c at a time; a burst of didOpen events must not fork a
         // process per file
-        let _gate = self.check_gate.lock().await;
+        let _gate = ctx.check_gate.lock().await;
         // test-only hook: slow the check down to make races observable
         if let Some(ms) = std::env::var("KAMAILIO_LSP_TEST_CHECK_DELAY_MS")
             .ok()
@@ -265,11 +304,14 @@ impl Backend {
             .ok()
             .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or(1_048_576);
-        let modules_path = self.modules_path.read().unwrap().clone();
+        let modules_path = ctx.modules_path.clone();
         let fut = async {
             // -Y: kamailio needs a writable runtime dir even for -c;
             // --all-errors: report every detectable error in one run
             let mut cmd = tokio::process::Command::new(&bin);
+            // cwd parity with the CLI checker: relative include_file
+            // paths resolve from the config's own directory
+            cmd.current_dir(path.parent().unwrap_or(std::path::Path::new(".")));
             cmd.arg("-c").arg("--all-errors");
             cmd.arg("-Y").arg(std::env::temp_dir());
             if let Some(mp) = &modules_path {
@@ -312,11 +354,11 @@ impl Backend {
             let status = child.wait().await?;
             Ok((Some(status), o_buf, e_buf))
         };
-        let check_timeout = *self.check_timeout.read().unwrap();
+        let check_timeout = ctx.check_timeout;
         let out = match tokio::time::timeout(check_timeout, fut).await {
             Ok(r) => r,
             Err(_) => {
-                self.client
+                ctx.client
                     .log_message(
                         MessageType::WARNING,
                         format!(
@@ -326,17 +368,17 @@ impl Backend {
                     )
                     .await;
                 // an incomplete check must not leave stale results pinned
-                self.check_diags.insert(uri.clone(), Vec::new());
+                ctx.check_diags.insert(uri.clone(), Vec::new());
                 Self::merge_and_publish(
-                    &self.client,
-                    &self.check_diags,
+                    &ctx.client,
+                    &ctx.check_diags,
                     analyzer_enabled,
                     cap,
                     uri,
                     snap_version,
                     &snap_text,
-                    self.open_docs_snapshot(),
-                    &self.catalog,
+                    Self::open_docs_snapshot_of(&ctx.docs),
+                    &ctx.catalog,
                     false,
                 )
                 .await;
@@ -344,23 +386,23 @@ impl Backend {
             }
         };
         let Ok((status, o_buf, e_buf)) = out else {
-            self.client
+            ctx.client
                 .log_message(
                     MessageType::WARNING,
                     format!("kamailio-lsp: cannot run '{bin} -c' (configure kamailioPath)"),
                 )
                 .await;
-            self.check_diags.insert(uri.clone(), Vec::new());
+            ctx.check_diags.insert(uri.clone(), Vec::new());
             Self::merge_and_publish(
-                &self.client,
-                &self.check_diags,
+                &ctx.client,
+                &ctx.check_diags,
                 analyzer_enabled,
                 cap,
                 uri,
                 snap_version,
                 &snap_text,
-                self.open_docs_snapshot(),
-                &self.catalog,
+                Self::open_docs_snapshot_of(&ctx.docs),
+                &ctx.catalog,
                 false,
             )
             .await;
@@ -368,7 +410,7 @@ impl Backend {
         };
         let Some(status) = status else {
             // capped: the run's output is untrustworthy — clear and log
-            self.client
+            ctx.client
                 .log_message(
                     MessageType::WARNING,
                     format!(
@@ -376,17 +418,17 @@ impl Backend {
                     ),
                 )
                 .await;
-            self.check_diags.insert(uri.clone(), Vec::new());
+            ctx.check_diags.insert(uri.clone(), Vec::new());
             Self::merge_and_publish(
-                &self.client,
-                &self.check_diags,
+                &ctx.client,
+                &ctx.check_diags,
                 analyzer_enabled,
                 cap,
                 uri,
                 snap_version,
                 &snap_text,
-                self.open_docs_snapshot(),
-                &self.catalog,
+                Self::open_docs_snapshot_of(&ctx.docs),
+                &ctx.catalog,
                 false,
             )
             .await;
@@ -400,9 +442,9 @@ impl Backend {
         let rc = status.code().unwrap_or(-1);
         // the buffer moved while the check ran: results belong to a
         // text that no longer exists — suppress; the next save re-checks
-        let current = self.docs.get(uri).map(|d| d.0);
+        let current = ctx.docs.get(uri).map(|d| d.0);
         if current.is_some() && current != Some(snap_version) {
-            self.client
+            ctx.client
                 .log_message(
                     MessageType::INFO,
                     format!("kamailio-lsp: discarding stale check of {path_str} (buffer changed)"),
@@ -466,7 +508,7 @@ impl Backend {
             .collect();
         let mut diags = diags;
         if diags.len() > cap {
-            self.client
+            ctx.client
                 .log_message(
                     MessageType::INFO,
                     format!(
@@ -477,21 +519,37 @@ impl Backend {
                 .await;
             diags.truncate(cap);
         }
-        self.check_diags.insert(uri.clone(), diags);
+        ctx.check_diags.insert(uri.clone(), diags);
         Self::merge_and_publish(
-            &self.client,
-            &self.check_diags,
+            &ctx.client,
+            &ctx.check_diags,
             analyzer_enabled,
             cap,
             uri,
             snap_version,
             &snap_text,
-            self.open_docs_snapshot(),
-            &self.catalog,
+            Self::open_docs_snapshot_of(&ctx.docs),
+            &ctx.catalog,
             false,
         )
         .await;
     }
+}
+
+/// Everything one spawned check task needs, snapshotted at spawn
+/// time so the task owns its state outright.
+struct CheckCtx {
+    client: Client,
+    docs: std::sync::Arc<DashMap<Url, (i32, String)>>,
+    catalog: std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
+    check_diags: std::sync::Arc<DashMap<Url, Vec<Diagnostic>>>,
+    check_gate: std::sync::Arc<tokio::sync::Mutex<()>>,
+    bin: Option<String>,
+    modules_path: Option<String>,
+    check_timeout: std::time::Duration,
+    analyzer_enabled: bool,
+    cap: usize,
+    uri: Url,
 }
 
 #[tower_lsp::async_trait]
@@ -673,7 +731,7 @@ impl LanguageServer for Backend {
         let uri = p.text_document.uri;
         self.docs
             .insert(uri.clone(), (p.text_document.version, p.text_document.text));
-        self.check(&uri).await;
+        self.spawn_check(&uri);
     }
 
     async fn did_change(&self, p: DidChangeTextDocumentParams) {
@@ -718,10 +776,13 @@ impl LanguageServer for Backend {
     }
 
     async fn did_save(&self, p: DidSaveTextDocumentParams) {
-        self.check(&p.text_document.uri).await;
+        self.spawn_check(&p.text_document.uri);
     }
 
     async fn did_close(&self, p: DidCloseTextDocumentParams) {
+        if let Some((_, task)) = self.check_tasks.remove(&p.text_document.uri) {
+            task.abort();
+        }
         self.docs.remove(&p.text_document.uri);
         self.check_diags.remove(&p.text_document.uri);
         self.change_gen.remove(&p.text_document.uri);
