@@ -4,6 +4,14 @@ All notable changes to the Kamailio Routing Script extension.
 
 ## [Unreleased]
 
+- **Prepare rename**: F2 is validated server-side before the rename
+  box opens — exact range + placeholder on renamable route names,
+  blocked outright off-symbol and on per-kind names (`event_route`
+  etc.) that cannot be renamed.
+- **Include links**: `include_file`/`import_file` paths are
+  clickable document links, resolved against the including file's
+  directory (absolute paths pass through; missing targets still
+  link).
 - **Dynamic settings**: changing `diagnostics.analyzer`,
   `completion.snippets`, `codeLens.references`,
   `diagnostics.maxProblems`, or `checkTimeoutMs` no longer restarts

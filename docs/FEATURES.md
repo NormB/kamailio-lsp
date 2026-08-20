@@ -67,6 +67,24 @@ rewritten inside the quotes; illegal names are rejected — the legal
 charset includes `:` for `event_route` names); all occurrences of the
 route under the cursor are highlighted, the definition as a write.
 
+**Prepare rename** (`textDocument/prepareRename`): before the rename
+box even opens, the server validates the position — on a renamable
+main-table route name it returns the exact symbol range and the
+current name as placeholder; off-symbol, or on names that cannot be
+renamed (`event_route` and other per-kind names, which are armed
+from module-function string arguments), the editor blocks F2
+outright instead of failing afterwards.
+
+#### Include links
+
+Every `include_file`/`import_file` path (bare or `#!`/`!!`-prefixed,
+either quote style) becomes a clickable **document link**
+(`textDocument/documentLink`): relative paths resolve against the
+document's own directory — the same rule the checker and the include
+closure use — absolute paths pass through, and links are produced
+even for files that do not exist yet (the editor reports the miss on
+click). Paths in comments or strings never link.
+
 #### Workspace symbols, code lenses
 
 **Ctrl+T** searches route definitions across every open file and its
