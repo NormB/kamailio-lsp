@@ -241,3 +241,114 @@ fn valid_route_name_gate() {
     assert!(!valid_route_name("bracket]"));
     assert!(!valid_route_name("back\\slash"));
 }
+
+use kamailio_lsp::logic::{completions_with_core, pvar_tail, signature_at};
+
+fn sig_catalog() -> Vec<ModuleDoc> {
+    vec![ModuleDoc {
+        name: "tm".into(),
+        params: vec![],
+        functions: vec![Item {
+            name: "t_relay".into(),
+            detail: "t_relay([host, port])".into(),
+            doc: "Relays the request.".into(),
+        }],
+    }]
+}
+
+#[test]
+fn signature_at_finds_active_parameter() {
+    let core = kamailio_lsp::catalog::CoreDocs::default();
+    let doc = "loadmodule \"tm.so\"\nrequest_route {\n}\n";
+    // first argument
+    let s = signature_at(&sig_catalog(), &core, doc, "    t_relay(").expect("sig");
+    assert_eq!(s.0, "t_relay([host, port])");
+    assert_eq!(s.2, 0);
+    // second argument (comma inside a string must not count)
+    let s = signature_at(&sig_catalog(), &core, doc, r#"    t_relay("a,b", "#).expect("sig");
+    assert_eq!(s.2, 1);
+    // nested call: innermost unclosed wins
+    let core_with_fn = kamailio_lsp::catalog::CoreDocs {
+        functions: vec![Item {
+            name: "xlog".into(),
+            detail: "xlog([level], format)".into(),
+            doc: String::new(),
+        }],
+        ..Default::default()
+    };
+    let s = signature_at(&sig_catalog(), &core_with_fn, doc, "    t_relay(xlog(").expect("sig");
+    assert_eq!(s.0, "xlog([level], format)");
+    // a CLOSED nested call pops back to the outer one
+    let s = signature_at(
+        &sig_catalog(),
+        &core_with_fn,
+        doc,
+        "    t_relay(xlog(\"x\"), ",
+    )
+    .expect("sig");
+    assert_eq!(s.0, "t_relay([host, port])");
+    assert_eq!(s.2, 1);
+    // unknown function → none
+    assert!(signature_at(&sig_catalog(), &core, doc, "    nope(").is_none());
+    // adversarial: never panic
+    for p in ["", "(", ")))((", "\"", "t_relay(\"\\", "#t_relay(", "\0("] {
+        let _ = signature_at(&sig_catalog(), &core, doc, p);
+    }
+}
+
+#[test]
+fn completions_dedup_prefers_richer_items() {
+    // "xlog" exists as a core KEYWORD and as a core function: one item
+    // must survive, and it must be the function (it carries docs)
+    let core = kamailio_lsp::catalog::CoreDocs {
+        functions: vec![Item {
+            name: "xlog".into(),
+            detail: "xlog([level], format)".into(),
+            doc: "Logs.".into(),
+        }],
+        ..Default::default()
+    };
+    let out = completions_with_core(&[], &core, "request_route {\n}\n", "    ");
+    let xlogs: Vec<_> = out.iter().filter(|c| c.label == "xlog").collect();
+    assert_eq!(xlogs.len(), 1, "duplicate labels must collapse");
+    assert_eq!(xlogs[0].kind, CompKind::Function);
+}
+
+#[test]
+fn route_call_argument_completes_route_names() {
+    let doc = "route[RELAY] {\n    exit;\n}\nrequest_route {\n}\n";
+    let out = completions_with_core(
+        &[],
+        &kamailio_lsp::catalog::CoreDocs::default(),
+        doc,
+        "    route(",
+    );
+    assert!(!out.is_empty());
+    assert!(
+        out.iter().all(|c| c.kind == CompKind::Route),
+        "inside route( only route names complete: {:?}",
+        out.iter().map(|c| &c.label).collect::<Vec<_>>()
+    );
+    assert!(out.iter().any(|c| c.label == "RELAY"));
+    // quoted form and partial names too
+    let out = completions_with_core(
+        &[],
+        &kamailio_lsp::catalog::CoreDocs::default(),
+        doc,
+        "    route(\"RE",
+    );
+    assert!(out.iter().any(|c| c.label == "RELAY"));
+}
+
+#[test]
+fn pvar_tail_reports_replacement_length() {
+    // "$ru" → replace "$ru" (3 bytes)
+    assert_eq!(pvar_tail("    $ru"), Some(3));
+    assert_eq!(pvar_tail("$"), Some(1));
+    assert_eq!(pvar_tail("xlog($si"), Some(3));
+    // not a pvar context
+    assert_eq!(pvar_tail("xlog("), None);
+    assert_eq!(pvar_tail(""), None);
+    // "$x y" — space breaks the tail
+    assert_eq!(pvar_tail("$x y"), None);
+}
