@@ -54,15 +54,19 @@ fn sanitize_doc(text: &str) -> String {
 
 /// Parse one generated plain-text module `README`.
 ///
-/// Structure (a lynx dump of the module docbook): chapter headings at
-/// column 0 (`3. Parameters`, `4. Functions`), item headings at
-/// column 0 (`3.1. fr_timer (integer)`, `4.1.  t_relay([host,
-/// port])`), body paragraphs indented by three spaces. The table of
-/// contents repeats every heading indented, so column 0 is the
-/// anchor. Chapters restart numbering per guide (the developer guide
-/// has its own `1. Available Functions`), so items are only collected
-/// under a chapter literally titled `Parameters` / `Functions`
-/// (optionally `Exported ...`).
+/// Structure (a lynx dump of the module docbook): numbered headings
+/// at column 0, body paragraphs indented.  The Parameters/Functions
+/// chapter usually sits at the top level (`3. Parameters`, items
+/// `3.1. fr_timer (integer)`), but some modules nest the whole admin
+/// guide one level down (`2.3. Parameters`, items `2.3.1. brokers
+/// (string)`) — so section matching is DEPTH-RELATIVE: items are the
+/// headings exactly one component deeper that share the section's
+/// number prefix.  Titles match case-insensitively (`Exported
+/// parameters` is real), with an optional `Exported ` prefix.  The
+/// table of contents repeats every heading indented, so column 0 is
+/// the anchor; chapters restart numbering per guide (the developer
+/// guide has its own `1. Available Functions`), and any heading at
+/// the section's depth or shallower ends it.
 pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
     if txt.contains('\0') {
         return Err("input contains NUL bytes".into());
@@ -70,10 +74,8 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
     if txt.trim().is_empty() {
         return Err("empty input".into());
     }
-    static CHAPTER: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    static ITEM: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let chapter = CHAPTER.get_or_init(|| regex::Regex::new(r"^(\d+)\.\s+(\S.*)$").unwrap());
-    let item = ITEM.get_or_init(|| regex::Regex::new(r"^(\d+)\.(\d+)\.\s+(\S.*)$").unwrap());
+    static HEADING: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let heading = HEADING.get_or_init(|| regex::Regex::new(r"^((?:\d+\.)+)\s+(\S.*)$").unwrap());
 
     #[derive(PartialEq, Clone, Copy)]
     enum Section {
@@ -82,6 +84,9 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
         Other,
     }
     let mut section = Section::Other;
+    // number prefix + component depth of the active section heading
+    let mut sec_prefix = String::new();
+    let mut sec_depth = 0usize;
     let mut out = ModuleDoc {
         name: module.to_string(),
         ..Default::default()
@@ -112,48 +117,51 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
     };
 
     for line in txt.lines() {
-        // item headings first: `3.1. name ...` would also match the
-        // chapter regex (`3.` + ` 1. name`)
-        if let Some(c) = item.captures(line) {
+        if let Some(c) = heading.captures(line) {
             flush(&mut cur, &mut out);
-            if section == Section::Other {
+            let nums = c[1].to_string();
+            let depth = nums.bytes().filter(|b| *b == b'.').count();
+            let title = c[2].trim();
+            let lowered = title.to_ascii_lowercase();
+            let bare = lowered.strip_prefix("exported ").unwrap_or(&lowered);
+            if bare == "parameters" || bare == "functions" {
+                section = if bare == "parameters" {
+                    Section::Params
+                } else {
+                    Section::Functions
+                };
+                sec_prefix = nums;
+                sec_depth = depth;
                 continue;
             }
-            let heading = c[3].trim();
-            match section {
-                Section::Params => {
-                    let (name, detail) = match heading.split_once(" (") {
-                        Some((n, rest)) => (
-                            n.trim().to_string(),
-                            rest.trim_end_matches(')').trim().to_string(),
-                        ),
-                        None => (heading.to_string(), String::new()),
-                    };
-                    // dotted names (`tm.t_uac_start`) are RPC-style,
-                    // never modparam targets — but chapter gating
-                    // already excludes them; keep names word-shaped
-                    cur = Some((true, name, detail, Vec::new(), false));
+            if section != Section::Other && depth == sec_depth + 1 && nums.starts_with(&sec_prefix)
+            {
+                // an item of the active section
+                match section {
+                    Section::Params => {
+                        let (name, detail) = match title.split_once(" (") {
+                            Some((n, rest)) => (
+                                n.trim().to_string(),
+                                rest.trim_end_matches(')').trim().to_string(),
+                            ),
+                            None => (title.to_string(), String::new()),
+                        };
+                        cur = Some((true, name, detail, Vec::new(), false));
+                    }
+                    Section::Functions => {
+                        let name = title.split('(').next().unwrap_or(title).trim().to_string();
+                        cur = Some((false, name, title.to_string(), Vec::new(), false));
+                    }
+                    Section::Other => {}
                 }
-                Section::Functions => {
-                    let name = heading
-                        .split('(')
-                        .next()
-                        .unwrap_or(heading)
-                        .trim()
-                        .to_string();
-                    cur = Some((false, name, heading.to_string(), Vec::new(), false));
-                }
-                Section::Other => {}
+                continue;
             }
-            continue;
-        }
-        if let Some(c) = chapter.captures(line) {
-            flush(&mut cur, &mut out);
-            section = match c[2].trim() {
-                "Parameters" | "Exported Parameters" => Section::Params,
-                "Functions" | "Exported Functions" => Section::Functions,
-                _ => Section::Other,
-            };
+            if depth <= sec_depth {
+                // a sibling or shallower chapter ends the section
+                section = Section::Other;
+            }
+            // deeper headings (e.g. a function's "Return value"
+            // sub-subsection) neither start items nor reset anything
             continue;
         }
         if let Some((_, _, _, lines, finished)) = cur.as_mut() {

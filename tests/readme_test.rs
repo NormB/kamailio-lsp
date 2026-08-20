@@ -179,3 +179,113 @@ fn adversarial_inputs_do_not_panic() {
         let _ = parse_readme_txt("m", s);
     }
 }
+
+// nat_traversal/call_control style: "Exported parameters" with a
+// lowercase p (and "Exported functions"/"Functions" mixtures)
+const CASE_FIXTURE: &str = r#"NAT Module
+
+4. Exported parameters
+
+4.1. keepalive_interval (integer)
+
+   How often keepalives are sent.
+
+5. Exported functions
+
+5.1.  nat_keepalive()
+
+   Arms keepalive for the current registration.
+"#;
+
+#[test]
+fn chapter_titles_match_case_insensitively() {
+    let m = parse_readme_txt("nat_traversal", CASE_FIXTURE).expect("parses");
+    assert_eq!(m.params.len(), 1, "lowercase 'parameters' chapter: {m:?}");
+    assert_eq!(m.params[0].name, "keepalive_interval");
+    assert_eq!(m.functions.len(), 1);
+    assert_eq!(m.functions[0].name, "nat_keepalive");
+}
+
+// kafka/keepalive/lrkproxy/seas style: the admin guide is one
+// numbered chapter, so Parameters/Functions nest one level deeper
+// (`2.3. Parameters` with `2.3.1. brokers (string)` items)
+const NESTED_FIXTURE: &str = r#"Kafka Module
+
+2. Admin Guide
+
+2.1. Overview
+
+   Prose.
+
+2.3. Parameters
+
+2.3.1. brokers (string)
+
+   Specifies a list of brokers separated by commas.
+
+   More prose.
+
+2.3.2. topic (string)
+
+   Topic name.
+
+2.4. Functions
+
+2.4.1.  kafka_send(topic, msg)
+
+   Sends a message. Second sentence.
+
+2.4.1.1. Return value
+
+   Sub-sub sections are neither items nor section resets.
+
+2.4.2.  kafka_send_key(topic, msg, key)
+
+   Sends with a key.
+
+2.5. RPC Commands
+
+2.5.1. kafka.stats
+
+   Not a script function.
+"#;
+
+#[test]
+fn nested_chapters_are_harvested_depth_relatively() {
+    let m = parse_readme_txt("kafka", NESTED_FIXTURE).expect("parses");
+    let pnames: Vec<&str> = m.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(pnames, vec!["brokers", "topic"], "{m:?}");
+    assert_eq!(
+        m.params[0].doc,
+        "Specifies a list of brokers separated by commas."
+    );
+    let fnames: Vec<&str> = m.functions.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(fnames, vec!["kafka_send", "kafka_send_key"]);
+    assert!(m.functions[0].doc.starts_with("Sends a message."));
+    // the sub-sub "Return value" section neither becomes an item nor
+    // swallows the following real item
+    assert!(!m.functions.iter().any(|f| f.name.contains("Return")));
+    assert!(!m.functions.iter().any(|f| f.name.contains("stats")));
+}
+
+#[test]
+fn nested_adversarial_do_not_panic() {
+    for s in [
+        "2.3. Parameters
+2.3.1.",
+        "2.3. Parameters
+9.9.9. x (y)
+",
+        "2.3. parameters
+2.3.1. p (t)
+   doc
+",
+        "2.3. Parameters
+2.3.1.1.1.1. deep (t)
+",
+        "999999999999999999999.1. Parameters
+",
+    ] {
+        let _ = parse_readme_txt("m", s);
+    }
+}
