@@ -200,3 +200,47 @@ fn analyzer_diags_can_be_disabled() {
     child.kill().ok();
     let _ = std::fs::remove_dir_all(&base);
 }
+
+#[test]
+fn references_and_rename_cross_the_include_closure() {
+    let base = std::env::temp_dir().join(format!("kamlsp-xref-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let (uri, text) = setup(&base);
+    let inc_uri = format!("file://{}", base.join("inc.cfg").display());
+    let (mut child, rx, mut stdin) = start(&base, serde_json::json!({"kamailioPath":""}));
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    // references from the call in main.cfg include the DEF in inc.cfg
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/references","params":{
+        "textDocument":{"uri":uri},"position":{"line":2,"character":11},
+        "context":{"includeDeclaration":true}}}),
+    );
+    let v = wait_for(&rx, |v| v["id"] == 2, "references");
+    let locs = v["result"].as_array().expect("locations");
+    assert_eq!(locs.len(), 2, "call in main + def in include: {locs:?}");
+    assert!(
+        locs.iter().any(|l| l["uri"] == inc_uri),
+        "the include's definition must be listed: {locs:?}"
+    );
+    // rename rewrites BOTH files
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":3,"method":"textDocument/rename","params":{
+        "textDocument":{"uri":uri},"position":{"line":2,"character":11},"newName":"HELPER2"}}),
+    );
+    let v = wait_for(&rx, |v| v["id"] == 3, "rename");
+    let changes = v["result"]["changes"].as_object().expect("changes");
+    assert_eq!(changes.len(), 2, "edits in both files: {changes:?}");
+    assert_eq!(changes[&uri].as_array().unwrap().len(), 1);
+    assert_eq!(changes[&inc_uri].as_array().unwrap().len(), 1);
+    let inc_edit = &changes[&inc_uri][0];
+    assert_eq!(inc_edit["newText"], "HELPER2");
+    assert_eq!(inc_edit["range"]["start"]["line"], 0);
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&base);
+}

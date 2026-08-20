@@ -162,11 +162,26 @@ impl Backend {
         text.lines().nth(line as usize).unwrap_or("").to_string()
     }
 
-    /// The route name under an LSP (UTF-16) position, if any.
-    fn route_name_at(text: &str, pos: Position) -> Option<String> {
+    /// The route-name symbol (and namespace) under an LSP (UTF-16)
+    /// position, if any.
+    fn route_symbol_at(text: &str, pos: Position) -> Option<(String, logic::RouteNs)> {
         let line = text.lines().nth(pos.line as usize)?;
         let byte_col = analyze::utf16_to_byte(line, pos.character) as u32;
-        logic::route_symbol_at(text, pos.line, byte_col)
+        logic::route_symbol_ns_at(text, pos.line, byte_col)
+    }
+
+    /// The URI of one closure entry: the root keeps the request's
+    /// URI; includes map through their path.
+    fn closure_uri(
+        root_uri: &Url,
+        root_path: &std::path::Path,
+        p: &std::path::Path,
+    ) -> Option<Url> {
+        if p == root_path {
+            Some(root_uri.clone())
+        } else {
+            Url::from_file_path(p).ok()
+        }
     }
 
     /// UTF-16 range of one route-name occurrence.
@@ -847,8 +862,14 @@ impl LanguageServer for Backend {
         };
         let files = self.closure_for(&uri, &text);
         for (path, ftext) in files.iter().skip(1) {
-            if let Some(d) = analyze::route_defs(ftext)
+            if let Some(d) = analyze::route_blocks(ftext)
                 .into_iter()
+                .filter(|b| b.kind == "route")
+                .map(|b| analyze::Located {
+                    name: b.name,
+                    line: b.line,
+                    col: b.col,
+                })
                 .find(|d| d.name == name)
                 && let Ok(target) = Url::from_file_path(path)
             {
@@ -912,18 +933,26 @@ impl LanguageServer for Backend {
         let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
             return Ok(None);
         };
-        let Some(name) = Self::route_name_at(&text, pos) else {
+        let Some((name, ns)) = Self::route_symbol_at(&text, pos) else {
             return Ok(None);
         };
         let include_decl = p.context.include_declaration;
-        let locs = logic::route_occurrences(&text, &name)
-            .into_iter()
-            .filter(|(_, is_def)| include_decl || !is_def)
-            .map(|(l, _)| Location {
-                uri: uri.clone(),
-                range: Self::occurrence_range(&text, &l),
-            })
-            .collect();
+        let root_path = uri.to_file_path().unwrap_or_default();
+        let files = self.closure_for(&uri, &text);
+        let mut locs = Vec::new();
+        for (path, ftext) in &files {
+            let Some(furi) = Self::closure_uri(&uri, &root_path, path) else {
+                continue;
+            };
+            for (l, is_def) in logic::ns_occurrences(ftext, &name, &ns) {
+                if include_decl || !is_def {
+                    locs.push(Location {
+                        uri: furi.clone(),
+                        range: Self::occurrence_range(ftext, &l),
+                    });
+                }
+            }
+        }
         Ok(Some(locs))
     }
 
@@ -936,10 +965,10 @@ impl LanguageServer for Backend {
         let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
             return Ok(None);
         };
-        let Some(name) = Self::route_name_at(&text, pos) else {
+        let Some((name, ns)) = Self::route_symbol_at(&text, pos) else {
             return Ok(None);
         };
-        let hls = logic::route_occurrences(&text, &name)
+        let hls = logic::ns_occurrences(&text, &name, &ns)
             .into_iter()
             .map(|(l, is_def)| DocumentHighlight {
                 range: Self::occurrence_range(&text, &l),
@@ -965,25 +994,45 @@ impl LanguageServer for Backend {
         let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
             return Ok(None);
         };
-        let Some(name) = Self::route_name_at(&text, pos) else {
+        let Some((name, ns)) = Self::route_symbol_at(&text, pos) else {
             return Ok(None);
         };
-        if name.contains(':') {
-            // event_route[mod:event]: the name is the module's event
-            // identifier, not a script symbol
-            return Err(tower_lsp::jsonrpc::Error::invalid_params(
-                "event route names are defined by their module and cannot be renamed",
-            ));
+        match &ns {
+            logic::RouteNs::Kind(k) if k == "event_route" => {
+                // the name is the module's event identifier
+                return Err(tower_lsp::jsonrpc::Error::invalid_params(
+                    "event route names are defined by their module and cannot be renamed",
+                ));
+            }
+            logic::RouteNs::Kind(k) => {
+                // armed through module functions (t_on_failure, ...)
+                // whose string arguments we cannot rewrite safely
+                return Err(tower_lsp::jsonrpc::Error::invalid_params(format!(
+                    "{k} names are referenced from module-function arguments; renaming here would not update those call sites"
+                )));
+            }
+            logic::RouteNs::Main => {}
         }
-        let edits: Vec<TextEdit> = logic::route_occurrences(&text, &name)
-            .into_iter()
-            .map(|(l, _)| TextEdit {
-                range: Self::occurrence_range(&text, &l),
-                new_text: new_name.clone(),
-            })
-            .collect();
-        let mut changes = std::collections::HashMap::new();
-        changes.insert(uri, edits);
+        // rewrite every occurrence in the whole include closure
+        let root_path = uri.to_file_path().unwrap_or_default();
+        let files = self.closure_for(&uri, &text);
+        let mut changes: std::collections::HashMap<Url, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+        for (path, ftext) in &files {
+            let Some(furi) = Self::closure_uri(&uri, &root_path, path) else {
+                continue;
+            };
+            let edits: Vec<TextEdit> = logic::ns_occurrences(ftext, &name, &ns)
+                .into_iter()
+                .map(|(l, _)| TextEdit {
+                    range: Self::occurrence_range(ftext, &l),
+                    new_text: new_name.clone(),
+                })
+                .collect();
+            if !edits.is_empty() {
+                changes.insert(furi, edits);
+            }
+        }
         Ok(Some(WorkspaceEdit {
             changes: Some(changes),
             ..Default::default()

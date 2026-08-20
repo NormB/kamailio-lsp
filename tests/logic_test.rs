@@ -198,7 +198,7 @@ fn event_route_names_with_colon_are_symbols() {
         route_symbol_at(doc, 0, 15),
         Some("htable:mod-init".to_string())
     );
-    let occ = route_occurrences(doc, "htable:mod-init");
+    let occ = ns_occurrences(doc, "htable:mod-init", &RouteNs::Kind("event_route".into()));
     assert_eq!(occ.len(), 1);
     assert!(occ[0].1, "the event_route name span is the definition");
 }
@@ -514,4 +514,102 @@ fn include_diags_remap_to_the_include_directive() {
     for f in ["", "\0", "..", "a\\b", "incdir/../incdir/sub_bad.cfg"] {
         let _ = remap_include_diag(checked, root_text, &mk(f));
     }
+}
+
+use kamailio_lsp::logic::{RouteNs, ns_occurrences, route_symbol_ns_at};
+
+#[test]
+fn route_call_sites_are_not_satisfied_by_other_kinds() {
+    // kamailio keeps per-kind route tables: route(X) invokes only the
+    // main table (route[X]); a failure_route[X] is armed via
+    // t_on_failure and lives elsewhere (cross-kind same-name configs
+    // are legal, rc=0-verified)
+    use std::path::Path;
+    let loader = |_: &Path| -> Option<String> { None };
+    let text = "failure_route[FOO] { exit; }\nrequest_route {\n    route(FOO);\n}\n";
+    let ds = kamailio_lsp::logic::analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader);
+    assert_eq!(
+        ds.len(),
+        1,
+        "failure_route must not satisfy route(): {ds:?}"
+    );
+    assert!(ds[0].message.contains("FOO"));
+    // a real route[FOO] does satisfy it
+    let text2 = "route[FOO] { exit; }\nrequest_route {\n    route(FOO);\n}\n";
+    assert!(
+        kamailio_lsp::logic::analyzer_diagnostics(Path::new("/x/t.cfg"), text2, &loader).is_empty()
+    );
+}
+
+#[test]
+fn duplicates_are_tracked_per_kind() {
+    use std::path::Path;
+    let loader = |_: &Path| -> Option<String> { None };
+    // same name across kinds is legal — no duplicate warning
+    let text = "route[X] { exit; }\nfailure_route[X] { exit; }\nbranch_route[X] { exit; }\n";
+    assert!(
+        kamailio_lsp::logic::analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader).is_empty(),
+        "cross-kind same-name is legal kamailio"
+    );
+    // same kind twice still warns
+    let text2 = "failure_route[X] { exit; }\nfailure_route[X] { drop; }\n";
+    let ds = kamailio_lsp::logic::analyzer_diagnostics(Path::new("/x/t.cfg"), text2, &loader);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+}
+
+#[test]
+fn numeric_route_refs_are_dynamic_and_never_warn() {
+    // route(N) builds a runtime rval expression (cfg.y ROUTE LPAREN
+    // rval_expr) — index/name dispatch happens at runtime, so the
+    // analyzer must stay quiet even without a route[N] block
+    use std::path::Path;
+    let loader = |_: &Path| -> Option<String> { None };
+    let text = "request_route {\n    route(0);\n    route(7);\n}\n";
+    assert!(
+        kamailio_lsp::logic::analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader).is_empty(),
+        "numeric refs are runtime-dispatched"
+    );
+}
+
+#[test]
+fn route_completion_offers_only_callable_names() {
+    let doc = "route[CALLABLE] { exit; }\nfailure_route[ARMED] { exit; }\nevent_route[htable:mod-init] { exit; }\nrequest_route {\n}\n";
+    let out = completions_with_core(
+        &[],
+        &kamailio_lsp::catalog::CoreDocs::default(),
+        doc,
+        "    route(",
+    );
+    let labels: Vec<&str> = out.iter().map(|c| c.label.as_str()).collect();
+    assert!(labels.contains(&"CALLABLE"));
+    assert!(
+        !labels.contains(&"ARMED"),
+        "failure_route names are not route() targets: {labels:?}"
+    );
+    assert!(!labels.iter().any(|l| l.contains(':')));
+}
+
+#[test]
+fn symbol_namespaces_separate_calls_from_other_kind_defs() {
+    let doc = "route[X] { exit; }\nfailure_route[X] { drop; }\nrequest_route {\n    route(X);\n}\n";
+    // on the call site: main namespace
+    let (name, ns) = route_symbol_ns_at(doc, 3, 10).expect("call symbol");
+    assert_eq!(name, "X");
+    assert!(matches!(ns, RouteNs::Main));
+    let occ = ns_occurrences(doc, &name, &ns);
+    // route[X] def + route(X) call — NOT the failure_route[X] def
+    assert_eq!(occ.len(), 2, "{occ:?}");
+    assert_eq!(occ.iter().filter(|(_, d)| *d).count(), 1);
+    assert!(occ.iter().all(|(l, _)| l.line != 1));
+    // on the failure_route def name: its own namespace, only itself
+    let (name, ns) = route_symbol_ns_at(doc, 1, 14).expect("failure def symbol");
+    assert_eq!(name, "X");
+    assert!(matches!(ns, RouteNs::Kind(ref k) if k == "failure_route"));
+    let occ = ns_occurrences(doc, &name, &ns);
+    assert_eq!(occ.len(), 1, "{occ:?}");
+    assert_eq!(occ[0].0.line, 1);
+    // definition_of from the call resolves to route[X], never the
+    // failure_route
+    let d = definition_of(doc, 3, 10).expect("definition");
+    assert_eq!(d.line, 0);
 }
