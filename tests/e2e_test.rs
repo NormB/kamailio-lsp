@@ -734,3 +734,159 @@ fn filtered_out_diags_still_yield_a_root_fallback() {
     child.kill().ok();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn checker_runs_in_the_configs_directory() {
+    // cwd parity with the CLI: the -c subprocess must run with its
+    // cwd set to the config's own directory, so relative
+    // include_file paths resolve identically in editor and CI runs.
+    // The stub fails unless ./inc.cfg is visible from its cwd.
+    let dir = std::env::temp_dir().join(format!("kamlsp-e2e-cwd-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("inc.cfg"), "route[H] {\n    exit;\n}\n").unwrap();
+    let stub = dir.join("kamailio-stub.sh");
+    std::fs::write(
+        &stub,
+        format!(
+            "{STUB_PREAMBLE}if [ -f inc.cfg ]; then exit 0; fi\necho \" 0(1) CRITICAL: <core> [core/cfg.y:4045]: yyerror_at(): parse error in config file $cfg, line 1, column 1-13: failed to open included file inc.cfg\" >&2\nexit 255\n"
+        ),
+    )
+    .unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    let mut perm = std::fs::metadata(&stub).unwrap().permissions();
+    perm.set_mode(0o755);
+    std::fs::set_permissions(&stub, perm).unwrap();
+    let text = "include_file \"inc.cfg\"\nrequest_route { exit; }\n";
+    let cfg = dir.join("main.cfg");
+    std::fs::write(&cfg, text).unwrap();
+    let uri = format!("file://{}", cfg.display());
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+        .env("KAMAILIO_LSP_SRC", "")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    let d = wait_for(
+        &rx,
+        |v| v["method"] == "textDocument/publishDiagnostics",
+        "publish",
+    );
+    let ds = d["params"]["diagnostics"].as_array().unwrap();
+    assert!(
+        ds.is_empty(),
+        "relative include must resolve from the config's directory: {ds:?}"
+    );
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn newer_save_supersedes_a_slow_check() {
+    // latest-wins: a slow -c run on stale content must neither delay
+    // nor outlive a newer save of the same document — the newer
+    // check's diagnostics arrive promptly (well under the stale
+    // run's 60s sleep; the harness bounds the wait at 15s).
+    let dir = std::env::temp_dir().join(format!("kamlsp-e2e-super-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let stub = dir.join("kamailio-stub.sh");
+    std::fs::write(
+        &stub,
+        format!(
+            "{STUB_PREAMBLE}if grep -q SLOW_MARKER \"$cfg\"; then\n  sleep 60\n  echo \" 0(1) CRITICAL: <core> [core/cfg.y:4045]: yyerror_at(): parse error in config file $cfg, line 1, column 1-2: slow stale error\" >&2\n  exit 255\nfi\necho \" 0(1) CRITICAL: <core> [core/cfg.y:4045]: yyerror_at(): parse error in config file $cfg, line 1, column 1-2: fresh error\" >&2\nexit 255\n"
+        ),
+    )
+    .unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    let mut perm = std::fs::metadata(&stub).unwrap().permissions();
+    perm.set_mode(0o755);
+    std::fs::set_permissions(&stub, perm).unwrap();
+    let slow_text = "# SLOW_MARKER\nrequest_route { exit; }\n";
+    let fast_text = "request_route { exit; }\n";
+    let cfg = dir.join("t.cfg");
+    std::fs::write(&cfg, slow_text).unwrap();
+    let uri = format!("file://{}", cfg.display());
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+        .env("KAMAILIO_LSP_SRC", "")
+        // the run timeout must not rescue the old serialized behavior:
+        // only superseding the slow run can produce a timely result
+        .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "60000")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    // v1 opens with the slow content: its check starts and hangs
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":slow_text}}}),
+    );
+    // give the slow check a moment to actually be in flight (ordering
+    // matters, exact timing does not)
+    std::thread::sleep(Duration::from_millis(300));
+    // v2 saves fast content: it must supersede the slow run
+    std::fs::write(&cfg, fast_text).unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{
+        "textDocument":{"uri":uri,"version":2},
+        "contentChanges":[{"text":fast_text}]}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didSave","params":{
+        "textDocument":{"uri":uri}}}),
+    );
+    let d = wait_for(
+        &rx,
+        |v| {
+            v["method"] == "textDocument/publishDiagnostics"
+                && v["params"]["diagnostics"]
+                    .as_array()
+                    .is_some_and(|a| !a.is_empty())
+        },
+        "the newer save's diagnostics",
+    );
+    let ds = d["params"]["diagnostics"].as_array().unwrap();
+    assert_eq!(
+        ds[0]["message"], "fresh error",
+        "the newer content's result must win: {d}"
+    );
+    assert_eq!(d["params"]["version"], 2, "results belong to v2: {d}");
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}

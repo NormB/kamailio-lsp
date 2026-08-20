@@ -189,7 +189,13 @@ source executes code. Rely on your editor's workspace-trust
 mechanism, or set `kamailioPath` to the empty string for untrusted
 trees. `-c` runs are serialized (one at a time), bounded by
 `checkTimeoutMs`, and their output is byte-capped
-(`KAMAILIO_LSP_OUTPUT_CAP_BYTES`, default 1 MiB).
+(`KAMAILIO_LSP_OUTPUT_CAP_BYTES`, default 1 MiB). A newer save of
+the same document supersedes an in-flight check: the stale run's
+child process is killed and the fresh content is checked
+immediately (latest wins). The checker runs with its working
+directory set to the configuration's own directory, so relative
+`include_file`/`import_file` paths resolve exactly as they do in
+the CLI (`kamailio-lsp check`).
 
 ### Frequently Asked Questions
 

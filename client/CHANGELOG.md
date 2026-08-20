@@ -2,6 +2,16 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [Unreleased]
+
+- **Checker cwd parity**: the server now runs `kamailio -c` from the
+  configuration's own directory (as the CLI always did), so relative
+  `include_file`/`import_file` paths resolve identically in editor
+  and CI runs.
+- **Latest-wins checks**: a newer save supersedes an in-flight
+  `kamailio -c` run on the same document — the stale child process
+  is killed instead of blocking the fresh check behind it.
+
 ## [0.2.1] — 2026-08-20
 
 - Internal: drift gates for the release workflow; ground-truth

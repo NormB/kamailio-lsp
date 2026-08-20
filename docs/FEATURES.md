@@ -12,7 +12,10 @@ Two complementary layers:
   column range, or multi-line span) the parser reports. Failed or
   timed-out checks clear stale squiggles instead of leaving them
   pinned; results are versioned against the buffer they were computed
-  for; runs are serialized, time-bounded, and output-capped.
+  for; runs are serialized, time-bounded, and output-capped, and a
+  newer save supersedes an in-flight check (the stale child process
+  is killed — latest wins). Checks run from the config's own
+  directory, so relative includes resolve as in the CLI.
   Automatically off in untrusted workspaces (checking a config loads
   its modules, which executes code).
 - **Analyzer warnings** — fast, between saves, as you type
