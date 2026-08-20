@@ -49,6 +49,14 @@ The parameters below are passed as LSP `initializationOptions` (see
 the editor guides in `docs/EDITORS.md`); most have an environment
 fallback for clients that cannot pass options.
 
+The runtime toggles — `analyzerDiagnostics`, `snippetCompletions`,
+`codeLensReferences`, `maxDiagnostics`, `checkTimeoutMs` — can also
+be retuned live via `workspace/didChangeConfiguration` (settings
+wrapped in a `kamailioLsp` section or flat); the server applies them
+in place and republishes diagnostics for open documents. The path
+parameters (`kamailioPath`, `kamailioSrc`, `kamailioWiki`,
+`modulesPath`, `cacheDir`) apply at initialization only.
+
 #### kamailioPath (string)
 
 Path to the `kamailio` binary used for `-c` diagnostics. Set to the

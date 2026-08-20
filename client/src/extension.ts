@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
+    DidChangeConfigurationNotification,
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
@@ -88,12 +89,58 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.workspace.onDidGrantWorkspaceTrust(() => void restart(context)),
     );
-    // settings changed: restart with the new configuration
+    // settings changed: the paths that shape initialization need a
+    // restart; the runtime toggles are pushed to the running server
+    // via workspace/didChangeConfiguration instead
+    const restartSettings = [
+        'kamailioLsp.enable',
+        'kamailioLsp.serverPath',
+        'kamailioLsp.kamailioPath',
+        'kamailioLsp.kamailioSrc',
+        'kamailioLsp.kamailioWiki',
+        'kamailioLsp.modulesPath',
+        'kamailioLsp.cacheDir',
+        'kamailioLsp.diagnostics.enable',
+    ];
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('kamailioLsp')) {
-                void restart(context);
+            if (!e.affectsConfiguration('kamailioLsp')) {
+                return;
             }
+            if (restartSettings.some((s) => e.affectsConfiguration(s))) {
+                void restart(context);
+                return;
+            }
+            const cfg = vscode.workspace.getConfiguration('kamailioLsp');
+            void client?.sendNotification(
+                DidChangeConfigurationNotification.type,
+                {
+                    settings: {
+                        kamailioLsp: {
+                            analyzerDiagnostics: cfg.get<boolean>(
+                                'diagnostics.analyzer',
+                                true,
+                            ),
+                            snippetCompletions: cfg.get<boolean>(
+                                'completion.snippets',
+                                true,
+                            ),
+                            codeLensReferences: cfg.get<boolean>(
+                                'codeLens.references',
+                                true,
+                            ),
+                            maxDiagnostics: cfg.get<number>(
+                                'diagnostics.maxProblems',
+                                100,
+                            ),
+                            checkTimeoutMs: cfg.get<number>(
+                                'checkTimeoutMs',
+                                10000,
+                            ),
+                        },
+                    },
+                },
+            );
         }),
     );
 }
