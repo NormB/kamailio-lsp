@@ -613,3 +613,23 @@ fn symbol_namespaces_separate_calls_from_other_kind_defs() {
     let d = definition_of(doc, 3, 10).expect("definition");
     assert_eq!(d.line, 0);
 }
+
+#[test]
+fn split_params_is_depth_and_quote_aware() {
+    use kamailio_lsp::logic::split_params;
+    // real kamailio signature: the optional pair is ONE parameter
+    assert_eq!(split_params("t_relay([host, port])"), vec!["[host, port]"]);
+    // nested calls, quoted commas, bracket groups
+    assert_eq!(
+        split_params("f(a, g(b, c), \"x,y\", [d, e])"),
+        vec!["a", "g(b, c)", "\"x,y\"", "[d, e]"]
+    );
+    // single-quoted strings hide commas too
+    assert_eq!(split_params("f('a,b', c)"), vec!["'a,b'", "c"]);
+    assert_eq!(split_params("exit"), Vec::<String>::new());
+    assert_eq!(split_params("f()"), Vec::<String>::new());
+    // adversarial: never panic
+    for s in ["", "(", ")", "f(((", "f(\"", "f('", "f(]) ", "f(a,,b)"] {
+        let _ = split_params(s);
+    }
+}

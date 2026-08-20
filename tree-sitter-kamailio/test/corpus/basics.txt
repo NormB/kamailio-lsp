@@ -349,3 +349,36 @@ loadmodule "tm.so"
   (comment)
   (loadmodule
     (string)))
+
+================================================================================
+single-quoted strings
+================================================================================
+
+loadmodule 'tm.so'
+route['SQ'] {
+    xlog('hi, "there"');
+}
+request_route {
+    route('SQ');
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (loadmodule
+    (string))
+  (route_definition
+    kind: (route_kind)
+    name: (string)
+    body: (block
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          (string)))))
+  (route_definition
+    kind: (route_kind)
+    body: (block
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          (string))))))

@@ -773,22 +773,16 @@ impl LanguageServer for Backend {
         let core = self.core.read().unwrap();
         Ok(
             logic::signature_at(&cat, &core, &text, &prefix).map(|(sig, doc, active)| {
-                // parameter labels: the signature's top-level
-                // comma-separated pieces between the outer parens
-                let params: Vec<ParameterInformation> = sig
-                    .find('(')
-                    .zip(sig.rfind(')'))
-                    .filter(|(o, c)| o + 1 < *c)
-                    .map(|(o, c)| {
-                        sig[o + 1..c]
-                            .split(',')
-                            .map(|s| ParameterInformation {
-                                label: ParameterLabel::Simple(s.trim().to_string()),
-                                documentation: None,
-                            })
-                            .collect()
+                // parameter labels: the signature's TOP-LEVEL
+                // comma-separated pieces (nested parens/brackets and
+                // quoted commas stay whole)
+                let params: Vec<ParameterInformation> = logic::split_params(&sig)
+                    .into_iter()
+                    .map(|s| ParameterInformation {
+                        label: ParameterLabel::Simple(s),
+                        documentation: None,
                     })
-                    .unwrap_or_default();
+                    .collect();
                 SignatureHelp {
                     signatures: vec![SignatureInformation {
                         label: sig,

@@ -63,7 +63,7 @@ static_regex!(re_modparam_first_arg, r#"modparamx?\s*\(\s*"[^"]*$"#);
 static_regex!(re_loadmodule_arg, r#"loadmodulex?\s*\(?\s*"[^"]*$"#);
 static_regex!(
     re_route_call_arg,
-    r#"(?:^|[^A-Za-z0-9_])route\s*\(\s*"?[A-Za-z0-9_.:-]*$"#
+    r#"(?:^|[^A-Za-z0-9_])route\s*\(\s*["']?[A-Za-z0-9_.:-]*$"#
 );
 
 /// Is the cursor inside the name argument of a `route(...)` call?
@@ -802,6 +802,49 @@ pub fn signature_at(
         .iter()
         .find(|f| f.name == name)
         .map(|f| (f.detail.clone(), f.doc.clone(), commas))
+}
+
+/// Split a signature's parameter list on TOP-LEVEL commas only:
+/// commas inside nested parens/brackets or inside quoted strings
+/// (double or single) do not split.  Empty pieces are dropped.
+pub fn split_params(sig: &str) -> Vec<String> {
+    let Some(open) = sig.find('(') else {
+        return Vec::new();
+    };
+    let Some(close) = sig.rfind(')') else {
+        return Vec::new();
+    };
+    if open + 1 >= close {
+        return Vec::new();
+    }
+    let inner = &sig[open + 1..close];
+    let mut out = Vec::new();
+    let mut depth = 0i32;
+    let mut in_str: Option<u8> = None;
+    let mut start = 0usize;
+    let b = inner.as_bytes();
+    for (i, &c) in b.iter().enumerate() {
+        match in_str {
+            Some(q) => {
+                if c == q {
+                    in_str = None;
+                }
+            }
+            None => match c {
+                b'"' | b'\'' => in_str = Some(c),
+                b'(' | b'[' => depth += 1,
+                b')' | b']' => depth -= 1,
+                b',' if depth == 0 => {
+                    out.push(inner[start..i].trim().to_string());
+                    start = i + 1;
+                }
+                _ => {}
+            },
+        }
+    }
+    out.push(inner[start..].trim().to_string());
+    out.retain(|p| !p.is_empty());
+    out
 }
 
 /// [`hover_markdown`] plus core functions, core parameters, and
