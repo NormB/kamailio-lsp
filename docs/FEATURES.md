@@ -40,8 +40,8 @@ its definition; **Ctrl+Shift+O** lists every route block.
 
 Type a prefix and press Tab: `request_route`, `route`,
 `failure_route`, `onreply_route`, `branch_route`, `event_route`,
-`onsend_route`, `loadmodule`, `modparam`, `ifmethod`, `ifelse`,
-`while`, `switch`, `xlog`, `sl_send_reply`.
+`onsend_route`, `loadmodule`, `modparam`, `define`, `ifdef`,
+`ifmethod`, `ifelse`, `while`, `switch`, `xlog`, `sl_send_reply`.
 
 ## Settings
 
