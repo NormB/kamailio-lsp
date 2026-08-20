@@ -2,6 +2,13 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.2.1] — 2026-08-20
+
+- Internal: drift gates for the release workflow; ground-truth
+  re-audit against the current Kamailio 6.0 branch head and the
+  packaged 6.0.1 parser (no cfg.y/cfg.lex drift, all gates green).
+  No functional changes.
+
 ## [0.2.0] — 2026-08-20
 
 - **Workspace symbols**: Ctrl+T searches route definitions across
