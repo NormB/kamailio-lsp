@@ -23,8 +23,15 @@ extension and it just works.
     parentheses
 - **Hover documentation** for functions, parameters, modules, and
   pseudo-variables, harvested from Kamailio's own docs.
-- **Navigation** — Ctrl+Click `route(name)` to jump to its
-  definition; Ctrl+Shift+O lists every route block.
+- **Navigation** — Ctrl+Click `route(NAME)` to jump to its
+  definition (even into an `include_file`); Ctrl+Shift+O lists every
+  route block with its full extent; route blocks fold.
+- **Signature help** — type `(` or `,` in a call and the signature
+  pops up with the active parameter highlighted.
+- **References & rename** — Shift+F12 lists every call site of a
+  route; F2 renames it everywhere, quoted call sites included.
+- **Instant warnings** — undefined `route()` targets and duplicate
+  route definitions are flagged as you type, no save needed.
 - **Snippets** — `route`, `failure_route`, `ifmethod`, `modparam`,
   `switch`, `xlog`, and more.
 - **Safe by default** — in untrusted workspaces diagnostics stay off
@@ -58,6 +65,7 @@ covers installation and usage click by click.
 | `kamailioLsp.kamailioWiki` | — | kamailio-wiki checkout for core-language docs. |
 | `kamailioLsp.modulesPath` | — | Module search path for the checker (`-L`). |
 | `kamailioLsp.diagnostics.enable` | `true` | Toggle checks without losing the path. |
+| `kamailioLsp.diagnostics.analyzer` | `true` | As-you-type analyzer warnings. |
 | `kamailioLsp.diagnostics.maxProblems` | `100` | Diagnostics cap per file. |
 | `kamailioLsp.checkTimeoutMs` | `10000` | Bound on one `-C` run. |
 | `kamailioLsp.completion.snippets` | `true` | Function completions as snippets. |
