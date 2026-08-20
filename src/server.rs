@@ -40,6 +40,9 @@ pub struct Backend {
     code_lens_refs: std::sync::RwLock<bool>,
     /// Did the client advertise window.workDoneProgress support?
     work_done_progress: std::sync::RwLock<bool>,
+    /// Per-(URI, version) memo of the per-document computations the
+    /// hot handlers share (blocks, refs, semantic spans).
+    doc_index: logic::DocCache<Url>,
 }
 
 impl Backend {
@@ -68,6 +71,7 @@ impl Backend {
             change_gen: std::sync::Arc::new(DashMap::new()),
             code_lens_refs: std::sync::RwLock::new(true),
             work_done_progress: std::sync::RwLock::new(false),
+            doc_index: logic::DocCache::new(),
         }
     }
 
@@ -178,6 +182,21 @@ impl Backend {
         };
         let loader = Self::make_loader(self.open_docs_snapshot());
         logic::include_closure(&path, text, &loader)
+    }
+
+    /// The open document's (version, text, memoized index), or None
+    /// if the document is not open.  KAMAILIO_LSP_TRACE_INDEX=1
+    /// writes a stderr line per actual index build (test seam).
+    fn doc_with_index(&self, uri: &Url) -> Option<(i32, String, std::sync::Arc<logic::DocIndex>)> {
+        let (version, text) = self.docs.get(uri).map(|d| d.clone())?;
+        let before = logic::doc_index_builds();
+        let idx = self.doc_index.get_or_index(uri.clone(), version, &text);
+        if logic::doc_index_builds() != before
+            && std::env::var("KAMAILIO_LSP_TRACE_INDEX").is_ok_and(|v| !v.is_empty())
+        {
+            eprintln!("kamailio-lsp: index build {uri} v{version}");
+        }
+        Some((version, text, idx))
     }
 
     fn doc_line(text: &str, line: u32) -> String {
@@ -936,6 +955,7 @@ impl LanguageServer for Backend {
         if let Some((_, task)) = self.check_tasks.remove(&p.text_document.uri) {
             task.abort();
         }
+        self.doc_index.evict(&p.text_document.uri);
         self.docs.remove(&p.text_document.uri);
         self.check_diags.remove(&p.text_document.uri);
         self.change_gen.remove(&p.text_document.uri);
@@ -1136,12 +1156,13 @@ impl LanguageServer for Backend {
         &self,
         p: DocumentSymbolParams,
     ) -> Result<Option<DocumentSymbolResponse>> {
-        let Some(text) = self.docs.get(&p.text_document.uri).map(|d| d.1.clone()) else {
+        let Some((_, text, idx)) = self.doc_with_index(&p.text_document.uri) else {
             return Ok(None);
         };
         #[allow(deprecated)]
-        let syms: Vec<DocumentSymbol> = analyze::route_blocks(&text)
-            .into_iter()
+        let syms: Vec<DocumentSymbol> = idx
+            .blocks
+            .iter()
             .map(|b| {
                 let lt = Self::doc_line(&text, b.line);
                 let start = Position::new(b.line, analyze::byte_to_utf16(&lt, b.col as usize));
@@ -1175,7 +1196,7 @@ impl LanguageServer for Backend {
     async fn references(&self, p: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let uri = p.text_document_position.text_document.uri;
         let pos = p.text_document_position.position;
-        let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
+        let Some((_, text, idx)) = self.doc_with_index(&uri) else {
             return Ok(None);
         };
         let Some((name, ns)) = Self::route_symbol_at(&text, pos) else {
@@ -1189,7 +1210,14 @@ impl LanguageServer for Backend {
             let Some(furi) = Self::closure_uri(&uri, &root_path, path) else {
                 continue;
             };
-            for (l, is_def) in logic::ns_occurrences(ftext, &name, &ns) {
+            // the root document's occurrences come from the memoized
+            // index; included files are scanned directly
+            let occs = if *path == root_path {
+                logic::ns_occurrences_from(&idx.blocks, &idx.refs, &name, &ns)
+            } else {
+                logic::ns_occurrences(ftext, &name, &ns)
+            };
+            for (l, is_def) in occs {
                 if include_decl || !is_def {
                     locs.push(Location {
                         uri: furi.clone(),
@@ -1416,10 +1444,10 @@ impl LanguageServer for Backend {
         &self,
         p: SemanticTokensParams,
     ) -> Result<Option<SemanticTokensResult>> {
-        let Some(text) = self.docs.get(&p.text_document.uri).map(|d| d.1.clone()) else {
+        let Some((_, text, idx)) = self.doc_with_index(&p.text_document.uri) else {
             return Ok(None);
         };
-        let data = logic::encode_semantic_tokens(&text)
+        let data = logic::encode_spans(&text, &idx.spans)
             .chunks(5)
             .map(|c| SemanticToken {
                 delta_line: c[0],
@@ -1439,12 +1467,13 @@ impl LanguageServer for Backend {
         &self,
         p: SemanticTokensRangeParams,
     ) -> Result<Option<SemanticTokensRangeResult>> {
-        let Some(text) = self.docs.get(&p.text_document.uri).map(|d| d.1.clone()) else {
+        let Some((_, text, idx)) = self.doc_with_index(&p.text_document.uri) else {
             return Ok(None);
         };
         let r = p.range;
-        let data = logic::encode_semantic_tokens_range(
+        let data = logic::encode_semantic_tokens_range_from(
             &text,
+            &idx.spans,
             (r.start.line, r.start.character),
             (r.end.line, r.end.character),
         )
@@ -1507,24 +1536,32 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         let uri = p.text_document.uri;
-        let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
+        let Some((_, text, idx)) = self.doc_with_index(&uri) else {
             return Ok(None);
         };
+        let root_path = uri.to_file_path().unwrap_or_default();
         let files = self.closure_for(&uri, &text);
-        let lenses = analyze::route_blocks(&text)
-            .into_iter()
+        let lenses = idx
+            .blocks
+            .iter()
             // only main-table (kind "route") names are route()-callable;
             // other kinds are armed via module functions we don't track,
             // so a count would mislead
             .filter(|b| b.kind == "route" && !b.name.is_empty())
             .map(|b| {
+                // the root's refs come from the memoized index;
+                // included files are scanned directly
                 let n: usize = files
                     .iter()
-                    .map(|(_, t)| {
-                        analyze::route_refs(t)
-                            .into_iter()
-                            .filter(|r| r.name == b.name)
-                            .count()
+                    .map(|(p, t)| {
+                        if *p == root_path {
+                            idx.refs.iter().filter(|r| r.name == b.name).count()
+                        } else {
+                            analyze::route_refs(t)
+                                .into_iter()
+                                .filter(|r| r.name == b.name)
+                                .count()
+                        }
                     })
                     .sum();
                 let lt = Self::doc_line(&text, b.name_line);
