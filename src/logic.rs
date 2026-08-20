@@ -44,7 +44,6 @@ const CORE_KEYWORDS: &[&str] = &[
     "drop",
     "return",
     "route",
-    "xlog",
     "forward",
     "setflag",
     "resetflag",
@@ -60,8 +59,8 @@ macro_rules! static_regex {
     };
 }
 
-static_regex!(re_modparam_first_arg, r#"modparam\s*\(\s*"[^"]*$"#);
-static_regex!(re_loadmodule_arg, r#"loadmodule\s*"[^"]*$"#);
+static_regex!(re_modparam_first_arg, r#"modparamx?\s*\(\s*"[^"]*$"#);
+static_regex!(re_loadmodule_arg, r#"loadmodulex?\s*\(?\s*"[^"]*$"#);
 static_regex!(
     re_route_call_arg,
     r#"(?:^|[^A-Za-z0-9_])route\s*\(\s*"?[A-Za-z0-9_.:-]*$"#

@@ -249,3 +249,98 @@ fn includes_adversarial_do_not_panic() {
     // an identifier tail must not match (reinclude_file)
     assert!(includes("reinclude_file \"x.cfg\"").is_empty());
 }
+
+#[test]
+fn prefixed_include_directives_are_found() {
+    // cfg.lex: PREP_START = "#!" | "!!", and include_file/import_file
+    // exist bare AND prefixed; directives are not line-anchored
+    let text = "#!include_file \"a.cfg\"\n  !!import_file \"b.cfg\"\ninclude_file \"c.cfg\"\n";
+    let names: Vec<String> = includes(text).into_iter().map(|i| i.name).collect();
+    assert_eq!(names, vec!["a.cfg", "b.cfg", "c.cfg"]);
+}
+
+#[test]
+fn define_bodies_are_directive_text_not_code() {
+    // a multi-line #!define with backslash continuations: nothing in
+    // the body may leak phantom modules/routes/refs into the analysis
+    let text = "#!define LOOP loadmodule \"fake.so\" \\\n    route[PHANTOM] { \\\n    route(GHOST); }\nloadmodule \"tm.so\"\nrequest_route { exit; }\n";
+    assert_eq!(
+        loaded_modules(text)
+            .into_iter()
+            .map(|m| m.name)
+            .collect::<Vec<_>>(),
+        vec!["tm"],
+        "define bodies must not produce loadmodules"
+    );
+    assert!(
+        route_defs(text).iter().all(|d| d.name != "PHANTOM"),
+        "define bodies must not produce route defs"
+    );
+    assert!(
+        route_refs(text).is_empty(),
+        "define bodies must not produce route refs"
+    );
+}
+
+#[test]
+fn double_bang_directives_are_not_code() {
+    let text = "!!define X loadmodule \"no.so\"\nloadmodule \"tm.so\"\n";
+    let mods: Vec<String> = loaded_modules(text).into_iter().map(|m| m.name).collect();
+    assert_eq!(mods, vec!["tm"]);
+}
+
+#[test]
+fn ifdef_branches_are_both_scanned() {
+    // deliberate: the analyzer sees both sides of #!ifdef/#!else
+    let text = "#!ifdef A\nloadmodule \"x.so\"\n#!else\nloadmodule \"y.so\"\n#!endif\n";
+    let mods: Vec<String> = loaded_modules(text).into_iter().map(|m| m.name).collect();
+    assert_eq!(mods, vec!["x", "y"]);
+}
+
+#[test]
+fn slash_slash_line_comments_are_comments() {
+    // cfg.lex: COM_LINE = "#" | "//"
+    let text = "// loadmodule \"no.so\"\nloadmodule \"tm.so\"\n";
+    let mods: Vec<String> = loaded_modules(text).into_iter().map(|m| m.name).collect();
+    assert_eq!(mods, vec!["tm"]);
+}
+
+#[test]
+fn preproc_adversarial_do_not_panic() {
+    for s in [
+        "#!",
+        "!!",
+        "#!definex \"x\"",
+        "#!define X \\",
+        "#!define X \\\n",
+        "#!define \\\n\\\n\\",
+        "  #!ifdef Y",
+        "!!\\",
+        "#!define A route[",
+    ] {
+        let _ = loaded_modules(s);
+        let _ = route_defs(s);
+        let _ = route_refs(s);
+        let _ = includes(s);
+    }
+    // a define body reaching EOF via continuation must not panic and
+    // must not leak code
+    assert!(route_defs("#!define X route[EOF] { \\").is_empty());
+}
+
+#[test]
+fn paren_and_x_load_forms_are_collected() {
+    // cfg.y: LOADMODULE LPAREN STRING [COMMA STRING] RPAREN and
+    // loadmodulex are all legal (verified rc=0 on 6.0.1)
+    let text = "loadmodule(\"tm.so\")\nloadmodule(\"htable.so\", \"opts\")\nloadmodulex \"pv.so\"\nloadmodulex(\"sl.so\")\nmyloadmodule \"no.so\"\n";
+    let mods: Vec<String> = loaded_modules(text).into_iter().map(|m| m.name).collect();
+    assert_eq!(mods, vec!["tm", "htable", "pv", "sl"]);
+}
+
+#[test]
+fn modparamx_context_is_recognized() {
+    assert_eq!(
+        modparam_context(r#"modparamx("htable", ""#),
+        Some("htable".to_string())
+    );
+}

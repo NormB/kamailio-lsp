@@ -307,20 +307,47 @@ fn signature_at_finds_active_parameter() {
 
 #[test]
 fn completions_dedup_prefers_richer_items() {
-    // "xlog" exists as a core KEYWORD and as a core function: one item
+    // "exit" exists as a core KEYWORD and as a core function: one item
     // must survive, and it must be the function (it carries docs)
     let core = kamailio_lsp::catalog::CoreDocs {
         functions: vec![Item {
-            name: "xlog".into(),
-            detail: "xlog([level], format)".into(),
-            doc: "Logs.".into(),
+            name: "exit".into(),
+            detail: "exit".into(),
+            doc: "Stops execution.".into(),
         }],
         ..Default::default()
     };
     let out = completions_with_core(&[], &core, "request_route {\n}\n", "    ");
-    let xlogs: Vec<_> = out.iter().filter(|c| c.label == "xlog").collect();
-    assert_eq!(xlogs.len(), 1, "duplicate labels must collapse");
-    assert_eq!(xlogs[0].kind, CompKind::Function);
+    let exits: Vec<_> = out.iter().filter(|c| c.label == "exit").collect();
+    assert_eq!(exits.len(), 1, "duplicate labels must collapse");
+    assert_eq!(exits[0].kind, CompKind::Function);
+}
+
+#[test]
+fn xlog_is_not_a_core_keyword() {
+    // xlog is a MODULE function in kamailio (verified: unknown
+    // command without loadmodule) — it must not be offered as a
+    // keyword when nothing provides it
+    let out = completions_with_core(
+        &[],
+        &kamailio_lsp::catalog::CoreDocs::default(),
+        "request_route {\n}\n",
+        "    ",
+    );
+    assert!(
+        !out.iter().any(|c| c.label == "xlog"),
+        "xlog offered with no module/catalog providing it"
+    );
+}
+
+#[test]
+fn paren_loadmodule_counts_for_function_completion() {
+    let doc = "loadmodule(\"tm.so\")\nrequest_route {\n}\n";
+    let out = completions(&catalog(), doc, "    t_re");
+    assert!(
+        out.iter().any(|c| c.label == "t_relay"),
+        "loadmodule(paren) must load tm for completion"
+    );
 }
 
 #[test]

@@ -20,16 +20,45 @@ enum Class {
     Code,
     Str,
     Comment,
+    /// A `#!`/`!!` preprocessor directive, including backslash-
+    /// continued lines (`#!define NAME value \`): directive text is
+    /// never code, but it is not a comment either.
+    Preproc,
 }
 
-/// Per-byte classification: code, string interior, or comment.
+/// Per-byte classification: code, string interior, comment, or
+/// preprocessor directive.  Kamailio line comments are `#` and `//`
+/// (cfg.lex COM_LINE); `#!` and `!!` start directives (PREP_START),
+/// which extend across backslash-continued lines.
 fn classify(text: &str) -> Vec<Class> {
     let b = text.as_bytes();
     let mut out = vec![Class::Code; b.len()];
     let mut i = 0;
     while i < b.len() {
         match b[i] {
+            b'#' | b'!' if i + 1 < b.len() && b[i + 1] == b'!' => {
+                // directive: to EOL, following backslash continuations
+                loop {
+                    while i < b.len() && b[i] != b'\n' {
+                        out[i] = Class::Preproc;
+                        i += 1;
+                    }
+                    // continued? the byte before the newline is a '\'
+                    if i < b.len() && i > 0 && b[i - 1] == b'\\' {
+                        out[i] = Class::Preproc; // the newline itself
+                        i += 1;
+                        continue;
+                    }
+                    break;
+                }
+            }
             b'#' => {
+                while i < b.len() && b[i] != b'\n' {
+                    out[i] = Class::Comment;
+                    i += 1;
+                }
+            }
+            b'/' if i + 1 < b.len() && b[i + 1] == b'/' => {
                 while i < b.len() && b[i] != b'\n' {
                     out[i] = Class::Comment;
                     i += 1;
@@ -96,7 +125,7 @@ macro_rules! static_regex {
     };
 }
 
-static_regex!(re_loadmodule, r#"loadmodule\s*"([^"\n]+)""#);
+static_regex!(re_loadmodule, r#"loadmodulex?\s*\(?\s*"([^"\n]+)""#);
 static_regex!(
     re_route_def,
     r#"(?s)(request_route|reply_route|onreply_route|failure_route|branch_route|event_route|onsend_route|route)\s*(?:\[\s*"?([A-Za-z0-9_.:-]+)"?\s*\])?\s*\{"#
@@ -105,10 +134,13 @@ static_regex!(
     re_route_ref,
     r#"route\s*\(\s*"?([A-Za-z0-9_.:-]+)"?\s*[,)]"#
 );
-static_regex!(re_include, r#"(?:include_file|import_file)\s*"([^"\n]+)""#);
+static_regex!(
+    re_include,
+    r#"(?:#!|!!)?(?:include_file|import_file)\s*"([^"\n]+)""#
+);
 static_regex!(
     re_modparam_ctx,
-    r#"modparam\s*\(\s*"([^"\n]+)"\s*,\s*("[^"\n]*)?$"#
+    r#"modparamx?\s*\(\s*"([^"\n]+)"\s*,\s*("[^"\n]*)?$"#
 );
 
 /// Every `loadmodule "x.so"` in code position, as bare module names.
@@ -118,7 +150,11 @@ pub fn loaded_modules(text: &str) -> Vec<Located> {
     for c in re_loadmodule().captures_iter(text) {
         let whole = c.get(0).unwrap();
         if classes.get(whole.start()) != Some(&Class::Code) {
-            continue; // inside a comment or a string
+            continue; // inside a comment, string, or directive
+        }
+        // reject matches that are a tail of a longer identifier
+        if whole.start() > 0 && is_word(text.as_bytes()[whole.start() - 1]) {
+            continue;
         }
         let path = c.get(1).unwrap();
         let base = path
@@ -140,8 +176,9 @@ pub fn loaded_modules(text: &str) -> Vec<Located> {
     out
 }
 
-/// Every `include_file "x"` / `import_file "x"` in code position;
-/// `name` is the quoted path verbatim.
+/// Every `include_file "x"` / `import_file "x"` — bare in code
+/// position or `#!`/`!!`-prefixed as a directive (both are legal per
+/// cfg.lex); `name` is the quoted path verbatim.
 pub fn includes(text: &str) -> Vec<Located> {
     let classes = classify(text);
     let b = text.as_bytes();
@@ -149,12 +186,23 @@ pub fn includes(text: &str) -> Vec<Located> {
     for c in re_include().captures_iter(text) {
         let whole = c.get(0).unwrap();
         let start = whole.start();
-        if classes.get(start) != Some(&Class::Code) {
-            continue;
-        }
-        // reject matches that are a tail of a longer identifier
-        if start > 0 && is_word(b[start - 1]) {
-            continue;
+        let prefixed = whole.as_str().starts_with("#!") || whole.as_str().starts_with("!!");
+        if prefixed {
+            // must be the directive OPENER, not text inside another
+            // directive's continued body
+            if classes.get(start) != Some(&Class::Preproc)
+                || (start > 0 && classes.get(start - 1) == Some(&Class::Preproc))
+            {
+                continue;
+            }
+        } else {
+            if classes.get(start) != Some(&Class::Code) {
+                continue;
+            }
+            // reject matches that are a tail of a longer identifier
+            if start > 0 && is_word(b[start - 1]) {
+                continue;
+            }
         }
         let path = c.get(1).unwrap().as_str();
         if path.is_empty() || path.contains('\0') {
