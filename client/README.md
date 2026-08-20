@@ -12,7 +12,7 @@ extension and it just works.
 - **Diagnostics you can trust** — every save runs `kamailio -c`, so
   the squiggles are the *real* parser's verdict, at the exact line
   and column, for exactly your Kamailio version:
-  `Parameter <fr_timeot> not found in module <tm>`.
+  `parameter <fr_timeot> of type <2:int> not found in module <tm>`.
 - **Completion that knows context**
   - `loadmodule "` → every module in your source tree
   - `modparam("tm", "` → tm's parameters, with their documentation
@@ -60,14 +60,14 @@ covers installation and usage click by click.
 |---|---|---|
 | `kamailioLsp.enable` | `true` | Master switch. |
 | `kamailioLsp.serverPath` | bundled | Server binary override. |
-| `kamailioLsp.kamailioPath` | `kamailio` | Binary for `-C` diagnostics; empty disables. |
+| `kamailioLsp.kamailioPath` | `kamailio` | Binary for `-c` diagnostics; empty disables. |
 | `kamailioLsp.kamailioSrc` | — | Source tree for module completion/hover docs. |
 | `kamailioLsp.kamailioWiki` | — | kamailio-wiki checkout for core-language docs. |
 | `kamailioLsp.modulesPath` | — | Module search path for the checker (`-L`). |
 | `kamailioLsp.diagnostics.enable` | `true` | Toggle checks without losing the path. |
 | `kamailioLsp.diagnostics.analyzer` | `true` | As-you-type analyzer warnings. |
 | `kamailioLsp.diagnostics.maxProblems` | `100` | Diagnostics cap per file. |
-| `kamailioLsp.checkTimeoutMs` | `10000` | Bound on one `-C` run. |
+| `kamailioLsp.checkTimeoutMs` | `10000` | Bound on one `-c` run. |
 | `kamailioLsp.completion.snippets` | `true` | Function completions as snippets. |
 | `kamailioLsp.cacheDir` | platform | Documentation-cache location. |
 | `kamailioLsp.trace.server` | `off` | LSP traffic tracing. |

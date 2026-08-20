@@ -2,6 +2,13 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.1.1] — 2026-08-20
+
+- Documentation: the check flag is Kamailio's lowercase `-c`
+  everywhere (a leftover uppercase `-C` was OpenSIPS's flag), and the
+  example diagnostic now quotes Kamailio's real message
+  (`parameter <fr_timeot> of type <2:int> not found in module <tm>`).
+
 ## [0.1.0] — 2026-08-20
 
 - Initial release: diagnostics via `kamailio -c --all-errors`

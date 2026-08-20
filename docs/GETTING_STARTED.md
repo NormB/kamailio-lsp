@@ -87,7 +87,7 @@ This needs Kamailio itself installed on the same machine.
 
 Mistakes now get **red squiggles** at the exact spot — hover one to
 read the message (it is the real Kamailio parser talking, e.g.
-`Parameter <fr_timeot> not found in module <tm>`). Squiggles refresh
+`parameter <fr_timeot> of type <2:int> not found in module <tm>`). Squiggles refresh
 every time you save.
 
 ### Autocomplete
