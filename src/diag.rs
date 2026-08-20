@@ -128,8 +128,10 @@ pub fn parse_check_output(output: &str, rc: i32) -> Vec<Diag> {
     }
 
     if out.is_empty() && rc != 0 {
-        // e.g. ` 0(77) ERROR: <core> [core/sr_module.c:531]:
-        // ksr_locate_module(): could not find module <tm> in <...>`
+        // truly unpositioned failures only (a missing module still
+        // yields a positioned "failed to load module" line); e.g.
+        // ` 0(99) ERROR: <core> [main.c:3141]: main(): failed to
+        // create runtime dir /var/run/kamailio/, ...`
         let generic =
             regex::Regex::new(r"(?:ERROR|CRITICAL): \S+ \[[^\]]*\]: [A-Za-z0-9_]+\(\): (.+)")
                 .unwrap();

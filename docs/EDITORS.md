@@ -4,7 +4,7 @@ Install the server first — either grab a prebuilt binary from the
 [releases page](https://github.com/NormB/kamailio-lsp/releases)
 (x86_64/aarch64 Linux tarballs), or `cargo build --release` and put
 `target/release/kamailio-lsp` on PATH.
-All examples pass the same three `initializationOptions` documented
+All examples pass the same four `initializationOptions` documented
 in `docs/ADMIN.md`.
 
 ## VS Code

@@ -40,7 +40,7 @@ fn word_at_via_utf16_position_finds_the_word_after_emoji() {
 
 #[test]
 fn ascii_lines_are_identity() {
-    let l = "modparam(\"tm\", \"fr_timeout\", 3)";
+    let l = "modparam(\"tm\", \"fr_timer\", 30000)";
     for i in 0..l.len() {
         assert_eq!(utf16_to_byte(l, i as u32), i);
         assert_eq!(byte_to_utf16(l, i), i as u32);

@@ -1,7 +1,7 @@
 # Getting Started
 
 This guide assumes no prior experience — just VS Code installed and
-an `kamailio.cfg` file you want to edit.
+a `kamailio.cfg` file you want to edit.
 
 ## Install
 
@@ -68,7 +68,7 @@ Code. It prints what it did; if something is missing (for example the
 
 ## First use
 
-Open a folder containing an `kamailio.cfg` (**File → Open Folder…**)
+Open a folder containing a `kamailio.cfg` (**File → Open Folder…**)
 and click the file. You should immediately see **syntax colors**.
 If VS Code asks *"Do you trust the authors of the files in this
 folder?"* — answer honestly: in an untrusted folder the extension
@@ -86,9 +86,11 @@ This needs Kamailio itself installed on the same machine.
 3. Open your `kamailio.cfg` and save it (**Ctrl+S**).
 
 Mistakes now get **red squiggles** at the exact spot — hover one to
-read the message (it is the real Kamailio parser talking, e.g.
-`parameter <fr_timeot> of type <2:int> not found in module <tm>`). Squiggles refresh
-every time you save.
+read the message. Misspell a parameter (say `fr_tmer` instead of tm's
+`fr_timer`) and the squiggle lands on that `modparam` line saying
+`Can't set module parameter` — the real Kamailio parser talking (its
+log names the offender: `parameter <fr_tmer> of type <2:int> not
+found in module <tm>`). Squiggles refresh every time you save.
 
 ### Autocomplete
 
@@ -126,4 +128,4 @@ folder containing the Kamailio source code matching your version, and
 | No red squiggles | Set **Kamailio Path** (step above), save the file, and make sure you trusted the folder. |
 | Squiggles on a correct file | The checker uses *your* Kamailio version — a config written for another version can legitimately fail. |
 | Completion has no documentation | Set **Kamailio Src** to a Kamailio source folder. |
-| Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (193 documented modules)"). |
+| Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (254 documented modules)"). |

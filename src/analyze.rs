@@ -219,8 +219,10 @@ pub fn includes(text: &str) -> Vec<Located> {
 }
 
 /// Every route-family block definition (`request_route`,
-/// `failure_route[x]`, `event_route[mod:event]`, ...); unnamed blocks
-/// (`request_route`, `reply_route`, `onsend_route`) have an empty name.
+/// `failure_route[x]`, `event_route[mod:event]`, ...).  Unnamed
+/// blocks have an empty name: `request_route`/`reply_route` never
+/// carry one, `onsend_route` only optionally (cfg.y accepts
+/// `onsend_route[NAME]`).
 pub fn route_defs(text: &str) -> Vec<Located> {
     route_blocks(text)
         .into_iter()
