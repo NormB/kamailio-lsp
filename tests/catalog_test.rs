@@ -152,21 +152,37 @@ fn the_shipped_admin_doc_documents_every_init_option() {
     // heading with an environment/default note.
     let md = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/ADMIN.md"))
         .expect("docs/ADMIN.md must exist");
-    for opt in [
-        "kamailioPath",
-        "kamailioSrc",
-        "kamailioWiki",
-        "modulesPath",
-        "checkTimeoutMs",
-        "maxDiagnostics",
-        "snippetCompletions",
-        "analyzerDiagnostics",
-        "codeLensReferences",
-        "cacheDir",
-    ] {
+    // The list is DERIVED from the server, not written out here.  A
+    // hand-maintained list cannot fail for the one thing it exists to
+    // catch: this check carried a literal array written before inlay
+    // hints existed, so new settings went undocumented while it
+    // reported green.
+    //
+    // Whitespace is stripped before scanning because rustfmt wraps the
+    // call as `opts\n.get("name")`, and an extraction looking for the
+    // literal `opts.get("` silently finds nothing there — a gate
+    // defeated by the formatter CI itself enforces.
+    let server = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/server.rs"))
+        .expect("src/server.rs");
+    let flat: String = server.chars().filter(|c| !c.is_whitespace()).collect();
+    let mut opts: Vec<String> = Vec::new();
+    for (i, _) in flat.match_indices("opts.get(\"") {
+        if let Some(name) = flat[i + 10..].split('"').next()
+            && name != "kamailioLsp"
+            && !opts.iter().any(|o| o == name)
+        {
+            opts.push(name.to_string());
+        }
+    }
+    assert!(
+        opts.len() >= 8,
+        "only {} init options found — the scan went blind: {opts:?}",
+        opts.len()
+    );
+    for opt in &opts {
         assert!(
             md.contains(&format!("#### {opt}")),
-            "docs/ADMIN.md is missing an option section for {opt}"
+            "{opt} is read by the server but docs/ADMIN.md has no option section for it"
         );
     }
     for env in [

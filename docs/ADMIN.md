@@ -142,6 +142,33 @@ During the harvest the server reports progress via LSP
 `kamailioWiki` yields zero core symbols, a visible
 `window/showMessage` warning names the offending path.
 
+#### inlayHintParameterNames (boolean)
+
+Draw the parameter name from the documentation before each argument
+of a documented call, so `t_relay("udp", 1)` reads as
+`t_relay(flags: "udp", outbound_proxy: 1)` without the document
+changing. Only calls the catalogue knows are hinted, and the editor
+asks for the visible range only.
+
+*Default value is `true`.*
+
+```json title="Set inlayHintParameterNames parameter"
+{ "inlayHintParameterNames": false }
+```
+
+#### inlayHintDefineValues (boolean)
+
+Draw what each `#!define`-family symbol expands to, at every use —
+including inside `#!ifdef`, where the operand is a directive token
+rather than code. The definition site is not hinted, since
+`#!define PORT 5060` already says what it binds.
+
+*Default value is `true`.*
+
+```json title="Set inlayHintDefineValues parameter"
+{ "inlayHintDefineValues": false }
+```
+
 #### maxDiagnostics (integer)
 
 Bound on the diagnostics published per file.
