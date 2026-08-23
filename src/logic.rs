@@ -16,6 +16,8 @@ pub enum CompKind {
     Route,
     /// A core language keyword.
     Keyword,
+    /// A `#!define`-family preprocessor symbol.
+    Define,
 }
 
 /// One completion candidate.
@@ -185,6 +187,23 @@ fn complete_files(
             kind: CompKind::Keyword,
         });
     }
+    // preprocessor symbols are substituted textually, so they are
+    // legal anywhere code is; the closure carries the ones an
+    // included file defines
+    for (_, t) in files {
+        for d in analyze::defines(t) {
+            out.push(Comp {
+                label: d.name,
+                detail: format!("#!{}", d.directive),
+                doc: if d.value.is_empty() {
+                    String::new()
+                } else {
+                    format!("`{}`", d.value)
+                },
+                kind: CompKind::Define,
+            });
+        }
+    }
     for f in &core.functions {
         out.push(Comp {
             label: f.name.clone(),
@@ -212,6 +231,41 @@ pub fn completions_with_core_files(
     line_prefix: &str,
 ) -> Vec<Comp> {
     complete_files(catalog, core, files, line_prefix)
+}
+
+/// Markdown hover for a preprocessor symbol, if `word` names one
+/// anywhere in the closure.
+///
+/// This is checked before the module catalogue: the preprocessor
+/// substitutes the name textually before the parser sees it, so a
+/// define shadowing a module symbol really does win.
+pub fn define_hover(files: &[(std::path::PathBuf, String)], word: &str) -> Option<String> {
+    let d = files
+        .iter()
+        .flat_map(|(_, t)| analyze::defines(t))
+        .find(|d| d.name == word)?;
+    Some(if d.value.is_empty() {
+        format!("**{}** — `#!{}` with no value", d.name, d.directive)
+    } else {
+        format!(
+            "**{}** — `#!{}`\n\n```\n{}\n```",
+            d.name, d.directive, d.value
+        )
+    })
+}
+
+/// The `#!define`-family directive binding `word` within the closure,
+/// with the file it lives in.
+pub fn define_definition<'a>(
+    files: &'a [(std::path::PathBuf, String)],
+    word: &str,
+) -> Option<(&'a std::path::Path, analyze::Define)> {
+    files.iter().find_map(|(p, t)| {
+        analyze::defines(t)
+            .into_iter()
+            .find(|d| d.name == word)
+            .map(|d| (p.as_path(), d))
+    })
 }
 
 /// Markdown hover for `word`: loaded-module symbols win, then any
@@ -578,6 +632,23 @@ pub struct AnalyzerDiag {
     pub message: String,
 }
 
+/// Expand a name through the `#!define` table.
+///
+/// The preprocessor substitutes textually and a definition may name
+/// another definition, so the chain is followed — but only so far: a
+/// circular pair (`#!define A B` / `#!define B A`) is legal text and
+/// must terminate rather than spin.
+fn expand_define(name: &str, defines: &std::collections::HashMap<String, String>) -> String {
+    let mut cur = name.to_string();
+    for _ in 0..8 {
+        match defines.get(&cur) {
+            Some(v) => cur = v.clone(),
+            None => break,
+        }
+    }
+    cur
+}
+
 /// Analyzer diagnostics for `text` (the file at `path`): `route(x)`
 /// calls whose target is defined nowhere in the include closure, and
 /// duplicate route definitions (every occurrence after the first is
@@ -596,6 +667,14 @@ pub fn analyzer_diagnostics(
         .filter(|(_, b)| b.kind == "route" && !b.name.is_empty())
         .map(|(_, b)| b.name.as_str())
         .collect();
+    // `#!define` bindings from the whole closure: the preprocessor
+    // expands a route target before the parser ever sees it, so a
+    // route reached through an alias is not undefined
+    let define_map: std::collections::HashMap<String, String> = files
+        .iter()
+        .flat_map(|(_, t)| analyze::defines(t))
+        .map(|d| (d.name, d.value))
+        .collect();
     let mut out = Vec::new();
     for r in analyze::route_refs(text) {
         // route(N) is a runtime rval expression (index/name dispatch):
@@ -603,15 +682,29 @@ pub fn analyzer_diagnostics(
         if r.name.is_empty() || r.name.bytes().all(|b| b.is_ascii_digit()) {
             continue;
         }
-        if !defined.contains(r.name.as_str()) {
+        let expanded = expand_define(&r.name, &define_map);
+        let via_define = expanded != r.name;
+        // a bare `#!define NAME` expands to nothing: the result is
+        // `route()`, which the real parser rejects — not ours to call
+        if expanded.is_empty() || expanded.bytes().all(|b| b.is_ascii_digit()) {
+            continue;
+        }
+        if !defined.contains(expanded.as_str()) {
             out.push(AnalyzerDiag {
                 line: r.line,
                 col_start: r.col,
                 col_end: r.col + r.name.len() as u32,
-                message: format!(
-                    "route '{}' is not defined here or in included files",
-                    r.name
-                ),
+                message: if via_define {
+                    format!(
+                        "route '{}' expands to '{expanded}', which is not defined here or in included files",
+                        r.name
+                    )
+                } else {
+                    format!(
+                        "route '{}' is not defined here or in included files",
+                        r.name
+                    )
+                },
             });
         }
     }
@@ -973,11 +1066,16 @@ pub fn pvar_tail(line_prefix: &str) -> Option<usize> {
 }
 
 /// Collapse duplicate labels, keeping the most informative kind
-/// (Function > Param > Route > Module > Keyword); ties keep the first
-/// occurrence (loaded-module items precede core items).
+/// (Define > Function > Param > Route > Module > Keyword); ties keep
+/// the first occurrence (loaded-module items precede core items).
+///
+/// A preprocessor symbol outranks everything: the substitution
+/// happens before the parser sees the name, so if a define shadows a
+/// module symbol the define is what the config actually means.
 fn dedup_completions(items: Vec<Comp>) -> Vec<Comp> {
     fn rank(k: &CompKind) -> u8 {
         match k {
+            CompKind::Define => 5,
             CompKind::Function => 4,
             CompKind::Param => 3,
             CompKind::Route => 2,

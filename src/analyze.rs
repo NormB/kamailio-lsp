@@ -155,6 +155,135 @@ static_regex!(
     r#"modparamx?\s*\(\s*"([^"\n]+)"\s*,\s*("[^"\n]*)?$"#
 );
 
+/// One `#!define`-family directive: the name it binds, the value it
+/// binds it to, and where the NAME sits.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Define {
+    /// The bound name.
+    pub name: String,
+    /// The value, joined across backslash continuations; empty for a
+    /// bare `#!define NAME` or an env-sourced form.
+    pub value: String,
+    /// The directive keyword as written (`define`, `substdef`, ...).
+    pub directive: String,
+    /// 0-based line of the NAME.
+    pub line: u32,
+    /// 0-based start column of the NAME.
+    pub col: u32,
+}
+
+/// The directives that bind a bare identifier, per kamailio 6.1
+/// `src/core/cfg.lex`.  Longest first: `def` is a prefix of `defexp`,
+/// and matching in this order avoids binding the wrong keyword.
+const DEFINING: &[&str] = &[
+    "trydefenvs",
+    "trydefenv",
+    "trydefine",
+    "redefine",
+    "defexps",
+    "defenvs",
+    "trydef",
+    "defexp",
+    "defenv",
+    "define",
+    "redef",
+    "def",
+];
+
+/// Every `#!define`-family directive in `text`.
+///
+/// Directives are read from the classifier's preprocessor runs, so a
+/// `#!define` inside a string or a comment is not one, and a
+/// backslash-continued directive is read whole — its continuation
+/// lines are part of the value.
+pub fn defines(text: &str) -> Vec<Define> {
+    let class = classify(text);
+    let b = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < b.len() {
+        if class[i] != Class::Preproc {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < b.len() && class[i] == Class::Preproc {
+            i += 1;
+        }
+        if let Some(d) = parse_define(text, start, i) {
+            out.push(d);
+        }
+    }
+    out
+}
+
+/// Parse one preprocessor run (`text[start..end]`) as a definition.
+///
+/// Two shapes bind a name: the plain `#!define NAME value` family, and
+/// `#!substdef "!NAME!value!g"`, whose first character after the quote
+/// is the delimiter — whatever it happens to be.
+fn parse_define(text: &str, start: usize, end: usize) -> Option<Define> {
+    let run = text.get(start..end)?;
+    // PREP_START is "#!" or "!!"
+    let rest = run.strip_prefix("#!").or_else(|| run.strip_prefix("!!"))?;
+    let after_kw = |k: &str| {
+        rest.strip_prefix(k)
+            .filter(|r| r.starts_with([' ', '\t']))
+            .map(|r| (k.len(), r))
+    };
+
+    if let Some((kw_len, r)) = after_kw("substdefs").or_else(|| after_kw("substdef")) {
+        let q = r.find('"')?;
+        let body = &r[q + 1..];
+        let mut chars = body.char_indices();
+        let (_, delim) = chars.next()?;
+        let first = body[delim.len_utf8()..].find(delim)? + delim.len_utf8();
+        let name = &body[delim.len_utf8()..first];
+        if name.is_empty() {
+            return None;
+        }
+        let value_start = first + delim.len_utf8();
+        let value = body[value_start..]
+            .find(delim)
+            .map(|e| &body[value_start..value_start + e])
+            .unwrap_or("");
+        let name_off = 2 + kw_len + q + 1 + delim.len_utf8();
+        let (line, col) = line_col(text, start + name_off);
+        return Some(Define {
+            name: name.to_string(),
+            value: value.to_string(),
+            directive: if kw_len == 9 { "substdefs" } else { "substdef" }.to_string(),
+            line,
+            col,
+        });
+    }
+
+    let (kw, r) = DEFINING
+        .iter()
+        .find_map(|k| after_kw(k).map(|(_, r)| (*k, r)))?;
+    let name_off = r.len() - r.trim_start().len();
+    let tail = &r[name_off..];
+    let name_len = tail
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .unwrap_or(tail.len());
+    if name_len == 0 {
+        return None;
+    }
+    let value = tail[name_len..]
+        .replace('\\', " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let (line, col) = line_col(text, start + 2 + kw.len() + name_off);
+    Some(Define {
+        name: tail[..name_len].to_string(),
+        value,
+        directive: kw.to_string(),
+        line,
+        col,
+    })
+}
+
 /// Every `loadmodule "x.so"` in code position, as bare module names.
 pub fn loaded_modules(text: &str) -> Vec<Located> {
     let classes = classify(text);

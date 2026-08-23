@@ -813,3 +813,73 @@ fn semantic_tokens_range_filters_and_reencodes() {
         kamailio_lsp::logic::encode_semantic_tokens(text)
     );
 }
+
+/// A route reached through a `#!define` alias is not undefined — the
+/// preprocessor expands it before the parser ever sees it.  All three
+/// shapes below are accepted by the 6.1.4 binary (rc=0), so warning on
+/// any of them is the analyzer being wrong in the user's face.
+#[test]
+fn a_route_reached_through_a_define_is_not_undefined() {
+    use std::path::Path;
+    let loader = |_: &Path| -> Option<String> { None };
+
+    // expands to a number: route(1) dispatches by index
+    let text = "#!define RELAY 1\nrequest_route {\n    route(RELAY);\n}\nroute[1] { exit; }\n";
+    assert!(
+        analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader).is_empty(),
+        "{:?}",
+        analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader)
+    );
+
+    // expands to another route's name
+    let text =
+        "#!define RELAY MYROUTE\nrequest_route {\n    route(RELAY);\n}\nroute[MYROUTE] { exit; }\n";
+    assert!(
+        analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader).is_empty(),
+        "{:?}",
+        analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader)
+    );
+
+    // a bare define has no value; the expansion is `route()`, which the
+    // real parser rejects — not the analyzer's call to make
+    let text = "#!define RELAY\nrequest_route {\n    route(RELAY);\n}\n";
+    assert!(analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader).is_empty());
+
+    // a define from an included file counts too
+    let loader2 = |p: &Path| -> Option<String> {
+        (p.to_str() == Some("/x/inc.cfg")).then(|| "#!define RELAY MYROUTE\n".to_string())
+    };
+    let text = "include_file \"inc.cfg\"\nrequest_route {\n    route(RELAY);\n}\nroute[MYROUTE] { exit; }\n";
+    assert!(
+        analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader2).is_empty(),
+        "a define in an include is still a define"
+    );
+}
+
+/// Resolving through a define must not become a way to hide a real
+/// mistake: if the expansion names no route either, that is still an
+/// undefined route, and the message says which name was checked.
+#[test]
+fn a_define_expanding_to_nothing_real_still_warns() {
+    use std::path::Path;
+    let loader = |_: &Path| -> Option<String> { None };
+    let text = "#!define RELAY GHOST\nrequest_route {\n    route(RELAY);\n}\n";
+    let ds = analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+    assert!(
+        ds[0].message.contains("RELAY") && ds[0].message.contains("GHOST"),
+        "the message must name both the alias and what it expands to: {}",
+        ds[0].message
+    );
+    // and it points at the call site, not the define
+    assert_eq!(ds[0].line, 2);
+}
+
+/// A define chain must terminate even when it is circular.
+#[test]
+fn a_circular_define_chain_terminates() {
+    use std::path::Path;
+    let loader = |_: &Path| -> Option<String> { None };
+    let text = "#!define A B\n#!define B A\nrequest_route {\n    route(A);\n}\n";
+    let _ = analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader);
+}

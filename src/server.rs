@@ -1137,6 +1137,7 @@ impl LanguageServer for Backend {
                             logic::CompKind::Function => CompletionItemKind::FUNCTION,
                             logic::CompKind::Route => CompletionItemKind::REFERENCE,
                             logic::CompKind::Keyword => CompletionItemKind::KEYWORD,
+                            logic::CompKind::Define => CompletionItemKind::CONSTANT,
                         }),
                         ..Default::default()
                     }
@@ -1198,6 +1199,18 @@ impl LanguageServer for Backend {
         let Some(word) = analyze::word_at(line, byte_col) else {
             return Ok(None);
         };
+        // a preprocessor symbol is substituted before the parser sees
+        // the name, so it wins over a same-named module symbol
+        let files = self.closure_for(&uri, &text);
+        if let Some(md) = logic::define_hover(&files, &word) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: md,
+                }),
+                range: None,
+            }));
+        }
         let cat = self.catalog.read().unwrap();
         let core = self.core.read().unwrap();
         Ok(
@@ -1222,6 +1235,34 @@ impl LanguageServer for Backend {
         };
         let line_text = Self::doc_line(&text, pos.line);
         let byte_col = analyze::utf16_to_byte(&line_text, pos.character) as u32;
+        // a preprocessor symbol resolves to its directive, including
+        // when the cursor is on an `#!ifdef` operand rather than code
+        if let Some(word) = analyze::word_at(&line_text, byte_col as usize) {
+            let files = self.closure_for(&uri, &text);
+            if let Some((path, d)) = logic::define_definition(&files, &word) {
+                let target = if path.as_os_str().is_empty() {
+                    Some(uri.clone())
+                } else {
+                    Uri::from_file_path(path)
+                };
+                if let Some(target) = target {
+                    let ftext = files
+                        .iter()
+                        .find(|(p, _)| p == path)
+                        .map(|(_, t)| t.clone())
+                        .unwrap_or_default();
+                    let dl = Self::doc_line(&ftext, d.line);
+                    let c = analyze::byte_to_utf16(&dl, d.col as usize);
+                    return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                        uri: target,
+                        range: Range {
+                            start: Position::new(d.line, c),
+                            end: Position::new(d.line, c + d.name.chars().count() as u32),
+                        },
+                    })));
+                }
+            }
+        }
         if let Some(d) = logic::definition_of(&text, pos.line, byte_col) {
             let def_line = Self::doc_line(&text, d.line);
             let c = analyze::byte_to_utf16(&def_line, d.col as usize);
@@ -1302,6 +1343,34 @@ impl LanguageServer for Backend {
                 }
             })
             .collect();
+        // preprocessor symbols belong in the outline too: they are
+        // top-level bindings a reader navigates by, and in a large
+        // config they are usually the first thing you look for
+        let mut syms = syms;
+        #[allow(deprecated)]
+        for d in analyze::defines(&text) {
+            let dl = Self::doc_line(&text, d.line);
+            let start = Position::new(d.line, analyze::byte_to_utf16(&dl, d.col as usize));
+            let end = Position::new(
+                d.line,
+                analyze::byte_to_utf16(&dl, d.col as usize + d.name.len()),
+            );
+            syms.push(DocumentSymbol {
+                name: d.name,
+                detail: Some(if d.value.is_empty() {
+                    format!("#!{}", d.directive)
+                } else {
+                    format!("#!{} {}", d.directive, d.value)
+                }),
+                kind: SymbolKind::CONSTANT,
+                tags: None,
+                deprecated: None,
+                range: Range { start, end },
+                selection_range: Range { start, end },
+                children: None,
+            });
+        }
+        syms.sort_by_key(|s| (s.range.start.line, s.range.start.character));
         Ok(Some(DocumentSymbolResponse::Nested(syms)))
     }
 

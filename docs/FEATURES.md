@@ -94,6 +94,31 @@ only `route()`-callable blocks get one — `failure_route` and friends
 are armed via module functions we don't count); disable with
 `kamailioLsp.codeLens.references`.
 
+#### Preprocessor symbols
+
+`#!define` and its relatives bind names the preprocessor substitutes
+textually, before the parser sees anything. The server now reads them:
+
+- **Hover** a name for what it binds and which directive bound it.
+- **Ctrl+Click** it to jump to that directive — including from an
+  `#!ifdef` operand, which is not code position.
+- **Completion** offers them wherever code is legal.
+- The **outline** lists them alongside the route blocks.
+- The **analyzer** expands through them, so a route reached by alias
+  is no longer flagged as undefined.
+
+Every defining form kamailio's `src/core/cfg.lex` recognises is
+collected, behind either prefix (`#!` or `!!`): `define`/`def`,
+`trydefine`/`trydef`, `redefine`/`redef`, `defexp`, `defexps`,
+`defenv`, `defenvs`, `trydefenv`, `trydefenvs`, plus `substdef` and
+`substdefs` — whose delimited form (`#!substdef "!NAME!value!g"`)
+binds a name as well. A backslash-continued directive is read whole,
+so its continuation lines are part of the value.
+
+A define outranks a same-named module symbol in hover and completion.
+That is not a preference: the substitution happens first, so the
+define is what the config actually means.
+
 #### Call hierarchy
 
 **Shift+Alt+H** on a route name — at a `route(NAME)` call or on the
@@ -235,11 +260,12 @@ clients that can't pass options.
 
 ## Notes
 
-- The analyzer resolves `route(NAME)` literally: a route addressed
-  through a `#!define` alias (`#!define RELAY 1` + `route(RELAY)`)
-  can be flagged as undefined even though the preprocessor expands it
-  — silence such spots by naming the route directly or disabling
-  `kamailioLsp.diagnostics.analyzer`.
+- The analyzer expands `route(NAME)` through the `#!define` table
+  before deciding anything, so a route addressed through an alias
+  (`#!define RELAY MYROUTE` + `route(RELAY)`) is resolved rather than
+  flagged. Defines from included files count. If the expansion names
+  no route either, the warning says so and names both — the alias and
+  what it expands to.
 - Include handling is capped for safety: depth 8, 64 files, 1 MiB per
   file; relative paths resolve against the including file's
   directory. `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` tunes the analyzer
