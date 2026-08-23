@@ -2,6 +2,29 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.5.0] — 2026-08-23
+
+- **Formatting**: `textDocument/formatting` and
+  `textDocument/rangeFormatting`. Shift+Alt+F and format-on-save now
+  re-indent a `kamailio.cfg` by brace depth and strip trailing
+  whitespace, following the editor's tab settings.
+  The formatter is deliberately line-preserving — it rewrites the
+  leading and trailing whitespace of a line and nothing else, never
+  joins, splits or reorders lines, never touches a string or comment
+  body (either comment style), and never emits an edit for a line that
+  is already correct, so folding and cursor position survive. `#!` and
+  `!!` directives keep their column, and a backslash-continued
+  `#!define` keeps its own layout. Proven against a real 6.1.4 binary:
+  the positioned parse errors `kamailio -c` reports are unchanged by
+  formatting.
+- **A skipped test is now a failed test.** Thirteen tests used to opt
+  out silently when no Kamailio tree, wiki checkout or binary was
+  present, so CI reported green while the proofs behind this
+  extension's version claims never ran. They are hard failures now,
+  `scripts/proof-env.sh` provisions what they need, and CI runs that
+  same script — a green build means the proofs really ran, against a
+  real 6.1.4 tree and binary.
+
 ## [0.4.1] — 2026-08-23
 
 - **Documentation drift gate**: the README and the features page are
