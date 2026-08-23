@@ -18,6 +18,7 @@ configuration file language (`kamailio.cfg`).
 | **Workspace symbols / code lenses** | Ctrl+T searches route definitions across open files + includes; named callable routes show closure-wide reference counts. |
 | **Call hierarchy** | The route call graph: who calls `route[X]`, and what `route[X]` calls, across the include closure. Main-table only — a `failure_route` is armed by a module-function string the server cannot see, so it makes calls but reports no callers. |
 | **Quick fixes** | Load the module exporting an unknown command; create a stub for an undefined `route(x)`. |
+| **Refactorings** | Extract a selection into a `route[...]` of its own, leaving a call behind; remove duplicate `loadmodule` lines (a second load is a parse error, not untidiness). |
 | **Inlay hints** | Parameter names from the documentation at module-function call sites, and what each `#!define` expands to at its uses — visible range only. |
 | **Preprocessor symbols** | `#!define` and friends: hover for what a name binds, Ctrl+Click to its directive (works inside `#!ifdef` too), completion, and outline entries. The analyzer expands through them, so a route reached by alias is no longer flagged undefined. |
 | **Catalog validation** | `modparam` parameters the configured tree does not document warn as you type. |
