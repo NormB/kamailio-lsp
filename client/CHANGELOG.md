@@ -2,6 +2,19 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.11.1] — 2026-08-23
+
+- **Formatter: continuation lines keep their own indentation.** A real
+  993-line production config showed the formatter wanting to change 25
+  lines, every one wrongly — hanging argument indents, conditions
+  broken across lines, and the body of a braceless `if`. Dedenting a
+  braceless `if` body was the worst of it: the parse does not change,
+  but the body reads as though it runs unconditionally. A line is now
+  re-indented only when the previous code line actually ended a
+  statement.
+- The corpus sweep now checks the formatter too: all 89 real configs
+  in the source tree must format idempotently and preserve content.
+
 ## [0.11.0] — 2026-08-23
 
 - **Extract into a route**: select whole lines inside a route body and
