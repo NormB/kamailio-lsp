@@ -24,6 +24,7 @@ configuration file language (`kamailio.cfg`).
 | **Include links** | `include_file`/`import_file` paths are Ctrl+Click document links. |
 | **Formatting** | Whole-document and range formatting re-indents by brace depth and strips trailing whitespace, honouring the editor's tab settings. Line-preserving: it never joins, splits or reorders lines, and never touches a string, comment or `#!` directive. |
 | **Semantic tokens** | Route names + pseudo-variables (both string quote styles), UTF-16 delta-encoded; `semanticTokens/range` serves just the visible slice. |
+| **Watched files** | An include, the module tree or the wiki checkout changing on disk — a git checkout, a rebuild — re-checks and re-harvests without the buffer being touched. |
 | **Live settings** | Runtime toggles (analyzer, snippets, code lens, max diagnostics, check timeout) apply over `workspace/didChangeConfiguration` without a server restart. |
 | **CLI** | `kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` for CI and git hooks (exit 0/1/2). |
 

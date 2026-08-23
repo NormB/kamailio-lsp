@@ -27,6 +27,8 @@ pub struct Backend {
     snippet_completions: std::sync::RwLock<bool>,
     /// Draw parameter names at documented call sites.
     inlay_parameter_names: std::sync::RwLock<bool>,
+    /// The client accepts dynamic `didChangeWatchedFiles` registration.
+    watched_files_dynamic: std::sync::RwLock<bool>,
     /// Draw what each preprocessor symbol expands to.
     inlay_define_values: std::sync::RwLock<bool>,
     max_diagnostics: std::sync::RwLock<usize>,
@@ -65,6 +67,7 @@ impl Backend {
             check_tasks: DashMap::new(),
             snippet_completions: std::sync::RwLock::new(true),
             inlay_parameter_names: std::sync::RwLock::new(true),
+            watched_files_dynamic: std::sync::RwLock::new(false),
             inlay_define_values: std::sync::RwLock::new(true),
             max_diagnostics: std::sync::RwLock::new(100),
             cache_dir_opt: std::sync::RwLock::new(None),
@@ -288,6 +291,208 @@ impl Backend {
         None
     }
 
+    /// Ask the client to watch the files whose contents this server
+    /// derives answers from.
+    ///
+    /// Three kinds matter and none arrives as a document edit: a
+    /// config included by an open file, the module documentation tree,
+    /// and the wiki checkout the core docs come from.  Without this the
+    /// server keeps answering from a stale read until the buffer
+    /// happens to be touched.
+    ///
+    /// Registration is dynamic because tree and wiki live wherever the
+    /// user put them — usually outside the workspace — so those
+    /// watchers are relative patterns rooted at each.
+    async fn register_watchers(&self) {
+        // registering against a client that never declared support is
+        // a request that may never be answered
+        if !*self.watched_files_dynamic.read().unwrap() {
+            return;
+        }
+        let mut watchers = vec![FileSystemWatcher {
+            glob_pattern: GlobPattern::String("**/*.cfg".into()),
+            kind: None,
+        }];
+        let mut relative = |dir: Option<String>, pats: &[&str]| {
+            if let Some(d) = dir
+                && let Some(base) = Uri::from_file_path(&d)
+            {
+                for pat in pats {
+                    watchers.push(FileSystemWatcher {
+                        glob_pattern: GlobPattern::Relative(RelativePattern {
+                            base_uri: OneOf::Right(base.clone()),
+                            pattern: (*pat).into(),
+                        }),
+                        kind: None,
+                    });
+                }
+            }
+        };
+        relative(self.src.read().unwrap().clone(), &["src/modules/*/README"]);
+        relative(
+            self.wiki.read().unwrap().clone(),
+            &["docs/cookbooks/*/*.md"],
+        );
+        let reg = Registration {
+            id: "kamailio-lsp/watched-files".into(),
+            method: "workspace/didChangeWatchedFiles".into(),
+            register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
+                watchers,
+            })
+            .ok(),
+        };
+        // time-bounded like the progress round-trip: a client that
+        // declares support but never answers must not stall startup,
+        // and a decline is not an error worth surfacing
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            self.client.register_capability(vec![reg]),
+        )
+        .await;
+    }
+
+    /// Harvest the documentation catalogue from the configured tree
+    /// and wiki checkout, replacing what is loaded, and report whether
+    /// the cache answered.
+    ///
+    /// Startup and the file watcher share this: a tree that changes on
+    /// disk has to be re-read, and the cache fingerprint is
+    /// content-aware, so a changed file misses it by construction
+    /// rather than by any special casing here.
+    async fn harvest(&self, with_progress: bool) -> bool {
+        let src = self.src.read().unwrap().clone();
+        let wiki = self.wiki.read().unwrap().clone();
+        let mut cached = false;
+        if let Some(src) = src {
+            // progress reporting: only for clients that advertised
+            // window.workDoneProgress, and only if create succeeds
+            let token = NumberOrString::String("kamailio-lsp/harvest".into());
+            let progress_active = with_progress
+                && *self.work_done_progress.read().unwrap()
+                && self
+                    .client
+                    .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
+                        token: token.clone(),
+                    })
+                    .await
+                    .is_ok();
+            if progress_active {
+                self.client
+                    .send_notification::<notification::Progress>(ProgressParams {
+                        token: token.clone(),
+                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
+                            WorkDoneProgressBegin {
+                                title: "Harvesting Kamailio documentation".into(),
+                                cancellable: Some(false),
+                                message: Some(format!("scanning {src}")),
+                                percentage: None,
+                            },
+                        )),
+                    })
+                    .await;
+                self.client
+                    .send_notification::<notification::Progress>(ProgressParams {
+                        token: token.clone(),
+                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(
+                            WorkDoneProgressReport {
+                                cancellable: Some(false),
+                                message: Some("module READMEs and core cookbooks".into()),
+                                percentage: None,
+                            },
+                        )),
+                    })
+                    .await;
+            }
+            // the harvest runs off the executor thread and outside the
+            // handshake; results are cached per (tree, wiki) fingerprint
+            let cache_opt = self.cache_dir_opt.read().unwrap().clone();
+            let src_for_task = src.clone();
+            let wiki_for_task = wiki.clone();
+            let (harvested, core, hit) = tokio::task::spawn_blocking(move || {
+                let src = src_for_task;
+                let wiki = wiki_for_task;
+                let p = std::path::Path::new(&src);
+                let wiki_path = wiki.as_deref().map(std::path::Path::new);
+                let cache_dir = cache_opt
+                    .map(std::path::PathBuf::from)
+                    .or_else(|| {
+                        std::env::var("KAMAILIO_LSP_CACHE_DIR")
+                            .map(std::path::PathBuf::from)
+                            .ok()
+                    })
+                    .or_else(|| {
+                        std::env::var("XDG_CACHE_HOME")
+                            .map(std::path::PathBuf::from)
+                            .ok()
+                            .or_else(|| {
+                                std::env::var("HOME")
+                                    .map(|h| std::path::PathBuf::from(h).join(".cache"))
+                                    .ok()
+                            })
+                            .map(|c| c.join("kamailio-lsp"))
+                    });
+                if let Some(dir) = &cache_dir
+                    && let Some((m, c)) = catalog::load_cached(p, wiki_path, dir)
+                {
+                    return (m, c, true);
+                }
+                let core = wiki_path.map(catalog::harvest_core).unwrap_or_default();
+                let out = (catalog::harvest_tree(p), core);
+                if let Some(dir) = &cache_dir {
+                    let _ = catalog::save_cache(p, wiki_path, dir, &out.0, &out.1);
+                }
+                (out.0, out.1, false)
+            })
+            .await
+            .unwrap_or_default();
+            *self.catalog.write().unwrap() = harvested;
+            *self.core.write().unwrap() = core;
+            cached = hit;
+            if progress_active {
+                let n = self.catalog.read().unwrap().len();
+                self.client
+                    .send_notification::<notification::Progress>(ProgressParams {
+                        token,
+                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(
+                            WorkDoneProgressEnd {
+                                message: Some(format!("{n} documented modules")),
+                            },
+                        )),
+                    })
+                    .await;
+            }
+            // a CONFIGURED tree that yields nothing deserves a visible
+            // warning, not just a quiet log line
+            if self.catalog.read().unwrap().is_empty() {
+                self.client
+                    .show_message(
+                        MessageType::WARNING,
+                        format!(
+                            "kamailio-lsp: no module documentation found under '{src}' (kamailioSrc)"
+                        ),
+                    )
+                    .await;
+            }
+            if let Some(w) = &wiki {
+                let empty = {
+                    let core = self.core.read().unwrap();
+                    core.functions.is_empty() && core.params.is_empty() && core.pvars.is_empty()
+                };
+                if empty {
+                    self.client
+                        .show_message(
+                            MessageType::WARNING,
+                            format!(
+                                "kamailio-lsp: no core documentation found under '{w}' (kamailioWiki)"
+                            ),
+                        )
+                        .await;
+                }
+            }
+        }
+        cached
+    }
+
     /// The include closure rooted at an open document: the document
     /// itself plus transitively included files (open buffers first,
     /// disk fallback).  Non-file documents get a single-entry closure.
@@ -366,6 +571,11 @@ impl Backend {
     /// snapshot always wins, and `kill_on_drop` reaps a superseded
     /// child process.
     fn spawn_check(&self, uri: &Uri) {
+        self.spawn_check_publishing(uri, true);
+    }
+
+    /// As [`Self::spawn_check`], but able to publish a clean result.
+    fn spawn_check_publishing(&self, uri: &Uri, quiet_when_clean: bool) {
         if uri.scheme().as_str() != "file" {
             return;
         }
@@ -381,6 +591,7 @@ impl Backend {
             analyzer_enabled: *self.analyzer_enabled.read().unwrap(),
             cap: *self.max_diagnostics.read().unwrap(),
             uri: uri.clone(),
+            quiet_when_clean,
         };
         if let Some((_, old)) = self.check_tasks.remove(uri) {
             old.abort();
@@ -407,8 +618,7 @@ impl Backend {
         let analyzer_enabled = ctx.analyzer_enabled;
         let cap = ctx.cap;
         let Some(bin) = ctx.bin.clone() else {
-            // -c disabled: analyzer-only pass.  skip_if_empty keeps the
-            // no-checks contract quiet for clean documents.
+            // -c disabled: analyzer-only pass
             ctx.check_diags.insert(uri.clone(), Vec::new());
             Self::merge_and_publish(
                 &ctx.client,
@@ -420,7 +630,7 @@ impl Backend {
                 &snap_text,
                 Self::open_docs_snapshot_of(&ctx.docs),
                 &ctx.catalog,
-                true,
+                ctx.quiet_when_clean,
             )
             .await;
             return;
@@ -687,6 +897,11 @@ struct CheckCtx {
     analyzer_enabled: bool,
     cap: usize,
     uri: Uri,
+    /// Suppress the empty publish a clean document gets in
+    /// analyzer-only mode.  False for a re-check the user did not
+    /// trigger by typing: a warning that is no longer true has to be
+    /// taken off the screen.
+    quiet_when_clean: bool,
 }
 
 impl LanguageServer for Backend {
@@ -748,6 +963,13 @@ impl LanguageServer for Backend {
         // the harvest happens in `initialized` so a large tree never
         // delays the initialize handshake
         *self.src.write().unwrap() = src;
+        *self.watched_files_dynamic.write().unwrap() = p
+            .capabilities
+            .workspace
+            .as_ref()
+            .and_then(|w| w.did_change_watched_files.as_ref())
+            .and_then(|d| d.dynamic_registration)
+            .unwrap_or(false);
         let wiki = opts
             .get("kamailioWiki")
             .and_then(|v| v.as_str())
@@ -830,135 +1052,8 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        let src = self.src.read().unwrap().clone();
-        let wiki = self.wiki.read().unwrap().clone();
-        let mut cached = false;
-        if let Some(src) = src {
-            // progress reporting: only for clients that advertised
-            // window.workDoneProgress, and only if create succeeds
-            let token = NumberOrString::String("kamailio-lsp/harvest".into());
-            let progress_active = *self.work_done_progress.read().unwrap()
-                && self
-                    .client
-                    .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
-                        token: token.clone(),
-                    })
-                    .await
-                    .is_ok();
-            if progress_active {
-                self.client
-                    .send_notification::<notification::Progress>(ProgressParams {
-                        token: token.clone(),
-                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
-                            WorkDoneProgressBegin {
-                                title: "Harvesting Kamailio documentation".into(),
-                                cancellable: Some(false),
-                                message: Some(format!("scanning {src}")),
-                                percentage: None,
-                            },
-                        )),
-                    })
-                    .await;
-                self.client
-                    .send_notification::<notification::Progress>(ProgressParams {
-                        token: token.clone(),
-                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(
-                            WorkDoneProgressReport {
-                                cancellable: Some(false),
-                                message: Some("module READMEs and core cookbooks".into()),
-                                percentage: None,
-                            },
-                        )),
-                    })
-                    .await;
-            }
-            // the harvest runs off the executor thread and outside the
-            // handshake; results are cached per (tree, wiki) fingerprint
-            let cache_opt = self.cache_dir_opt.read().unwrap().clone();
-            let src_for_task = src.clone();
-            let wiki_for_task = wiki.clone();
-            let (harvested, core, hit) = tokio::task::spawn_blocking(move || {
-                let src = src_for_task;
-                let wiki = wiki_for_task;
-                let p = std::path::Path::new(&src);
-                let wiki_path = wiki.as_deref().map(std::path::Path::new);
-                let cache_dir = cache_opt
-                    .map(std::path::PathBuf::from)
-                    .or_else(|| {
-                        std::env::var("KAMAILIO_LSP_CACHE_DIR")
-                            .map(std::path::PathBuf::from)
-                            .ok()
-                    })
-                    .or_else(|| {
-                        std::env::var("XDG_CACHE_HOME")
-                            .map(std::path::PathBuf::from)
-                            .ok()
-                            .or_else(|| {
-                                std::env::var("HOME")
-                                    .map(|h| std::path::PathBuf::from(h).join(".cache"))
-                                    .ok()
-                            })
-                            .map(|c| c.join("kamailio-lsp"))
-                    });
-                if let Some(dir) = &cache_dir
-                    && let Some((m, c)) = catalog::load_cached(p, wiki_path, dir)
-                {
-                    return (m, c, true);
-                }
-                let core = wiki_path.map(catalog::harvest_core).unwrap_or_default();
-                let out = (catalog::harvest_tree(p), core);
-                if let Some(dir) = &cache_dir {
-                    let _ = catalog::save_cache(p, wiki_path, dir, &out.0, &out.1);
-                }
-                (out.0, out.1, false)
-            })
-            .await
-            .unwrap_or_default();
-            *self.catalog.write().unwrap() = harvested;
-            *self.core.write().unwrap() = core;
-            cached = hit;
-            if progress_active {
-                let n = self.catalog.read().unwrap().len();
-                self.client
-                    .send_notification::<notification::Progress>(ProgressParams {
-                        token,
-                        value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(
-                            WorkDoneProgressEnd {
-                                message: Some(format!("{n} documented modules")),
-                            },
-                        )),
-                    })
-                    .await;
-            }
-            // a CONFIGURED tree that yields nothing deserves a visible
-            // warning, not just a quiet log line
-            if self.catalog.read().unwrap().is_empty() {
-                self.client
-                    .show_message(
-                        MessageType::WARNING,
-                        format!(
-                            "kamailio-lsp: no module documentation found under '{src}' (kamailioSrc)"
-                        ),
-                    )
-                    .await;
-            }
-            if let Some(w) = &wiki {
-                let empty = {
-                    let core = self.core.read().unwrap();
-                    core.functions.is_empty() && core.params.is_empty() && core.pvars.is_empty()
-                };
-                if empty {
-                    self.client
-                        .show_message(
-                            MessageType::WARNING,
-                            format!(
-                                "kamailio-lsp: no core documentation found under '{w}' (kamailioWiki)"
-                            ),
-                        )
-                        .await;
-                }
-            }
-        }
+        let cached = self.harvest(true).await;
+        self.register_watchers().await;
         let n = self.catalog.read().unwrap().len();
         let c = self.core.read().unwrap().functions.len();
         let tag = if cached { ", cached" } else { "" };
@@ -1020,6 +1115,56 @@ impl LanguageServer for Backend {
             )
             .await;
         });
+    }
+
+    async fn did_change_watched_files(&self, p: DidChangeWatchedFilesParams) {
+        let src = self.src.read().unwrap().clone();
+        let wiki = self.wiki.read().unwrap().clone();
+        let under = |path: &std::path::Path, dir: &Option<String>| {
+            dir.as_ref()
+                .is_some_and(|d| path.starts_with(std::path::Path::new(d)))
+        };
+        let mut docs_changed = false;
+        let mut changed: Vec<std::path::PathBuf> = Vec::new();
+        for ev in &p.changes {
+            let Some(path) = ev.uri.to_file_path() else {
+                continue;
+            };
+            if under(&path, &src) || under(&path, &wiki) {
+                docs_changed = true;
+            } else {
+                changed.push(path.into_owned());
+            }
+        }
+
+        if docs_changed {
+            // the fingerprint is content-aware, so this re-reads rather
+            // than serving the stale cache entry
+            self.harvest(false).await;
+        }
+
+        if changed.is_empty() {
+            return;
+        }
+        // an open document whose include closure contains a changed
+        // file is answering from a stale read: re-check it
+        let open: Vec<(Uri, String)> = self
+            .docs
+            .iter()
+            .map(|e| (e.key().clone(), e.value().1.clone()))
+            .collect();
+        for (uri, text) in open {
+            let closure = self.closure_for(&uri, &text);
+            let own = uri.to_file_path().map(|p| p.into_owned());
+            if closure
+                .iter()
+                .any(|(p, _)| changed.contains(p) && Some(p) != own.as_ref())
+            {
+                // not something the user typed: if the warning on
+                // screen is no longer true, say so explicitly
+                self.spawn_check_publishing(&uri, false);
+            }
+        }
     }
 
     async fn did_save(&self, p: DidSaveTextDocumentParams) {
