@@ -2,6 +2,23 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.8.0] — 2026-08-23
+
+- **Inlay hints**, in two independently switchable kinds:
+  - **Parameter names** at documented call sites, so
+    `t_relay("udp", 1)` reads as
+    `t_relay(flags: "udp", outbound_proxy: 1)` without the document
+    changing. Only calls the catalogue knows are hinted — which is
+    what keeps `if`, `while` and `route` out — and a call with more
+    arguments than the signature documents is hinted only as far as
+    the signature goes.
+  - **Preprocessor values**: every use of a `#!define`d name carries
+    what it expands to, including inside `#!ifdef`. The definition
+    site is not hinted, and a name inside a string is not a use.
+  The editor asks for the visible range and only that is computed.
+  `kamailioLsp.inlayHints.parameterNames` and
+  `kamailioLsp.inlayHints.defineValues` turn them off, live.
+
 ## [0.7.0] — 2026-08-23
 
 - **Preprocessor symbols**: the server reads `#!define` and its
