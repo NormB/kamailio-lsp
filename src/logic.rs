@@ -233,6 +233,130 @@ pub fn completions_with_core_files(
     complete_files(catalog, core, files, line_prefix)
 }
 
+/// One inlay hint: a label the editor draws at a position, without
+/// changing the document.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Hint {
+    /// 0-based line.
+    pub line: u32,
+    /// 0-based byte column the label is drawn before.
+    pub col: u32,
+    /// The label as drawn, already punctuated.
+    pub label: String,
+}
+
+/// The parameter name to draw for one signature parameter.
+///
+/// Signatures are written for humans — `[flags]`, `[outbound_proxy]`,
+/// sometimes with a type in front — so the bracket markers and any
+/// leading type are stripped down to the name itself.  A parameter
+/// that reduces to nothing gets no hint at all rather than an empty
+/// chip.
+fn hint_name(param: &str) -> Option<String> {
+    let p = param.trim().trim_matches(['[', ']']).trim();
+    let p = p.split('=').next().unwrap_or(p).trim();
+    let p = p.split_whitespace().last().unwrap_or(p);
+    let p = p.trim_matches(['[', ']', '"', '\'']);
+    (!p.is_empty() && p.chars().all(|c| c.is_alphanumeric() || c == '_')).then(|| p.to_string())
+}
+
+/// The signature of `name`, preferring the modules the document
+/// actually loads, then any module, then the core functions — the
+/// same order hover resolves in.
+fn signature_of(
+    catalog: &[ModuleDoc],
+    core: &crate::catalog::CoreDocs,
+    doc: &str,
+    name: &str,
+) -> Option<String> {
+    let loaded: Vec<String> = analyze::loaded_modules(doc)
+        .into_iter()
+        .map(|m| m.name)
+        .collect();
+    catalog
+        .iter()
+        .filter(|m| loaded.contains(&m.name))
+        .chain(catalog.iter().filter(|m| !loaded.contains(&m.name)))
+        .find_map(|m| {
+            m.functions
+                .iter()
+                .find(|f| f.name == name)
+                .map(|f| f.detail.clone())
+        })
+        .or_else(|| {
+            core.functions
+                .iter()
+                .find(|f| f.name == name)
+                .map(|f| f.detail.clone())
+        })
+}
+
+/// Parameter-name hints for every documented call in `doc`.
+///
+/// Only calls the catalogue knows get hints, which is what keeps
+/// keywords (`if`, `while`, `route`) out without special-casing them.
+/// A call with more arguments than the signature documents is hinted
+/// as far as the signature goes and no further — guessing past the
+/// end would be inventing names.
+pub fn parameter_hints(
+    catalog: &[ModuleDoc],
+    core: &crate::catalog::CoreDocs,
+    doc: &str,
+) -> Vec<Hint> {
+    let mut out = Vec::new();
+    for call in analyze::calls(doc) {
+        if call.args.is_empty() {
+            continue;
+        }
+        let Some(sig) = signature_of(catalog, core, doc, &call.name) else {
+            continue;
+        };
+        let params = split_params(&sig);
+        for (param, (line, col)) in params.iter().zip(call.args.iter()) {
+            if let Some(name) = hint_name(param) {
+                out.push(Hint {
+                    line: *line,
+                    col: *col,
+                    label: format!("{name}:"),
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Value hints for preprocessor symbols: what each use expands to.
+///
+/// The definition site is skipped — `#!define PORT 5060` already says
+/// `5060`, and repeating it there would be noise.  A define with no
+/// value has nothing to show and is skipped everywhere.
+pub fn define_hints(files: &[(std::path::PathBuf, String)], doc: &str) -> Vec<Hint> {
+    let table: std::collections::HashMap<String, String> = files
+        .iter()
+        .flat_map(|(_, t)| analyze::defines(t))
+        .filter(|d| !d.value.is_empty())
+        .map(|d| (d.name, d.value))
+        .collect();
+    if table.is_empty() {
+        return Vec::new();
+    }
+    let own: std::collections::HashSet<(u32, u32)> = analyze::defines(doc)
+        .into_iter()
+        .map(|d| (d.line, d.col))
+        .collect();
+    analyze::code_words(doc)
+        .into_iter()
+        .filter(|w| !own.contains(&(w.line, w.col)))
+        .filter_map(|w| {
+            table.get(&w.name).map(|v| Hint {
+                line: w.line,
+                col: w.col + w.name.len() as u32,
+                label: format!("= {v}"),
+            })
+        })
+        .collect()
+}
+
 /// Markdown hover for a preprocessor symbol, if `word` names one
 /// anywhere in the closure.
 ///

@@ -56,6 +56,8 @@ function buildClient(context: vscode.ExtensionContext): LanguageClient {
             snippetCompletions: cfg.get<boolean>('completion.snippets', true),
             analyzerDiagnostics: cfg.get<boolean>('diagnostics.analyzer', true),
             codeLensReferences: cfg.get<boolean>('codeLens.references', true),
+            inlayHintParameterNames: cfg.get<boolean>('inlayHints.parameterNames', true),
+            inlayHintDefineValues: cfg.get<boolean>('inlayHints.defineValues', true),
             maxDiagnostics: cfg.get<number>('diagnostics.maxProblems', 100),
             cacheDir: cfg.get<string>('cacheDir', ''),
         },
@@ -127,6 +129,14 @@ export function activate(context: vscode.ExtensionContext) {
                             ),
                             codeLensReferences: cfg.get<boolean>(
                                 'codeLens.references',
+                                true,
+                            ),
+                            inlayHintParameterNames: cfg.get<boolean>(
+                                'inlayHints.parameterNames',
+                                true,
+                            ),
+                            inlayHintDefineValues: cfg.get<boolean>(
+                                'inlayHints.defineValues',
                                 true,
                             ),
                             maxDiagnostics: cfg.get<number>(

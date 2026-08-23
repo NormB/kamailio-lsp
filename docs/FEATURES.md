@@ -119,6 +119,32 @@ A define outranks a same-named module symbol in hover and completion.
 That is not a preference: the substitution happens first, so the
 define is what the config actually means.
 
+#### Inlay hints
+
+Two kinds, each independently switchable.
+
+**Parameter names.** Arguments at a documented call site are labelled
+with the name the module's own documentation gives them, so
+`t_relay("udp", 1)` reads as `t_relay(flags: "udp", outbound_proxy: 1)`
+without the document changing. Only calls the catalogue knows are
+hinted, which is what keeps `if`, `while` and `route` out without
+special-casing them. A call carrying more arguments than the signature
+documents is hinted as far as the signature goes and no further —
+guessing past the end would be inventing names. Signatures are written
+for humans (`[flags]`), so bracket markers, defaults and leading types
+are stripped to the name; a parameter that reduces to nothing is
+skipped rather than drawn as an empty chip.
+
+**Preprocessor values.** Each use of a `#!define`d symbol carries what
+it expands to, including inside `#!ifdef`, where the operand is a
+directive token rather than code. The definition site is not hinted —
+`#!define PORT 5060` already says what it binds — and a define with no
+value has nothing to show.
+
+The editor asks for the visible range and only that range is computed.
+`kamailioLsp.inlayHints.parameterNames` and
+`kamailioLsp.inlayHints.defineValues` turn them off; both apply live.
+
 #### Call hierarchy
 
 **Shift+Alt+H** on a route name — at a `route(NAME)` call or on the
@@ -250,6 +276,8 @@ clients that can't pass options.
 | `kamailioLsp.diagnostics.enable` | *(maps to empty `kamailioPath`)* | — | `true` | Toggle diagnostics without losing the configured path. |
 | `kamailioLsp.diagnostics.analyzer` | `analyzerDiagnostics` | — | `true` | Fast analyzer warnings between saves (undefined `route()` targets, duplicate definitions, undocumented modparams). |
 | `kamailioLsp.codeLens.references` | `codeLensReferences` | — | `true` | Reference-count code lenses on route definitions. |
+| `kamailioLsp.inlayHints.parameterNames` | `inlayHintParameterNames` | — | `true` | Draw parameter names at documented call sites. |
+| `kamailioLsp.inlayHints.defineValues` | `inlayHintDefineValues` | — | `true` | Draw what each preprocessor symbol expands to, at its uses. |
 | `kamailioLsp.diagnostics.maxProblems` | `maxDiagnostics` | — | `100` | Bound on published diagnostics per file. |
 | `kamailioLsp.checkTimeoutMs` | `checkTimeoutMs` | `KAMAILIO_LSP_CHECK_TIMEOUT_MS` | `10000` | Kill a `-c` run after this many ms. |
 | `kamailioLsp.completion.snippets` | `snippetCompletions` | — | `true` | Function completions as tabstop snippets. |
@@ -271,7 +299,8 @@ clients that can't pass options.
   directory. `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` tunes the analyzer
   debounce (default 300).
 - Runtime toggles (`diagnostics.analyzer`, `completion.snippets`,
-  `codeLens.references`, `diagnostics.maxProblems`,
+  `codeLens.references`, `inlayHints.parameterNames`,
+  `inlayHints.defineValues`, `diagnostics.maxProblems`,
   `checkTimeoutMs`) apply **live**: the VS Code client pushes them to
   the running server via `workspace/didChangeConfiguration` and open
   documents republish immediately. Settings that shape

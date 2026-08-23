@@ -104,6 +104,16 @@
           "default": true,
           "description": "Show reference-count code lenses above named route definitions (counted across the include closure)."
         },
+        "kamailioLsp.inlayHints.parameterNames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Draw parameter names from the documentation at module-function call sites."
+        },
+        "kamailioLsp.inlayHints.defineValues": {
+          "type": "boolean",
+          "default": true,
+          "description": "Draw what each #!define-family preprocessor symbol expands to, at its uses."
+        },
         "kamailioLsp.completion.snippets": {
           "type": "boolean",
           "default": true,

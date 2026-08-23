@@ -25,6 +25,10 @@ pub struct Backend {
     /// superseded child process).
     check_tasks: DashMap<Uri, tokio::task::JoinHandle<()>>,
     snippet_completions: std::sync::RwLock<bool>,
+    /// Draw parameter names at documented call sites.
+    inlay_parameter_names: std::sync::RwLock<bool>,
+    /// Draw what each preprocessor symbol expands to.
+    inlay_define_values: std::sync::RwLock<bool>,
     max_diagnostics: std::sync::RwLock<usize>,
     cache_dir_opt: std::sync::RwLock<Option<String>>,
     check_timeout: std::sync::RwLock<std::time::Duration>,
@@ -60,6 +64,8 @@ impl Backend {
             check_gate: std::sync::Arc::new(tokio::sync::Mutex::new(())),
             check_tasks: DashMap::new(),
             snippet_completions: std::sync::RwLock::new(true),
+            inlay_parameter_names: std::sync::RwLock::new(true),
+            inlay_define_values: std::sync::RwLock::new(true),
             max_diagnostics: std::sync::RwLock::new(100),
             cache_dir_opt: std::sync::RwLock::new(None),
             check_timeout: std::sync::RwLock::new(logic::resolve_timeout(
@@ -706,6 +712,15 @@ impl LanguageServer for Backend {
         if let Some(b) = opts.get("analyzerDiagnostics").and_then(|v| v.as_bool()) {
             *self.analyzer_enabled.write().unwrap() = b;
         }
+        if let Some(b) = opts
+            .get("inlayHintParameterNames")
+            .and_then(|v| v.as_bool())
+        {
+            *self.inlay_parameter_names.write().unwrap() = b;
+        }
+        if let Some(b) = opts.get("inlayHintDefineValues").and_then(|v| v.as_bool()) {
+            *self.inlay_define_values.write().unwrap() = b;
+        }
         if let Some(b) = opts.get("codeLensReferences").and_then(|v| v.as_bool()) {
             *self.code_lens_refs.write().unwrap() = b;
         }
@@ -771,6 +786,7 @@ impl LanguageServer for Backend {
                     work_done_progress_options: Default::default(),
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                inlay_hint_provider: Some(OneOf::Left(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_range_formatting_provider: Some(OneOf::Left(true)),
@@ -1024,6 +1040,12 @@ impl LanguageServer for Backend {
         }
         if let Some(b) = s.get("snippetCompletions").and_then(|v| v.as_bool()) {
             *self.snippet_completions.write().unwrap() = b;
+        }
+        if let Some(b) = s.get("inlayHintParameterNames").and_then(|v| v.as_bool()) {
+            *self.inlay_parameter_names.write().unwrap() = b;
+        }
+        if let Some(b) = s.get("inlayHintDefineValues").and_then(|v| v.as_bool()) {
+            *self.inlay_define_values.write().unwrap() = b;
         }
         if let Some(b) = s.get("codeLensReferences").and_then(|v| v.as_bool()) {
             *self.code_lens_refs.write().unwrap() = b;
@@ -1765,6 +1787,51 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(lenses))
+    }
+
+    async fn inlay_hint(&self, p: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        let Some(text) = self.docs.get(&p.text_document.uri).map(|d| d.1.clone()) else {
+            return Ok(None);
+        };
+        let mut hints: Vec<(logic::Hint, InlayHintKind)> = Vec::new();
+        if *self.inlay_parameter_names.read().unwrap() {
+            let cat = self.catalog.read().unwrap();
+            let core = self.core.read().unwrap();
+            hints.extend(
+                logic::parameter_hints(&cat, &core, &text)
+                    .into_iter()
+                    .map(|h| (h, InlayHintKind::PARAMETER)),
+            );
+        }
+        if *self.inlay_define_values.read().unwrap() {
+            let files = self.closure_for(&p.text_document.uri, &text);
+            hints.extend(
+                logic::define_hints(&files, &text)
+                    .into_iter()
+                    .map(|h| (h, InlayHintKind::TYPE)),
+            );
+        }
+        // the client asks for a viewport, so only pay for what is on
+        // screen
+        let out = hints
+            .into_iter()
+            .filter(|(h, _)| h.line >= p.range.start.line && h.line <= p.range.end.line)
+            .map(|(h, kind)| {
+                let lt = Self::doc_line(&text, h.line);
+                let pad_left = kind == InlayHintKind::TYPE;
+                InlayHint {
+                    position: Position::new(h.line, analyze::byte_to_utf16(&lt, h.col as usize)),
+                    label: InlayHintLabel::String(h.label),
+                    kind: Some(kind),
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: pad_left.then_some(true),
+                    padding_right: (!pad_left).then_some(true),
+                    data: None,
+                }
+            })
+            .collect();
+        Ok(Some(out))
     }
 
     async fn prepare_call_hierarchy(
