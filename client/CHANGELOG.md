@@ -2,6 +2,27 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.7.0] — 2026-08-23
+
+- **Preprocessor symbols**: the server reads `#!define` and its
+  relatives. Hover a name for what it binds and which directive bound
+  it, Ctrl+Click to jump there (including from an `#!ifdef` operand),
+  complete them wherever code is legal, and find them in the outline
+  beside the route blocks.
+- **Fixes a wrong diagnostic**: a route reached through an alias
+  (`#!define RELAY MYROUTE` + `route(RELAY)`) was flagged as undefined,
+  and the documented workaround was to rename the route or turn the
+  analyzer off. Kamailio accepts that config; the analyzer now expands
+  through the define table — across included files — before deciding.
+  If the expansion names no route either, the warning still fires and
+  names both the alias and what it expands to.
+- Every defining form in kamailio's `cfg.lex` is recognised, behind
+  either `#!` or `!!`: `define`/`def`, `trydefine`/`trydef`,
+  `redefine`/`redef`, `defexp`, `defexps`, `defenv`, `defenvs`,
+  `trydefenv`, `trydefenvs`, plus `substdef`/`substdefs` — whose
+  delimited form binds a name too. Backslash-continued directives keep
+  their whole value.
+
 ## [0.6.0] — 2026-08-23
 
 - **Call hierarchy**: `textDocument/prepareCallHierarchy`,
