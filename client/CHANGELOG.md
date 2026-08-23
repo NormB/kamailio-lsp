@@ -2,6 +2,18 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.9.0] — 2026-08-23
+
+- **Watched files**: an include, the Kamailio module tree or the wiki
+  checkout changing on disk — a git checkout, a rebuild, another tool
+  — now re-checks and re-harvests without the buffer being touched.
+  Until now the server kept answering from a stale read until you
+  happened to edit the file.
+- A re-check driven by a watched file publishes even when the result
+  is clean, which differs from opening a file on purpose: if the
+  warning on screen is no longer true, saying nothing would leave it
+  there.
+
 ## [0.8.0] — 2026-08-23
 
 - **Inlay hints**, in two independently switchable kinds:
