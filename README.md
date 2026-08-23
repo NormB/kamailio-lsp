@@ -16,6 +16,7 @@ configuration file language (`kamailio.cfg`).
 | **Document symbols** | All route blocks (`request_route`, `route[...]`, `failure_route[...]`, `event_route[...]`, …) with full block extents, nested outline. |
 | **Folding** | Route-family blocks fold; brace matching is string/comment-safe. |
 | **Workspace symbols / code lenses** | Ctrl+T searches route definitions across open files + includes; named callable routes show closure-wide reference counts. |
+| **Call hierarchy** | The route call graph: who calls `route[X]`, and what `route[X]` calls, across the include closure. Main-table only — a `failure_route` is armed by a module-function string the server cannot see, so it makes calls but reports no callers. |
 | **Quick fixes** | Load the module exporting an unknown command; create a stub for an undefined `route(x)`. |
 | **Catalog validation** | `modparam` parameters the configured tree does not document warn as you type. |
 | **Include links** | `include_file`/`import_file` paths are Ctrl+Click document links. |
