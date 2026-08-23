@@ -2,6 +2,25 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.4.0] — 2026-08-23
+
+- **Language-server stack moved to `tower-lsp-server`**: `tower-lsp`
+  has had no release since 0.20.0 (August 2023); the maintained
+  community fork replaces it. No behaviour changes — the protocol
+  suite (raw JSON-RPC over stdio) passes unchanged, and
+  `workspace/symbol` still answers with the same array on the wire.
+  Dropping the `url` crate takes its whole ICU/idna tree with it: the
+  server now builds from 66 dependencies instead of 95.
+- **Version-proven against Kamailio 6.1.4**, the current stable line,
+  alongside 6.0.x: a real 6.1.4 tree, a fresh kamailio-wiki checkout,
+  and a 6.1.4 binary. Every behavioural citation in the suite was
+  re-verified against that binary, and the 6.1.4 diagnostic shapes
+  are captured verbatim beside the 6.0.1 ones.
+- Nothing pins a Kamailio version: module docs come from the tree you
+  point at and core docs from the newest stable cookbook in your wiki
+  checkout — a selection that is now covered by a test (newest stable
+  wins, `devel` never does).
+
 ## [0.3.0] — 2026-08-20
 
 - **Per-version memoization** (internal): the per-document
