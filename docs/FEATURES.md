@@ -51,7 +51,7 @@ Type `(` or `,` inside a call and the function's signature pops up
 with the active parameter highlighted — module exports first, then
 core functions. Commas inside strings don't advance the parameter.
 
-#### Hover, navigation, outline
+#### Hover, go to definition, document symbols
 
 Hover any function/parameter/module/`$variable` for its
 documentation; **Ctrl+Click** a `route(NAME)` reference to jump to
@@ -170,6 +170,7 @@ clients that can't pass options.
 | `kamailioLsp.cacheDir` | `cacheDir` | `KAMAILIO_LSP_CACHE_DIR` | platform cache dir | Documentation-catalog cache location. |
 | `kamailioLsp.trace.server` | — | — | `off` | LSP traffic tracing in the output channel. |
 | — | — | `KAMAILIO_LSP_OUTPUT_CAP_BYTES` | `1048576` | Byte cap on captured `-c` output. |
+| — | — | `KAMAILIO_LSP_TRACE_INDEX` | *(unset)* | Set to any non-empty value to log one stderr line per document-index rebuild — a debugging seam for cache behaviour. |
 
 ## Notes
 

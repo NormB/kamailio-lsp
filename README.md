@@ -12,13 +12,15 @@ configuration file language (`kamailio.cfg`).
 | **Signature help** | The innermost unclosed call's signature with the active parameter, on `(` and `,`. |
 | **Hover** | Documentation for module functions, parameters, and modules, harvested from Kamailio's own docs. |
 | **Go to definition** | `route(NAME)` references resolve to their `route[NAME]` block — in this file or any included file. |
-| **References / rename / highlights** | Every call site + definition of a route name; rename rewrites them all (charset-gated, quoted call sites handled). |
+| **References / rename / highlights** | Every call site + definition of a route name; rename rewrites them all (charset-gated, quoted call sites handled). `prepareRename` blocks F2 off-symbol and pre-selects the name. |
 | **Document symbols** | All route blocks (`request_route`, `route[...]`, `failure_route[...]`, `event_route[...]`, …) with full block extents, nested outline. |
 | **Folding** | Route-family blocks fold; brace matching is string/comment-safe. |
 | **Workspace symbols / code lenses** | Ctrl+T searches route definitions across open files + includes; named callable routes show closure-wide reference counts. |
 | **Quick fixes** | Load the module exporting an unknown command; create a stub for an undefined `route(x)`. |
 | **Catalog validation** | `modparam` parameters the configured tree does not document warn as you type. |
-| **Semantic tokens** | Route names + pseudo-variables (both string quote styles), UTF-16 delta-encoded. |
+| **Include links** | `include_file`/`import_file` paths are Ctrl+Click document links. |
+| **Semantic tokens** | Route names + pseudo-variables (both string quote styles), UTF-16 delta-encoded; `semanticTokens/range` serves just the visible slice. |
+| **Live settings** | Runtime toggles (analyzer, snippets, code lens, max diagnostics, check timeout) apply over `workspace/didChangeConfiguration` without a server restart. |
 | **CLI** | `kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` for CI and git hooks (exit 0/1/2). |
 
 Positions are exchanged in UTF-16 units (the LSP default) and are

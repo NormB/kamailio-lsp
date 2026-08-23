@@ -2,6 +2,20 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.4.1] — 2026-08-23
+
+- **Documentation drift gate**: the README and the features page are
+  now checked against the server itself — every capability advertised
+  in `initialize`, every initialization option and environment
+  variable the server reads, and every VS Code setting the client
+  contributes must appear in the docs, or the build fails.
+- Fixes the drift that gate found: the README never mentioned include
+  links (Ctrl+Click on `include_file`/`import_file`), `prepareRename`,
+  `semanticTokens/range`, or live reconfiguration — all shipped
+  earlier and all invisible to anyone reading the front page.
+- Documents `KAMAILIO_LSP_TRACE_INDEX`, an environment variable the
+  server has read all along and no page mentioned.
+
 ## [0.4.0] — 2026-08-23
 
 - **Language-server stack moved to `tower-lsp-server`**: `tower-lsp`
