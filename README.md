@@ -127,7 +127,7 @@ tests run in CI; `tree-sitter generate` builds the parser locally.
   (loadmodules, routes, cursor context); deliberately *not* a grammar
 - `src/diag.rs` — `kamailio -c` output parser
 - `src/logic.rs` — pure completion/hover/definition assembly
-- `src/server.rs` — tower-lsp wiring
+- `src/server.rs` — tower-lsp-server wiring
 
 Semantic truth stays in Kamailio itself (`-c`); the server never
 guesses about grammar validity, so it is automatically correct for

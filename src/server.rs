@@ -1,9 +1,9 @@
-//! The tower-lsp language server.
+//! The tower-lsp-server language server.
 
 use dashmap::DashMap;
-use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer};
+use tower_lsp_server::jsonrpc::Result;
+use tower_lsp_server::ls_types::*;
+use tower_lsp_server::{Client, LanguageServer};
 
 use crate::{analyze, catalog, diag, logic};
 
@@ -11,7 +11,7 @@ use crate::{analyze, catalog, diag, logic};
 pub struct Backend {
     client: Client,
     /// Open documents: (version, full text).
-    docs: std::sync::Arc<DashMap<Url, (i32, String)>>,
+    docs: std::sync::Arc<DashMap<Uri, (i32, String)>>,
     catalog: std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
     core: std::sync::RwLock<catalog::CoreDocs>,
     src: std::sync::RwLock<Option<String>>,
@@ -23,26 +23,26 @@ pub struct Backend {
     /// In-flight check task per document: a newer check for the same
     /// URI aborts the old one (latest wins; `kill_on_drop` reaps the
     /// superseded child process).
-    check_tasks: DashMap<Url, tokio::task::JoinHandle<()>>,
+    check_tasks: DashMap<Uri, tokio::task::JoinHandle<()>>,
     snippet_completions: std::sync::RwLock<bool>,
     max_diagnostics: std::sync::RwLock<usize>,
     cache_dir_opt: std::sync::RwLock<Option<String>>,
     check_timeout: std::sync::RwLock<std::time::Duration>,
     /// Last published `-c` results per document; merged with analyzer
     /// diagnostics on every publish.
-    check_diags: std::sync::Arc<DashMap<Url, Vec<Diagnostic>>>,
+    check_diags: std::sync::Arc<DashMap<Uri, Vec<Diagnostic>>>,
     /// Fast analyzer diagnostics between saves (init option).
     analyzer_enabled: std::sync::RwLock<bool>,
     /// didChange generation per document: only the latest debounced
     /// analyzer task publishes.
-    change_gen: std::sync::Arc<DashMap<Url, u64>>,
+    change_gen: std::sync::Arc<DashMap<Uri, u64>>,
     /// Reference-count code lenses on route definitions (init option).
     code_lens_refs: std::sync::RwLock<bool>,
     /// Did the client advertise window.workDoneProgress support?
     work_done_progress: std::sync::RwLock<bool>,
     /// Per-(URI, version) memo of the per-document computations the
     /// hot handlers share (blocks, refs, semantic spans).
-    doc_index: logic::DocCache<Url>,
+    doc_index: logic::DocCache<Uri>,
 }
 
 impl Backend {
@@ -84,15 +84,16 @@ impl Backend {
     /// [`Self::open_docs_snapshot`] over a shared document map (for
     /// spawned check tasks that no longer hold `&self`).
     fn open_docs_snapshot_of(
-        docs: &DashMap<Url, (i32, String)>,
+        docs: &DashMap<Uri, (i32, String)>,
     ) -> std::collections::HashMap<std::path::PathBuf, String> {
         docs.iter()
             .filter_map(|e| {
                 let url = e.key();
-                if url.scheme() != "file" {
+                if url.scheme().as_str() != "file" {
                     return None;
                 }
-                url.to_file_path().ok().map(|p| (p, e.value().1.clone()))
+                url.to_file_path()
+                    .map(|p| (p.into_owned(), e.value().1.clone()))
             })
             .collect()
     }
@@ -148,10 +149,10 @@ impl Backend {
     #[allow(clippy::too_many_arguments)]
     async fn merge_and_publish(
         client: &Client,
-        check_map: &DashMap<Url, Vec<Diagnostic>>,
+        check_map: &DashMap<Uri, Vec<Diagnostic>>,
         analyzer_enabled: bool,
         cap: usize,
-        uri: &Url,
+        uri: &Uri,
         version: i32,
         text: &str,
         open: std::collections::HashMap<std::path::PathBuf, String>,
@@ -159,7 +160,7 @@ impl Backend {
         skip_if_empty: bool,
     ) {
         let mut merged = check_map.get(uri).map(|v| v.clone()).unwrap_or_default();
-        if analyzer_enabled && let Ok(path) = uri.to_file_path() {
+        if analyzer_enabled && let Some(path) = uri.to_file_path() {
             let loader = Self::make_loader(open);
             let cat = cat.read().unwrap().clone();
             merged.extend(Self::analyzer_lsp_diags(&path, text, &loader, &cat));
@@ -176,8 +177,8 @@ impl Backend {
     /// The include closure rooted at an open document: the document
     /// itself plus transitively included files (open buffers first,
     /// disk fallback).  Non-file documents get a single-entry closure.
-    fn closure_for(&self, uri: &Url, text: &str) -> Vec<(std::path::PathBuf, String)> {
-        let Ok(path) = uri.to_file_path() else {
+    fn closure_for(&self, uri: &Uri, text: &str) -> Vec<(std::path::PathBuf, String)> {
+        let Some(path) = uri.to_file_path() else {
             return vec![(std::path::PathBuf::new(), text.to_string())];
         };
         let loader = Self::make_loader(self.open_docs_snapshot());
@@ -187,14 +188,14 @@ impl Backend {
     /// The open document's (version, text, memoized index), or None
     /// if the document is not open.  KAMAILIO_LSP_TRACE_INDEX=1
     /// writes a stderr line per actual index build (test seam).
-    fn doc_with_index(&self, uri: &Url) -> Option<(i32, String, std::sync::Arc<logic::DocIndex>)> {
+    fn doc_with_index(&self, uri: &Uri) -> Option<(i32, String, std::sync::Arc<logic::DocIndex>)> {
         let (version, text) = self.docs.get(uri).map(|d| d.clone())?;
         let before = logic::doc_index_builds();
         let idx = self.doc_index.get_or_index(uri.clone(), version, &text);
         if logic::doc_index_builds() != before
             && std::env::var("KAMAILIO_LSP_TRACE_INDEX").is_ok_and(|v| !v.is_empty())
         {
-            eprintln!("kamailio-lsp: index build {uri} v{version}");
+            eprintln!("kamailio-lsp: index build {} v{version}", uri.as_str());
         }
         Some((version, text, idx))
     }
@@ -214,14 +215,14 @@ impl Backend {
     /// The URI of one closure entry: the root keeps the request's
     /// URI; includes map through their path.
     fn closure_uri(
-        root_uri: &Url,
+        root_uri: &Uri,
         root_path: &std::path::Path,
         p: &std::path::Path,
-    ) -> Option<Url> {
+    ) -> Option<Uri> {
         if p == root_path {
             Some(root_uri.clone())
         } else {
-            Url::from_file_path(p).ok()
+            Uri::from_file_path(p)
         }
     }
 
@@ -250,8 +251,8 @@ impl Backend {
     /// in-flight check for the same URI is aborted first: the newest
     /// snapshot always wins, and `kill_on_drop` reaps a superseded
     /// child process.
-    fn spawn_check(&self, uri: &Url) {
-        if uri.scheme() != "file" {
+    fn spawn_check(&self, uri: &Uri) {
+        if uri.scheme().as_str() != "file" {
             return;
         }
         let ctx = CheckCtx {
@@ -277,7 +278,7 @@ impl Backend {
     /// The body of one check task; state was snapshotted at spawn.
     async fn run_check(ctx: CheckCtx) {
         let uri = &ctx.uri;
-        let Ok(path) = uri.to_file_path() else {
+        let Some(path) = uri.to_file_path() else {
             return;
         };
         let path_str = path.display().to_string();
@@ -562,19 +563,18 @@ impl Backend {
 /// time so the task owns its state outright.
 struct CheckCtx {
     client: Client,
-    docs: std::sync::Arc<DashMap<Url, (i32, String)>>,
+    docs: std::sync::Arc<DashMap<Uri, (i32, String)>>,
     catalog: std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
-    check_diags: std::sync::Arc<DashMap<Url, Vec<Diagnostic>>>,
+    check_diags: std::sync::Arc<DashMap<Uri, Vec<Diagnostic>>>,
     check_gate: std::sync::Arc<tokio::sync::Mutex<()>>,
     bin: Option<String>,
     modules_path: Option<String>,
     check_timeout: std::time::Duration,
     analyzer_enabled: bool,
     cap: usize,
-    uri: Url,
+    uri: Uri,
 }
 
-#[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, p: InitializeParams) -> Result<InitializeResult> {
         // progress is only sent to clients that can render it
@@ -639,6 +639,7 @@ impl LanguageServer for Backend {
         }
 
         Ok(InitializeResult {
+            offset_encoding: None,
             server_info: Some(ServerInfo {
                 name: "kamailio-lsp".into(),
                 version: Some(env!("CARGO_PKG_VERSION").into()),
@@ -862,7 +863,7 @@ impl LanguageServer for Backend {
         self.docs
             .insert(uri.clone(), (version, change.text.clone()));
         // debounced analyzer pass: fast feedback between saves
-        if !*self.analyzer_enabled.read().unwrap() || uri.scheme() != "file" {
+        if !*self.analyzer_enabled.read().unwrap() || uri.scheme().as_str() != "file" {
             return;
         }
         let generation = {
@@ -929,7 +930,7 @@ impl LanguageServer for Backend {
         // republish diagnostics for every open document
         let analyzer_enabled = *self.analyzer_enabled.read().unwrap();
         let cap = *self.max_diagnostics.read().unwrap();
-        let open_docs: Vec<(Url, i32, String)> = self
+        let open_docs: Vec<(Uri, i32, String)> = self
             .docs
             .iter()
             .map(|e| (e.key().clone(), e.value().0, e.value().1.clone()))
@@ -1136,7 +1137,7 @@ impl LanguageServer for Backend {
                     col: b.col,
                 })
                 .find(|d| d.name == name)
-                && let Ok(target) = Url::from_file_path(path)
+                && let Some(target) = Uri::from_file_path(path)
             {
                 let def_line = Self::doc_line(ftext, d.line);
                 let c = analyze::byte_to_utf16(&def_line, d.col as usize);
@@ -1296,7 +1297,6 @@ impl LanguageServer for Backend {
         };
         let base_dir = uri
             .to_file_path()
-            .ok()
             .and_then(|p| p.parent().map(|d| d.to_path_buf()));
         let links: Vec<DocumentLink> = analyze::include_links(&text)
             .into_iter()
@@ -1311,7 +1311,7 @@ impl LanguageServer for Backend {
                 } else {
                     base_dir.as_ref()?.join(p)
                 };
-                let target = Url::from_file_path(&target).ok()?;
+                let target = Uri::from_file_path(&target)?;
                 let lt = Self::doc_line(&text, l.line);
                 let s = analyze::byte_to_utf16(&lt, l.col as usize);
                 let e = analyze::byte_to_utf16(&lt, (l.col + l.len) as usize);
@@ -1334,7 +1334,7 @@ impl LanguageServer for Backend {
         let pos = p.text_document_position.position;
         let new_name = p.new_name;
         if !logic::valid_route_name(&new_name) {
-            return Err(tower_lsp::jsonrpc::Error::invalid_params(format!(
+            return Err(tower_lsp_server::jsonrpc::Error::invalid_params(format!(
                 "'{new_name}' is not a legal unquoted route name ([A-Za-z_][A-Za-z0-9_]*)"
             )));
         }
@@ -1347,14 +1347,14 @@ impl LanguageServer for Backend {
         match &ns {
             logic::RouteNs::Kind(k) if k == "event_route" => {
                 // the name is the module's event identifier
-                return Err(tower_lsp::jsonrpc::Error::invalid_params(
+                return Err(tower_lsp_server::jsonrpc::Error::invalid_params(
                     "event route names are defined by their module and cannot be renamed",
                 ));
             }
             logic::RouteNs::Kind(k) => {
                 // armed through module functions (t_on_failure, ...)
                 // whose string arguments we cannot rewrite safely
-                return Err(tower_lsp::jsonrpc::Error::invalid_params(format!(
+                return Err(tower_lsp_server::jsonrpc::Error::invalid_params(format!(
                     "{k} names are referenced from module-function arguments; renaming here would not update those call sites"
                 )));
             }
@@ -1363,7 +1363,7 @@ impl LanguageServer for Backend {
         // rewrite every occurrence in the whole include closure
         let root_path = uri.to_file_path().unwrap_or_default();
         let files = self.closure_for(&uri, &text);
-        let mut changes: std::collections::HashMap<Url, Vec<TextEdit>> =
+        let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
         for (path, ftext) in &files {
             let Some(furi) = Self::closure_uri(&uri, &root_path, path) else {
@@ -1386,13 +1386,13 @@ impl LanguageServer for Backend {
         }))
     }
 
-    async fn symbol(&self, p: WorkspaceSymbolParams) -> Result<Option<Vec<SymbolInformation>>> {
+    async fn symbol(&self, p: WorkspaceSymbolParams) -> Result<Option<WorkspaceSymbolResponse>> {
         let query = p.query.to_lowercase();
         let mut seen: std::collections::HashSet<std::path::PathBuf> =
             std::collections::HashSet::new();
         let mut out = Vec::new();
         // every open document plus its include closure, deduplicated
-        let open: Vec<(Url, String)> = self
+        let open: Vec<(Uri, String)> = self
             .docs
             .iter()
             .map(|e| (e.key().clone(), e.value().1.clone()))
@@ -1405,9 +1405,9 @@ impl LanguageServer for Backend {
                 let furi = if path.as_os_str().is_empty() {
                     uri.clone()
                 } else {
-                    match Url::from_file_path(&path) {
-                        Ok(u) => u,
-                        Err(_) => continue,
+                    match Uri::from_file_path(&path) {
+                        Some(u) => u,
+                        None => continue,
                     }
                 };
                 for b in analyze::route_blocks(&ftext) {
@@ -1432,12 +1432,12 @@ impl LanguageServer for Backend {
                         container_name: None,
                     });
                     if out.len() >= 256 {
-                        return Ok(Some(out));
+                        return Ok(Some(WorkspaceSymbolResponse::Flat(out)));
                     }
                 }
             }
         }
-        Ok(Some(out))
+        Ok(Some(WorkspaceSymbolResponse::Flat(out)))
     }
 
     async fn semantic_tokens_full(

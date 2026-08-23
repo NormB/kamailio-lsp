@@ -17,5 +17,5 @@ pub mod cli;
 pub mod diag;
 /// Completion/hover/definition assembly.
 pub mod logic;
-/// The tower-lsp server wiring.
+/// The tower-lsp-server wiring.
 pub mod server;
