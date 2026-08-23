@@ -331,7 +331,7 @@ fn preproc_adversarial_do_not_panic() {
 #[test]
 fn paren_and_x_load_forms_are_collected() {
     // cfg.y: LOADMODULE LPAREN STRING [COMMA STRING] RPAREN and
-    // loadmodulex are all legal (verified rc=0 on 6.0.1)
+    // loadmodulex are all legal (verified rc=0 on 6.0.1 and 6.1.4)
     let text = "loadmodule(\"tm.so\")\nloadmodule(\"htable.so\", \"opts\")\nloadmodulex \"pv.so\"\nloadmodulex(\"sl.so\")\nmyloadmodule \"no.so\"\n";
     let mods: Vec<String> = loaded_modules(text).into_iter().map(|m| m.name).collect();
     assert_eq!(mods, vec!["tm", "htable", "pv", "sl"]);

@@ -93,7 +93,8 @@ fn check_remaps_include_errors_onto_the_root() {
         "#!KAMAILIO\ninclude_file \"incdir/sub.cfg\"\nrequest_route { exit; }\n",
     )
     .unwrap();
-    // stub echoes the include path AS WRITTEN (the real 6.0.1 shape)
+    // stub echoes the include path AS WRITTEN (the real 6.0.1 and
+    // 6.1.4 shape)
     let stub = dir.join("stub.sh");
     std::fs::write(
         &stub,

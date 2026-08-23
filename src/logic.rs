@@ -372,7 +372,7 @@ pub fn route_occurrences(doc: &str, name: &str) -> Vec<(Located, bool)> {
 /// Is `s` legal as an UNQUOTED route name?  Kamailio's `route_name`
 /// accepts a NUMBER, an ID (`[A-Za-z_][A-Za-z0-9_]*`, cfg.lex), or a
 /// quoted string; dotted/dashed/colon names parse only when quoted
-/// (verified against the 6.0.1 binary).  Rename must only ever
+/// (verified against the 6.0.1 and 6.1.4 binaries).  Rename must only ever
 /// produce names that survive unquoted definitions, so it gates on
 /// the ID charset.
 pub fn valid_route_name(s: &str) -> bool {

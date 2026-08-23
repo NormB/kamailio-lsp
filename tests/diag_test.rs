@@ -30,6 +30,26 @@ const SPANNING: &str = r#" 0(99) CRITICAL: <core> [core/cfg.y:4045]: yyerror_at(
 const WARNING: &str = r#" 0(99) WARNING: <core> [core/cfg.y:4030]: warn_at(): warning in config file /tmp/kamtest/w.cfg, line 2, column 3-4: tcp support not compiled in
 "#;
 
+// Verbatim captures from the real 6.1.4 binary (2026-08-23) — the
+// current stable line.  6.1 emits from a different line of cfg.y, so
+// the `[core/cfg.y:NNNN]` tag differs from the 6.0.1 captures above;
+// that tag is log noise the parser must go on ignoring.  Every
+// positional shape is unchanged between the two release lines.
+const REAL_61_SINGLE: &str = r#" 0(2281906) CRITICAL: <core> [core/cfg.y:4125]: yyerror_at(): parse error in config file /tmp/kamtest/bad.cfg, line 5, column 1: syntax error
+ 0(2281906) CRITICAL: <core> [core/cfg.y:4125]: yyerror_at(): parse error in config file /tmp/kamtest/bad.cfg, line 5, column 1: 
+"#;
+
+const REAL_61_MULTI: &str = r#" 0(2281911) CRITICAL: <core> [core/cfg.y:4122]: yyerror_at(): parse error in config file /tmp/kamtest/multi.cfg, line 3, column 9-11: syntax error
+ 0(2281911) CRITICAL: <core> [core/cfg.y:4122]: yyerror_at(): parse error in config file /tmp/kamtest/multi.cfg, line 3, column 9-11: '('')' expected (function call)
+ 0(2281911) CRITICAL: <core> [core/cfg.y:4122]: yyerror_at(): parse error in config file /tmp/kamtest/multi.cfg, line 3, column 9-11: bad command: missing ';'?
+ 0(2281911) CRITICAL: <core> [core/cfg.y:4122]: yyerror_at(): parse error in config file /tmp/kamtest/multi.cfg, line 4, column 9-11: '('')' expected (function call)
+ 0(2281911) CRITICAL: <core> [core/cfg.y:4122]: yyerror_at(): parse error in config file /tmp/kamtest/multi.cfg, line 4, column 9-11: bad command: missing ';'?
+"#;
+
+const REAL_61_MODPARAM: &str = r#" 0(2281916) ERROR: <core> [core/modparam.c:217]: set_mod_param_regex(): parameter <nosuchparam> of type <2:int> not found in module <tm>
+ 0(2281916) CRITICAL: <core> [core/cfg.y:4125]: yyerror_at(): parse error in config file /tmp/kamtest/modp.cfg, line 3, column 32: Can't set module parameter
+"#;
+
 #[test]
 fn parses_single_column_variant() {
     let ds = parse_check_output(REAL_SINGLE, 255);
@@ -192,4 +212,36 @@ fn parses_5x_style_output_identically() {
     assert_eq!(ds[0].col_end, 7);
     assert_eq!(ds[1].line, 12);
     assert!(ds[1].message.contains("unknown command"));
+}
+
+#[test]
+fn the_6_1_shapes_parse_exactly_as_the_6_0_ones_do() {
+    // single-column, plus the empty-message trailer 6.1 emits after it
+    let ds = parse_check_output(REAL_61_SINGLE, 255);
+    assert_eq!(ds.len(), 2);
+    assert_eq!(ds[0].file, "/tmp/kamtest/bad.cfg");
+    assert_eq!(ds[0].line, 4); // 1-based 5 -> 0-based 4
+    assert_eq!(ds[0].col_start, 0);
+    assert_eq!(ds[0].col_end, 1);
+    assert_eq!(ds[0].severity, Severity::Error);
+    assert_eq!(ds[0].message, "syntax error");
+    // an empty tail message still carries a real position: it must
+    // never reach the editor blank
+    assert_eq!(ds[1].message, "parse error");
+
+    // column-range, one diag per --all-errors line
+    let ds = parse_check_output(REAL_61_MULTI, 255);
+    assert_eq!(ds.len(), 5);
+    assert_eq!(ds[0].line, 2);
+    assert_eq!(ds[0].col_start, 8); // 1-based 9 -> 8
+    assert_eq!(ds[0].col_end, 11); // inclusive 1-based 11 == exclusive 0-based 11
+    assert_eq!(ds[3].line, 3);
+    assert!(ds[4].message.contains("missing ';'"));
+
+    // modparam: the unpositioned ERROR stays noise, the CRITICAL is the diag
+    let ds = parse_check_output(REAL_61_MODPARAM, 255);
+    assert_eq!(ds.len(), 1, "unpositioned ERROR noise is not a diag");
+    assert_eq!(ds[0].line, 2);
+    assert_eq!(ds[0].col_start, 31);
+    assert_eq!(ds[0].message, "Can't set module parameter");
 }

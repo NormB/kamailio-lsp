@@ -26,7 +26,8 @@ plain-text `README` of every module in a Kamailio source tree
 [kamailio-wiki](https://github.com/kamailio/kamailio-wiki) checkout
 (`docs/cookbooks/<version>/{core,pseudovariables}.md` — the newest
 stable cookbook is picked automatically). Version-proven: Kamailio
-6.0.x (binary 6.0.1, branch 6.0 tree).
+6.1.x (binary 6.1.4, tag 6.1.4 tree, 6.1.x cookbook) and 6.0.x
+(binary 6.0.1, branch 6.0 tree).
 
 ### Dependencies
 

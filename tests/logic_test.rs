@@ -231,7 +231,7 @@ fn definition_resolves_dotted_route_names() {
 fn valid_route_name_gate_is_the_unquoted_id_charset() {
     // kamailio's unquoted route_name is ID = [A-Za-z_][A-Za-z0-9_]*
     // (cfg.lex; verified: route[a.b]/route[a:b]/route[a-b]/route[1ab]
-    // are all rejected by the 6.0.1 binary unless quoted) — rename
+    // are all rejected by the 6.0.1 and 6.1.4 binaries unless quoted) — rename
     // must only ever produce names that are legal WITHOUT quotes,
     // because definitions are commonly written unquoted
     assert!(valid_route_name("RELAY"));

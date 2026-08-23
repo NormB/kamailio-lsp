@@ -187,7 +187,8 @@ fn quick_fix_creates_a_route_stub() {
 #[test]
 fn quick_fix_loads_the_exporting_module() {
     // the diagnostic position points at the call's closing paren
-    // (live 6.0.1 shape: "unknown command, missing loadmodule?")
+    // (live 6.0.1 and 6.1.4 shape: "unknown command, missing
+    // loadmodule?")
     let base = std::env::temp_dir().join(format!("kamlsp-qflm-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     let tree = base.join("tree");

@@ -32,9 +32,13 @@ core-language docs (parameters, functions, pseudo-variables) from a
 [kamailio-wiki](https://github.com/kamailio/kamailio-wiki) checkout
 (`docs/cookbooks/<version>/` — the newest stable cookbook is picked).
 
-Supported and version-proven: **Kamailio 6.0.x** — the proof suite
-runs against a real tree, wiki, and binary
+Supported and version-proven: **Kamailio 6.1.x** (6.1.4, the current
+stable line) and **6.0.x** (6.0.1) — the proof suite runs against a
+real tree, wiki, and binary of each
 (`KAMAILIO_LSP_TEST_TREE`/`KAMAILIO_LSP_TEST_WIKI`/`KAMAILIO_LSP_TEST_BIN`).
+Nothing pins a version: module docs come from the tree you point at,
+core docs from the newest stable cookbook in the wiki checkout, and
+diagnostics from your own binary.
 
 ## Configuration
 

@@ -6,7 +6,7 @@ use kamailio_lsp::catalog::{parse_core_cookbook_md, parse_pvars_md};
 
 const CORE: &str = r#"# Core Cookbook
 
-Version: Kamailio SIP Server v6.0.x (stable)
+Version: Kamailio SIP Server v6.1.x (stable)
 
 ## Overview
 
@@ -204,4 +204,49 @@ fn harvests_core_docs_from_a_real_wiki_checkout_when_present() {
     );
     assert!(core.pvars.iter().any(|v| v.name == "$ru"));
     assert!(core.pvars.iter().any(|v| v.name == "$avp"));
+}
+
+/// The wiki carries every cookbook ever published side by side, so
+/// which directory the harvest picks decides which Kamailio release
+/// the core docs describe.  A new stable line (6.1.x landing next to
+/// 6.0.x) must win on its own, and `devel` must never be mistaken for
+/// a release — that automatic pick is what keeps the server current
+/// without a code change.
+#[test]
+fn the_newest_stable_cookbook_wins_and_devel_is_never_picked() {
+    let root = std::env::temp_dir().join(format!("kamlsp-book-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let books = root.join("docs").join("cookbooks");
+    // each cookbook names one core parameter after itself, so the
+    // parsed output identifies the directory the harvest read
+    for (ver, marker) in [
+        ("5.8.x", "marker_58"),
+        ("6.0.x", "marker_60"),
+        ("6.1.x", "marker_61"),
+        ("devel", "marker_devel"),
+    ] {
+        let d = books.join(ver);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(
+            d.join("core.md"),
+            format!("# Core Cookbook\n\n## Core Parameters\n\n### {marker}\n\nMarker.\n"),
+        )
+        .unwrap();
+    }
+    let core = kamailio_lsp::catalog::harvest_core(&root);
+    let names: Vec<String> = core.params.iter().map(|p| p.name.clone()).collect();
+    assert_eq!(
+        names,
+        vec!["marker_61".to_string()],
+        "expected the 6.1.x cookbook, got {names:?}"
+    );
+
+    // a wiki whose newest stable line is older still resolves to that
+    // line rather than falling back to nothing
+    std::fs::remove_dir_all(books.join("6.1.x")).unwrap();
+    let core = kamailio_lsp::catalog::harvest_core(&root);
+    let names: Vec<String> = core.params.iter().map(|p| p.name.clone()).collect();
+    assert_eq!(names, vec!["marker_60".to_string()], "got {names:?}");
+
+    let _ = std::fs::remove_dir_all(&root);
 }

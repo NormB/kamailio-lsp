@@ -89,7 +89,7 @@ Full reference:
 None to start — the server is bundled. Optional, for the full
 experience: an `kamailio` binary (diagnostics) and a Kamailio source
 tree plus a kamailio-wiki checkout (documentation). Version-proven
-against Kamailio 6.0.x.
+against Kamailio 6.1.x and 6.0.x.
 
 ## Links
 
