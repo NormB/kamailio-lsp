@@ -19,6 +19,7 @@ configuration file language (`kamailio.cfg`).
 | **Quick fixes** | Load the module exporting an unknown command; create a stub for an undefined `route(x)`. |
 | **Catalog validation** | `modparam` parameters the configured tree does not document warn as you type. |
 | **Include links** | `include_file`/`import_file` paths are Ctrl+Click document links. |
+| **Formatting** | Whole-document and range formatting re-indents by brace depth and strips trailing whitespace, honouring the editor's tab settings. Line-preserving: it never joins, splits or reorders lines, and never touches a string, comment or `#!` directive. |
 | **Semantic tokens** | Route names + pseudo-variables (both string quote styles), UTF-16 delta-encoded; `semanticTokens/range` serves just the visible slice. |
 | **Live settings** | Runtime toggles (analyzer, snippets, code lens, max diagnostics, check timeout) apply over `workspace/didChangeConfiguration` without a server restart. |
 | **CLI** | `kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` for CI and git hooks (exit 0/1/2). |

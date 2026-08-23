@@ -226,3 +226,91 @@ fn real_binary_include_errors_are_never_silent() {
     child.kill().ok();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The formatter's strongest claim, checked against the real parser:
+/// a config the parser accepts before formatting is still accepted
+/// after, under every indent style a client can ask for.
+///
+/// The criterion is the POSITIONED parse errors, not the exit status.
+/// `-c` also runs checks that have nothing to do with the config text,
+/// and those surface as the unpositioned fallback diagnostic (empty
+/// `file`); keying the proof on the exit code would measure those
+/// instead of the parse.
+#[test]
+fn formatting_never_changes_what_the_real_parser_accepts() {
+    let Ok(bin) = std::env::var("KAMAILIO_LSP_TEST_BIN") else {
+        eprintln!("SKIP: KAMAILIO_LSP_TEST_BIN not set");
+        return;
+    };
+    let mpath = std::env::var("KAMAILIO_LSP_TEST_MPATH").unwrap_or_default();
+
+    // ragged on purpose, and carrying every trap the formatter has to
+    // respect: braces in a string and in both comment styles, a block
+    // comment with its own alignment, a continued directive, nesting
+    let src = "#!KAMAILIO\n\
+        #!define LONG one \\\n\
+            two\n\
+        loadmodule \"sl.so\"\n\
+        loadmodule \"tm.so\"\n\
+        loadmodule \"pv.so\"\n\
+        modparam(\"tm\", \"fr_timer\", 30000)\n\
+        request_route {\n\
+        $var(s) = \"a { brace } in a string\";\n\
+        # a } in a comment\n\
+        // another } comment\n\
+        /* block { comment\n\
+           aligned } body */\n\
+        if ($rU == \"x\") {\n\
+        t_relay();\n\
+        } else {\n\
+        exit;\n\
+        }\n\
+        }\n";
+
+    let dir = std::env::temp_dir().join(format!("kamlsp-fmtproof-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let parse_errors = |text: &str, tag: &str| -> Vec<String> {
+        let cfg = dir.join(format!("{tag}.cfg"));
+        std::fs::write(&cfg, text).unwrap();
+        let mut cmd = Command::new(&bin);
+        cmd.arg("-c").arg("--all-errors").arg("-Y").arg(&dir);
+        if !mpath.is_empty() {
+            cmd.arg("-L").arg(&mpath);
+        }
+        let out = cmd.arg("-f").arg(&cfg).output().expect("the checker runs");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        kamailio_lsp::diag::parse_check_output(&stderr, out.status.code().unwrap_or(0))
+            .into_iter()
+            .filter(|d| !d.file.is_empty())
+            .map(|d| format!("{}:{}:{}", d.line, d.col_start, d.message))
+            .collect()
+    };
+
+    let baseline = parse_errors(src, "before");
+    assert!(
+        baseline.is_empty(),
+        "the fixture must parse cleanly or the proof is vacuous: {baseline:?}"
+    );
+
+    for (label, insert_spaces, tab_size) in [("tabs", false, 4), ("2sp", true, 2), ("8sp", true, 8)]
+    {
+        let opts = kamailio_lsp::format::Options {
+            insert_spaces,
+            tab_size,
+        };
+        let out = kamailio_lsp::format::format(src, &opts);
+        assert_eq!(
+            parse_errors(&out, label),
+            baseline,
+            "formatting with {label} changed what the real parser reports:\n{out}"
+        );
+        assert_eq!(
+            out,
+            kamailio_lsp::format::format(&out, &opts),
+            "formatting was not idempotent under {label}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -16,7 +16,7 @@ pub struct Located {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum Class {
+pub(crate) enum Class {
     Code,
     Str,
     Comment,
@@ -30,7 +30,7 @@ enum Class {
 /// preprocessor directive.  Kamailio line comments are `#` and `//`
 /// (cfg.lex COM_LINE); `#!` and `!!` start directives (PREP_START),
 /// which extend across backslash-continued lines.
-fn classify(text: &str) -> Vec<Class> {
+pub(crate) fn classify(text: &str) -> Vec<Class> {
     let b = text.as_bytes();
     let mut out = vec![Class::Code; b.len()];
     let mut i = 0;
