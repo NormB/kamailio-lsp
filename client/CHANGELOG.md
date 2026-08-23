@@ -2,6 +2,20 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.11.2] — 2026-08-23
+
+- **This listing now describes what the extension actually does.** It
+  had fallen seven features behind — formatting, call hierarchy,
+  preprocessor symbols, inlay hints, include links, pull diagnostics,
+  watched files and refactorings were all shipped and none of them
+  were mentioned here.
+- `docs/ADMIN.md` gains the missing `inlayHintParameterNames` and
+  `inlayHintDefineValues` options.
+- The documentation gate now covers this page too, and the two checks
+  that were supposed to catch the omissions — but derived their lists
+  by hand, or scanned for text that rustfmt had wrapped — now derive
+  from the source and ignore whitespace.
+
 ## [0.11.1] — 2026-08-23
 
 - **Formatter: continuation lines keep their own indentation.** A real

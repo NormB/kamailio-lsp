@@ -2,7 +2,7 @@
   "name": "kamailio-lsp",
   "displayName": "Kamailio Routing Script",
   "description": "Language support for kamailio.cfg configuration files (diagnostics via kamailio -c, completion, hover, go-to-definition).",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "publisher": "NormB",
   "license": "(MIT OR Apache-2.0)",
   "engines": {
