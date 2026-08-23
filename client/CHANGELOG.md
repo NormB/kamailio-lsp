@@ -2,6 +2,22 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.6.0] — 2026-08-23
+
+- **Call hierarchy**: `textDocument/prepareCallHierarchy`,
+  `callHierarchy/incomingCalls` and `callHierarchy/outgoingCalls`.
+  Shift+Alt+H on a route name opens the route call graph — who calls
+  `route[X]`, and what `route[X]` calls — across the include closure,
+  so a caller in an included file shows up with that file's URI.
+  Several calls from one block collapse into a single entry carrying
+  each call site's range. A route called but defined nowhere is still
+  listed as an outgoing edge, marked `undefined`, rather than dropped.
+  The graph is the main route table: `request_route` and
+  `failure_route` show up as callers when they call `route(X)`, but
+  asking for *their* callers declines, because they are armed by the
+  core or by a module-function string the server does not track and
+  "no callers" would be a confident wrong answer.
+
 ## [0.5.0] — 2026-08-23
 
 - **Formatting**: `textDocument/formatting` and
