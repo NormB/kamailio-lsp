@@ -29,6 +29,12 @@ pub struct Backend {
     inlay_parameter_names: std::sync::RwLock<bool>,
     /// The client accepts dynamic `didChangeWatchedFiles` registration.
     watched_files_dynamic: std::sync::RwLock<bool>,
+    /// The client pulls diagnostics; pushing as well would double-report.
+    diagnostics_pulled: std::sync::Arc<std::sync::RwLock<bool>>,
+    /// The client can be told to re-pull after an async check lands.
+    diagnostics_refresh: std::sync::RwLock<bool>,
+    /// Workspace roots, for workspace-wide diagnostics.
+    workspace_roots: std::sync::RwLock<Vec<std::path::PathBuf>>,
     /// Draw what each preprocessor symbol expands to.
     inlay_define_values: std::sync::RwLock<bool>,
     max_diagnostics: std::sync::RwLock<usize>,
@@ -68,6 +74,9 @@ impl Backend {
             snippet_completions: std::sync::RwLock::new(true),
             inlay_parameter_names: std::sync::RwLock::new(true),
             watched_files_dynamic: std::sync::RwLock::new(false),
+            diagnostics_pulled: std::sync::Arc::new(std::sync::RwLock::new(false)),
+            diagnostics_refresh: std::sync::RwLock::new(false),
+            workspace_roots: std::sync::RwLock::new(Vec::new()),
             inlay_define_values: std::sync::RwLock::new(true),
             max_diagnostics: std::sync::RwLock::new(100),
             cache_dir_opt: std::sync::RwLock::new(None),
@@ -157,6 +166,7 @@ impl Backend {
     /// publish, capped.  Static so the debounce task can call it.
     #[allow(clippy::too_many_arguments)]
     async fn merge_and_publish(
+        pushing: bool,
         client: &Client,
         check_map: &DashMap<Uri, Vec<Diagnostic>>,
         analyzer_enabled: bool,
@@ -168,19 +178,41 @@ impl Backend {
         cat: &std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
         skip_if_empty: bool,
     ) {
+        // a client that pulls gets everything through
+        // `textDocument/diagnostic`; pushing as well shows each
+        // problem twice
+        if !pushing {
+            return;
+        }
+        let merged = Self::merged_diags(check_map, analyzer_enabled, cap, uri, text, open, cat);
+        if merged.is_empty() && skip_if_empty {
+            return;
+        }
+        client
+            .publish_diagnostics(uri.clone(), merged, Some(version))
+            .await;
+    }
+
+    /// The diagnostics for one document: the last checker result plus
+    /// a fresh analyzer pass, capped.  Shared by the push path and the
+    /// pull one so both can never disagree about what is wrong.
+    fn merged_diags(
+        check_map: &DashMap<Uri, Vec<Diagnostic>>,
+        analyzer_enabled: bool,
+        cap: usize,
+        uri: &Uri,
+        text: &str,
+        open: std::collections::HashMap<std::path::PathBuf, String>,
+        cat: &std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
+    ) -> Vec<Diagnostic> {
         let mut merged = check_map.get(uri).map(|v| v.clone()).unwrap_or_default();
         if analyzer_enabled && let Some(path) = uri.to_file_path() {
             let loader = Self::make_loader(open);
             let cat = cat.read().unwrap().clone();
             merged.extend(Self::analyzer_lsp_diags(&path, text, &loader, &cat));
         }
-        if merged.is_empty() && skip_if_empty {
-            return;
-        }
         merged.truncate(cap.max(1));
-        client
-            .publish_diagnostics(uri.clone(), merged, Some(version))
-            .await;
+        merged
     }
 
     /// Whole-line rewrites as LSP edits.  Each edit replaces exactly
@@ -289,6 +321,51 @@ impl Backend {
             }
         }
         None
+    }
+
+    /// A stable identity for one document's diagnostics, so an
+    /// unchanged report can say "unchanged" instead of resending.
+    fn result_id(diags: &[Diagnostic]) -> String {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for d in diags {
+            d.range.start.line.hash(&mut h);
+            d.range.start.character.hash(&mut h);
+            d.range.end.line.hash(&mut h);
+            d.range.end.character.hash(&mut h);
+            d.message.hash(&mut h);
+        }
+        format!("{:x}", h.finish())
+    }
+
+    /// Every `*.cfg` under the workspace roots, bounded.
+    ///
+    /// The bound is announced rather than silent: a truncated sweep
+    /// that looks complete is worse than one that says it stopped.
+    fn workspace_configs(&self, limit: usize) -> (Vec<std::path::PathBuf>, bool) {
+        let mut out = Vec::new();
+        let mut stack: Vec<std::path::PathBuf> = self.workspace_roots.read().unwrap().clone();
+        while let Some(dir) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            for e in entries.flatten() {
+                let path = e.path();
+                let name = e.file_name().to_string_lossy().into_owned();
+                if name.starts_with('.') {
+                    continue;
+                }
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|x| x == "cfg") {
+                    if out.len() >= limit {
+                        return (out, true);
+                    }
+                    out.push(path);
+                }
+            }
+        }
+        (out, false)
     }
 
     /// Ask the client to watch the files whose contents this server
@@ -591,6 +668,9 @@ impl Backend {
             analyzer_enabled: *self.analyzer_enabled.read().unwrap(),
             cap: *self.max_diagnostics.read().unwrap(),
             uri: uri.clone(),
+            pushing: !*self.diagnostics_pulled.read().unwrap(),
+            refresh_after: *self.diagnostics_pulled.read().unwrap()
+                && *self.diagnostics_refresh.read().unwrap(),
             quiet_when_clean,
         };
         if let Some((_, old)) = self.check_tasks.remove(uri) {
@@ -600,8 +680,24 @@ impl Backend {
             .insert(uri.clone(), tokio::spawn(Self::run_check(ctx)));
     }
 
-    /// The body of one check task; state was snapshotted at spawn.
+    /// One check task: run it, then — for a pulling client — invite a
+    /// re-ask.
+    ///
+    /// The checker is asynchronous, so a pulling client was already
+    /// answered from the previous result; without the invitation that
+    /// stale answer would be the last word.
     async fn run_check(ctx: CheckCtx) {
+        let (client, refresh) = (ctx.client.clone(), ctx.refresh_after);
+        Self::run_check_inner(ctx).await;
+        if refresh {
+            let _ = client
+                .send_request::<request::WorkspaceDiagnosticRefresh>(())
+                .await;
+        }
+    }
+
+    /// The body of one check task; state was snapshotted at spawn.
+    async fn run_check_inner(ctx: CheckCtx) {
         let uri = &ctx.uri;
         let Some(path) = uri.to_file_path() else {
             return;
@@ -621,6 +717,7 @@ impl Backend {
             // -c disabled: analyzer-only pass
             ctx.check_diags.insert(uri.clone(), Vec::new());
             Self::merge_and_publish(
+                ctx.pushing,
                 &ctx.client,
                 &ctx.check_diags,
                 analyzer_enabled,
@@ -717,6 +814,7 @@ impl Backend {
                 // an incomplete check must not leave stale results pinned
                 ctx.check_diags.insert(uri.clone(), Vec::new());
                 Self::merge_and_publish(
+                    ctx.pushing,
                     &ctx.client,
                     &ctx.check_diags,
                     analyzer_enabled,
@@ -741,6 +839,7 @@ impl Backend {
                 .await;
             ctx.check_diags.insert(uri.clone(), Vec::new());
             Self::merge_and_publish(
+                ctx.pushing,
                 &ctx.client,
                 &ctx.check_diags,
                 analyzer_enabled,
@@ -767,6 +866,7 @@ impl Backend {
                 .await;
             ctx.check_diags.insert(uri.clone(), Vec::new());
             Self::merge_and_publish(
+                ctx.pushing,
                 &ctx.client,
                 &ctx.check_diags,
                 analyzer_enabled,
@@ -868,6 +968,7 @@ impl Backend {
         }
         ctx.check_diags.insert(uri.clone(), diags);
         Self::merge_and_publish(
+            ctx.pushing,
             &ctx.client,
             &ctx.check_diags,
             analyzer_enabled,
@@ -897,6 +998,10 @@ struct CheckCtx {
     analyzer_enabled: bool,
     cap: usize,
     uri: Uri,
+    /// Whether this server pushes diagnostics at all.
+    pushing: bool,
+    /// Invite a pulling client to re-ask once this check lands.
+    refresh_after: bool,
     /// Suppress the empty publish a clean document gets in
     /// analyzer-only mode.  False for a re-check the user did not
     /// trigger by typing: a warning that is no longer true has to be
@@ -970,6 +1075,27 @@ impl LanguageServer for Backend {
             .and_then(|w| w.did_change_watched_files.as_ref())
             .and_then(|d| d.dynamic_registration)
             .unwrap_or(false);
+        // a client that pulls must not also be pushed to: it would
+        // show every diagnostic twice
+        *self.diagnostics_pulled.write().unwrap() = p
+            .capabilities
+            .text_document
+            .as_ref()
+            .and_then(|t| t.diagnostic.as_ref())
+            .is_some();
+        *self.diagnostics_refresh.write().unwrap() = p
+            .capabilities
+            .workspace
+            .as_ref()
+            .and_then(|w| w.diagnostics.as_ref())
+            .and_then(|d| d.refresh_support)
+            .unwrap_or(false);
+        *self.workspace_roots.write().unwrap() = p
+            .workspace_folders
+            .iter()
+            .flatten()
+            .filter_map(|f| f.uri.to_file_path().map(|p| p.into_owned()))
+            .collect();
         let wiki = opts
             .get("kamailioWiki")
             .and_then(|v| v.as_str())
@@ -1010,6 +1136,17 @@ impl LanguageServer for Backend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 inlay_hint_provider: Some(OneOf::Left(true)),
                 definition_provider: Some(OneOf::Left(true)),
+                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
+                    DiagnosticOptions {
+                        identifier: Some("kamailio-lsp".into()),
+                        // a document's diagnostics depend on the files
+                        // it includes, so an edit elsewhere can change
+                        // them
+                        inter_file_dependencies: true,
+                        workspace_diagnostics: true,
+                        work_done_progress_options: Default::default(),
+                    },
+                )),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_range_formatting_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
@@ -1094,6 +1231,7 @@ impl LanguageServer for Backend {
             *e
         };
         let gen_map = self.change_gen.clone();
+        let pushing = !*self.diagnostics_pulled.read().unwrap();
         let check_map = self.check_diags.clone();
         let cat_arc = self.catalog.clone();
         let client = self.client.clone();
@@ -1111,10 +1249,120 @@ impl LanguageServer for Backend {
                 return;
             }
             Backend::merge_and_publish(
-                &client, &check_map, true, cap, &uri, version, &text, open, &cat_arc, false,
+                pushing, &client, &check_map, true, cap, &uri, version, &text, open, &cat_arc,
+                false,
             )
             .await;
         });
+    }
+
+    async fn diagnostic(
+        &self,
+        p: DocumentDiagnosticParams,
+    ) -> Result<DocumentDiagnosticReportResult> {
+        let uri = p.text_document.uri;
+        let text = self.text_for(&uri);
+        let diags = Self::merged_diags(
+            &self.check_diags,
+            *self.analyzer_enabled.read().unwrap(),
+            *self.max_diagnostics.read().unwrap(),
+            &uri,
+            &text,
+            self.open_docs_snapshot(),
+            &self.catalog,
+        );
+        let id = Self::result_id(&diags);
+        if p.previous_result_id.as_deref() == Some(id.as_str()) {
+            return Ok(DocumentDiagnosticReportResult::Report(
+                DocumentDiagnosticReport::Unchanged(RelatedUnchangedDocumentDiagnosticReport {
+                    related_documents: None,
+                    unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport {
+                        result_id: id,
+                    },
+                }),
+            ));
+        }
+        Ok(DocumentDiagnosticReportResult::Report(
+            DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                related_documents: None,
+                full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                    result_id: Some(id),
+                    items: diags,
+                },
+            }),
+        ))
+    }
+
+    async fn workspace_diagnostic(
+        &self,
+        _: WorkspaceDiagnosticParams,
+    ) -> Result<WorkspaceDiagnosticReportResult> {
+        // Only ROOT configs are reported.  A config that another one
+        // includes is a fragment, not a program: checking it on its own
+        // would flag every route its parent defines as undefined and
+        // every construct it continues as a syntax error.  Roots are
+        // the files nothing else includes, and their closures already
+        // cover the fragments.
+        let (configs, truncated) = self.workspace_configs(500);
+        let mut included: std::collections::HashSet<std::path::PathBuf> =
+            std::collections::HashSet::new();
+        let mut texts: std::collections::HashMap<std::path::PathBuf, String> =
+            std::collections::HashMap::new();
+        for path in &configs {
+            let Ok(text) = std::fs::read_to_string(path) else {
+                continue;
+            };
+            let base = path.parent().unwrap_or(std::path::Path::new("."));
+            for inc in analyze::includes(&text) {
+                included.insert(base.join(&inc.name));
+            }
+            texts.insert(path.clone(), text);
+        }
+        if truncated {
+            self.client
+                .log_message(
+                    MessageType::INFO,
+                    "kamailio-lsp: workspace diagnostics stopped at 500 configs;                      the sweep is incomplete",
+                )
+                .await;
+        }
+
+        let analyzer_enabled = *self.analyzer_enabled.read().unwrap();
+        let cap = *self.max_diagnostics.read().unwrap();
+        let open = self.open_docs_snapshot();
+        let mut items = Vec::new();
+        for (path, text) in &texts {
+            if included.contains(path) {
+                continue;
+            }
+            let Some(uri) = Uri::from_file_path(path) else {
+                continue;
+            };
+            // the open buffer wins over what is on disk
+            let text = open.get(path).cloned().unwrap_or_else(|| text.clone());
+            let diags = Self::merged_diags(
+                &self.check_diags,
+                analyzer_enabled,
+                cap,
+                &uri,
+                &text,
+                open.clone(),
+                &self.catalog,
+            );
+            items.push(WorkspaceDocumentDiagnosticReport::Full(
+                WorkspaceFullDocumentDiagnosticReport {
+                    uri,
+                    version: None,
+                    full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                        result_id: Some(Self::result_id(&diags)),
+                        items: diags,
+                    },
+                },
+            ));
+        }
+        Ok(WorkspaceDiagnosticReportResult::Report(
+            WorkspaceDiagnosticReport { items },
+        ))
     }
 
     async fn did_change_watched_files(&self, p: DidChangeWatchedFilesParams) {
@@ -1213,8 +1461,10 @@ impl LanguageServer for Backend {
             .iter()
             .map(|e| (e.key().clone(), e.value().0, e.value().1.clone()))
             .collect();
+        let pushing = !*self.diagnostics_pulled.read().unwrap();
         for (uri, version, text) in open_docs {
             Self::merge_and_publish(
+                pushing,
                 &self.client,
                 &self.check_diags,
                 analyzer_enabled,
