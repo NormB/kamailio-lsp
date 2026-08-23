@@ -26,12 +26,9 @@ fn labels(v: &serde_json::Value) -> Vec<String> {
 
 #[test]
 fn full_stack_against_a_real_kamailio_tree() {
-    let Ok(tree) = std::env::var("KAMAILIO_LSP_TEST_TREE") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_TREE not set");
-        return;
-    };
-    let wiki = std::env::var("KAMAILIO_LSP_TEST_WIKI").unwrap_or_default();
-    let bin = std::env::var("KAMAILIO_LSP_TEST_BIN").unwrap_or_default();
+    let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let wiki = common::required_env("KAMAILIO_LSP_TEST_WIKI");
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
 
     let dir = std::env::temp_dir().join(format!("kamlsp-proof-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -162,15 +159,8 @@ fn full_stack_against_a_real_kamailio_tree() {
 
 #[test]
 fn real_binary_include_errors_are_never_silent() {
-    let Ok(_) = std::env::var("KAMAILIO_LSP_TEST_TREE") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_TREE not set");
-        return;
-    };
-    let bin = std::env::var("KAMAILIO_LSP_TEST_BIN").unwrap_or_default();
-    if bin.is_empty() {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_BIN not set");
-        return;
-    }
+    let _ = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let dir = std::env::temp_dir().join(format!("kamlsp-proof-inc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("incdir")).unwrap();
@@ -238,11 +228,8 @@ fn real_binary_include_errors_are_never_silent() {
 /// instead of the parse.
 #[test]
 fn formatting_never_changes_what_the_real_parser_accepts() {
-    let Ok(bin) = std::env::var("KAMAILIO_LSP_TEST_BIN") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_BIN not set");
-        return;
-    };
-    let mpath = std::env::var("KAMAILIO_LSP_TEST_MPATH").unwrap_or_default();
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
+    let mpath = common::required_env("KAMAILIO_LSP_TEST_MPATH");
 
     // ragged on purpose, and carrying every trap the formatter has to
     // respect: braces in a string and in both comment styles, a block

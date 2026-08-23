@@ -2,6 +2,8 @@
 //! real `kamailio -c` when a binary is configured) as a CI/git-hook
 //! command.
 
+mod common;
+
 use std::process::Command;
 
 fn setup(tag: &str) -> std::path::PathBuf {
@@ -163,10 +165,7 @@ fn check_clean_file_exits_zero_and_bad_usage_exits_two() {
 
 #[test]
 fn check_against_the_real_binary_when_gated() {
-    let Ok(bin) = std::env::var("KAMAILIO_LSP_TEST_BIN") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_BIN not set");
-        return;
-    };
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let dir = setup("real");
     let bad = dir.join("bad.cfg");
     std::fs::write(

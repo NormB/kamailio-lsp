@@ -1,6 +1,8 @@
 //! Whole-tree harvesting: `harvest_tree` walks the module READMEs of
 //! a Kamailio source tree (`src/modules/<name>/README`).
 
+mod common;
+
 use kamailio_lsp::catalog::harvest_tree;
 
 fn write(path: &std::path::Path, content: &str) {
@@ -66,10 +68,7 @@ fn missing_tree_harvests_empty() {
 #[test]
 fn harvests_the_real_kamailio_tree_when_present() {
     // point KAMAILIO_LSP_TEST_TREE at a Kamailio source tree to run
-    let Ok(tree) = std::env::var("KAMAILIO_LSP_TEST_TREE") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_TREE not set");
-        return;
-    };
+    let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
     let root = std::path::Path::new(&tree);
     let mods = harvest_tree(root);
     assert!(

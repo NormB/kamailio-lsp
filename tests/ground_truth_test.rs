@@ -4,6 +4,8 @@
 //! Gated like the corpus sweep: KAMAILIO_LSP_TEST_TREE points at a
 //! Kamailio source tree, KAMAILIO_LSP_TEST_BIN at a kamailio binary.
 
+mod common;
+
 use kamailio_lsp::logic;
 
 fn corpus(tree: &std::path::Path) -> Vec<std::path::PathBuf> {
@@ -68,14 +70,8 @@ fn disk_loader(p: &std::path::Path) -> Option<String> {
 /// harvest the full accepted corpus has zero undocumented modparams.)
 #[test]
 fn analyzer_is_silent_on_every_accepted_corpus_config() {
-    let Ok(tree) = std::env::var("KAMAILIO_LSP_TEST_TREE") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_TREE not set");
-        return;
-    };
-    let Ok(bin) = std::env::var("KAMAILIO_LSP_TEST_BIN") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_BIN not set");
-        return;
-    };
+    let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let files = corpus(std::path::Path::new(&tree));
     assert!(files.len() >= 20, "expected a real corpus");
     let mut accepted = 0usize;
@@ -112,10 +108,7 @@ fn analyzer_is_silent_on_every_accepted_corpus_config() {
 /// the parser rejects — proven mechanically with the binary.
 #[test]
 fn rename_round_trips_through_the_real_parser() {
-    let Ok(bin) = std::env::var("KAMAILIO_LSP_TEST_BIN") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_BIN not set");
-        return;
-    };
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let dir = std::env::temp_dir().join(format!("kamlsp-roundtrip-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -123,13 +116,13 @@ fn rename_round_trips_through_the_real_parser() {
     let original = "#!KAMAILIO\nroute[OLD_NAME] {\n    exit;\n}\nrequest_route {\n    route(OLD_NAME);\n    route(\"OLD_NAME\");\n}\n";
     let before = dir.join("before.cfg");
     std::fs::write(&before, original).unwrap();
-    if !accepts(&bin, &before) {
-        // a different binary generation rejecting the fixture must not
-        // fail the gate — it only proves nothing
-        eprintln!("SKIP: the test binary rejects the baseline fixture");
-        let _ = std::fs::remove_dir_all(&dir);
-        return;
-    }
+    // a binary that rejects the baseline makes the round-trip prove
+    // nothing, so it is a failure rather than a reason to opt out
+    assert!(
+        accepts(&bin, &before),
+        "the test binary rejects the baseline fixture, so the rename \
+         round-trip would prove nothing"
+    );
 
     // rename OLD_NAME -> fwd_2 through the shipped occurrence logic
     let new_name = "fwd_2";
@@ -161,10 +154,7 @@ fn rename_round_trips_through_the_real_parser() {
 /// parser rejects unquoted — keeps the gate and reality glued.
 #[test]
 fn rejected_rename_targets_really_break_configs() {
-    let Ok(bin) = std::env::var("KAMAILIO_LSP_TEST_BIN") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_BIN not set");
-        return;
-    };
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let dir = std::env::temp_dir().join(format!("kamlsp-rt-neg-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();

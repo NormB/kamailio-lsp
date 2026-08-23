@@ -2,6 +2,8 @@
 //! (`docs/cookbooks/<ver>/core.md` and `pseudovariables.md`):
 //! `##` sections group the items, one `###` heading per item.
 
+mod common;
+
 use kamailio_lsp::catalog::{parse_core_cookbook_md, parse_pvars_md};
 
 const CORE: &str = r#"# Core Cookbook
@@ -179,10 +181,7 @@ fn adversarial_core_docs_do_not_panic() {
 
 #[test]
 fn harvests_core_docs_from_a_real_wiki_checkout_when_present() {
-    let Ok(wiki) = std::env::var("KAMAILIO_LSP_TEST_WIKI") else {
-        eprintln!("SKIP: KAMAILIO_LSP_TEST_WIKI not set");
-        return;
-    };
+    let wiki = common::required_env("KAMAILIO_LSP_TEST_WIKI");
     let core = kamailio_lsp::catalog::harvest_core(std::path::Path::new(&wiki));
     assert!(
         core.functions.len() > 20,
