@@ -125,3 +125,72 @@ fn adversarial_input_does_not_panic() {
         let _ = defines(s);
     }
 }
+
+/// The directive list is hand-maintained against `src/core/cfg.lex`,
+/// which is exactly the arrangement that goes stale: Kamailio adds a
+/// directive, the list does not, and the server is silently blind to
+/// it with every existing test still green.
+///
+/// This derives the set from the pinned lexer and checks the BEHAVIOUR
+/// — that each name-binding directive actually binds a name — rather
+/// than comparing against a copy of the same list.
+#[test]
+fn every_name_binding_directive_in_the_real_lexer_binds_a_name() {
+    let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let lex = std::fs::read_to_string(std::path::Path::new(&tree).join("src/core/cfg.lex"))
+        .expect("src/core/cfg.lex in the pinned tree");
+
+    // the macros whose directives take `NAME [value]`; IFDEF/ENDIF and
+    // the SUBST family are branches and substitutions, not bindings
+    const BINDING_MACROS: &[&str] = &[
+        "DEFINE",
+        "TRYDEF",
+        "REDEF",
+        "DEFEXP",
+        "DEFEXPS",
+        "DEFENV",
+        "DEFENVS",
+        "TRYDEFENV",
+        "TRYDEFENVS",
+    ];
+
+    let mut keywords: Vec<String> = Vec::new();
+    for line in lex.lines() {
+        let mut it = line.split_whitespace();
+        let (Some(macro_name), Some(_)) = (it.next(), it.clone().next()) else {
+            continue;
+        };
+        if !BINDING_MACROS.contains(&macro_name) {
+            continue;
+        }
+        let rest = line[macro_name.len()..].trim();
+        // forms are `define` or `"define"|"def"`
+        for part in rest.split('|') {
+            let kw = part.trim().trim_matches('"').trim();
+            if !kw.is_empty() && kw.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                keywords.push(kw.to_string());
+            }
+        }
+    }
+    keywords.sort();
+    keywords.dedup();
+    assert!(
+        keywords.len() >= 9,
+        "only {} directives parsed out of cfg.lex — the file's shape changed \
+         and this gate went blind: {keywords:?}",
+        keywords.len()
+    );
+
+    let mut blind = Vec::new();
+    for kw in &keywords {
+        let text = format!("#!{kw} SOME_NAME 1\n");
+        if !defines(&text).iter().any(|d| d.name == "SOME_NAME") {
+            blind.push(kw.clone());
+        }
+    }
+    assert!(
+        blind.is_empty(),
+        "kamailio's lexer binds names with these directives and the server \
+         does not recognise them: {blind:?}"
+    );
+}

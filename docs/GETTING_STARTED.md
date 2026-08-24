@@ -145,4 +145,4 @@ than either.
 | Squiggles on a correct file | The checker uses *your* Kamailio version — a config written for another version can legitimately fail. |
 | Completion has no documentation | Core and module entries both carry built-in documentation, so an entry with none is one the pinned version does not document: set **Kamailio Src** (and **Kamailio Wiki**) to sources matching your build. |
 | A module I have is not offered | The built-in list is what 6.1.4 documents, not what you compiled. Set **Kamailio Src** to your own tree. |
-| Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (254 documented modules)"). |
+| Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (254 documented modules, 43 core functions, core docs built in from 6.1.x, module docs built in from 6.1.4)"). |

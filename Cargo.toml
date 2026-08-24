@@ -2,6 +2,9 @@
 name = "kamailio-lsp"
 version = "0.14.1"
 edition = "2024"
+# Verified by the `msrv` CI job, which builds with exactly this
+# toolchain — a declared MSRV nothing checks is a wish, not a fact.
+rust-version = "1.94"
 description = "Language Server Protocol implementation for the Kamailio configuration file language"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/NormB/kamailio-lsp"
