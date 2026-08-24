@@ -387,6 +387,11 @@ clients that can't pass options.
 
 ## Notes
 
+- Only files named exactly `kamailio.cfg` are claimed by the
+  extension; the generic `.cfg` extension is deliberately left alone
+  so unrelated tools' config files are not hijacked. Split configs
+  and includes under other names need a `files.associations` entry
+  mapping them to `kamailio-cfg`.
 - The analyzer expands `route(NAME)` through the `#!define` table
   before deciding anything, so a route addressed through an alias
   (`#!define RELAY MYROUTE` + `route(RELAY)`) is resolved rather than

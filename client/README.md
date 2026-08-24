@@ -83,7 +83,12 @@ extension and it just works.
 1. Install this extension (the platform packages bundle the server —
    Linux, macOS, and Windows, x64 and arm64).
 2. Open a folder containing a `kamailio.cfg` — syntax colors,
-   completion, and navigation work immediately.
+   completion, and navigation work immediately. Only files named
+   exactly `kamailio.cfg` are claimed, so the generic `.cfg`
+   extension is left alone for unrelated tools. For any other name —
+   split configs, includes, `kamailio-local.cfg` — add a
+   [`files.associations`](https://code.visualstudio.com/docs/languages/identifiers)
+   entry mapping it to `kamailio-cfg`.
 3. For live error checking, point
    **Settings → Kamailio Lsp: Kamailio Path** at your `kamailio`
    binary and save the file.
