@@ -2,6 +2,24 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.14.2] — 2026-08-24
+
+Tests, CI and packaging; the server behaves exactly as 0.14.1 did.
+
+- **The preprocessor directive list is now derived from Kamailio's own
+  `cfg.lex`** rather than hand-maintained beside it. The old
+  arrangement is the one that goes stale: Kamailio adds a directive,
+  the list does not, and the server is silently blind to it with every
+  test still green. The gate checks behaviour — each name-binding
+  directive must actually bind a name.
+- **The client dependency tree is pinned.** There was no lockfile, so
+  every build resolved whatever was current and `npm audit` could not
+  run at all. Locked, audited clean, and CI and release now install
+  from the lock instead of resolving afresh.
+- CI gained an advisory gate (`cargo audit --deny warnings`) and an
+  MSRV job that builds with the exact toolchain `rust-version` claims,
+  because a declared MSRV nothing checks is a wish.
+
 ## [0.14.1] — 2026-08-24
 
 Documentation only; the server behaves exactly as 0.14.0 did.
