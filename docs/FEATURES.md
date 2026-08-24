@@ -336,6 +336,24 @@ support and then never answers cannot stall startup. Tree and wiki
 usually live outside the workspace, so their watchers are relative
 patterns rooted at each.
 
+#### Core language, before you configure anything
+
+The core language — parameters, functions and pseudo-variables like
+`debug`, `children`, `listen` — is not a module, so it should not need a wiki checkout to
+complete. A catalogue harvested from Kamailio 6.1.x ships with the
+extension and is used when no wiki checkout is configured, which is why
+`log_`-style completion works on a fresh install.
+
+It is clearly labelled: hover any built-in entry and it says which
+version the documentation came from and that setting `kamailioWiki`
+gives you docs exact for your own build. A configured wiki checkout always
+wins — being exact for the version you actually run is the whole
+point of harvesting in the first place.
+
+Module documentation is deliberately NOT shipped this way. What
+modules exist and what they export depends on what you built, so
+there is no honest version to pin it to.
+
 #### CLI check mode
 
 `kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` runs the

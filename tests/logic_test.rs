@@ -308,7 +308,9 @@ fn signature_at_finds_active_parameter() {
 #[test]
 fn completions_dedup_prefers_richer_items() {
     // "exit" exists as a core KEYWORD and as a core function: one item
-    // must survive, and it must be the function (it carries docs)
+    // must survive, it must keep the documentation, and it must stay a
+    // KEYWORD — `exit` is a statement (`exit;`), so completing it as a
+    // `exit()` snippet would insert something the parser rejects.
     let core = kamailio_lsp::catalog::CoreDocs {
         functions: vec![Item {
             name: "exit".into(),
@@ -320,7 +322,11 @@ fn completions_dedup_prefers_richer_items() {
     let out = completions_with_core(&[], &core, "request_route {\n}\n", "    ");
     let exits: Vec<_> = out.iter().filter(|c| c.label == "exit").collect();
     assert_eq!(exits.len(), 1, "duplicate labels must collapse");
-    assert_eq!(exits[0].kind, CompKind::Function);
+    assert_eq!(exits[0].kind, CompKind::Keyword);
+    assert_eq!(
+        exits[0].doc, "Stops execution.",
+        "the documented entry must be the one that survives"
+    );
 }
 
 #[test]

@@ -1,0 +1,2796 @@
+{
+  "version": "6.1.x",
+  "core": {
+    "functions": [
+      {
+        "name": "add_local_rport",
+        "detail": "add_local_rport",
+        "doc": "Add **rport** parameter to local generated Via header -- see RFC3581. In effect for forwarded SIP requests."
+      },
+      {
+        "name": "avpflags",
+        "detail": "avpflags",
+        "doc": ""
+      },
+      {
+        "name": "break",
+        "detail": "break",
+        "doc": "'break' statement can be used to end a 'case' block in a 'switch' statement or exit from a 'while' statement."
+      },
+      {
+        "name": "drop",
+        "detail": "drop",
+        "doc": "Stop the execution of the configuration script and alter the implicit action which is done afterwards."
+      },
+      {
+        "name": "exit",
+        "detail": "exit",
+        "doc": "Stop the execution of the configuration script -- it has the same behaviour as return(0). It does not affect the implicit action to be taken after script execution."
+      },
+      {
+        "name": "error",
+        "detail": "error",
+        "doc": "Not properly implemented yet - prints a log messages with the two string parameters."
+      },
+      {
+        "name": "exec",
+        "detail": "exec",
+        "doc": "Basic implementation of executing an external application with C `system()` function. Look also at the functions exported by `exec` module."
+      },
+      {
+        "name": "force_rport",
+        "detail": "force_rport()",
+        "doc": "The `force_rport()` adds the rport parameter to the first Via header of the received message. Thus, Kamailio will add the received port to the top most Via header in the SIP message, even if the client does not indicate support for rport. This enables subsequent SIP messages to return to the proper port later on in a SIP transaction."
+      },
+      {
+        "name": "add_rport",
+        "detail": "add_rport",
+        "doc": "Alias for force_rport();"
+      },
+      {
+        "name": "force_send_socket",
+        "detail": "force_send_socket",
+        "doc": "Force to send the message from the specified socket (it **must** be one of the sockets specified with the `listen` directive). If the protocol doesn't match (e.g. UDP message \"forced\" to a TCP socket) the closest socket of the same protocol is used."
+      },
+      {
+        "name": "force_tcp_alias",
+        "detail": "force_tcp_alias",
+        "doc": "**Alias name:** **add_tcp_alias**"
+      },
+      {
+        "name": "forward",
+        "detail": "forward",
+        "doc": "Forward in stateless mode the SIP request to destination address set in `$du` or `$ru`."
+      },
+      {
+        "name": "isavpflagset",
+        "detail": "isavpflagset",
+        "doc": ""
+      },
+      {
+        "name": "isflagset",
+        "detail": "isflagset",
+        "doc": "Test if a flag is set for current processed message (if the flag value is 1). The value of the parameter can be in range of 0..31."
+      },
+      {
+        "name": "is_int",
+        "detail": "is_int",
+        "doc": "Checks if a pseudo variable argument contains integer value."
+      },
+      {
+        "name": "log",
+        "detail": "log",
+        "doc": "Write text message to standard error terminal or syslog. You can specify the log level (the integer id) as first parameter."
+      },
+      {
+        "name": "prefix",
+        "detail": "prefix",
+        "doc": "Add the string parameter in front of username in R-URI."
+      },
+      {
+        "name": "resetavpflag",
+        "detail": "resetavpflag",
+        "doc": ""
+      },
+      {
+        "name": "resetflag",
+        "detail": "resetflag",
+        "doc": ""
+      },
+      {
+        "name": "return",
+        "detail": "return",
+        "doc": "The return() function allows you to return any integer value from a called route() block. You can test the value returned by a route using `$retcode` variable (which is same as `$rc` or `$?`)."
+      },
+      {
+        "name": "return_mode",
+        "detail": "return_mode",
+        "doc": "Control the return code evaluation mode:"
+      },
+      {
+        "name": "revert_uri",
+        "detail": "revert_uri",
+        "doc": "Set the R-URI to the value of the R-URI as it was when the request was received by server (undo all changes of R-URI)."
+      },
+      {
+        "name": "rewritehostport",
+        "detail": "rewritehostport",
+        "doc": "**Alias name:** **sethostport, sethp**"
+      },
+      {
+        "name": "rewritehostporttrans",
+        "detail": "rewritehostporttrans",
+        "doc": "**Alias name:** **sethostporttrans, sethpt**"
+      },
+      {
+        "name": "rewritehost",
+        "detail": "rewritehost",
+        "doc": "**Alias name:** **sethost, seth**"
+      },
+      {
+        "name": "rewriteport",
+        "detail": "rewriteport",
+        "doc": "**Alias name:** **setport, setp**"
+      },
+      {
+        "name": "rewriteuri",
+        "detail": "rewriteuri",
+        "doc": "**Alias name:** **seturi**"
+      },
+      {
+        "name": "rewriteuserpass",
+        "detail": "rewriteuserpass",
+        "doc": "**Alias name:** **setuserpass, setup**"
+      },
+      {
+        "name": "rewriteuser",
+        "detail": "rewriteuser",
+        "doc": "**Alias name:** **setuser, setu**"
+      },
+      {
+        "name": "route",
+        "detail": "route()",
+        "doc": "Execute route block given in parameter. Parameter may be name of the block or a string valued expression."
+      },
+      {
+        "name": "selval",
+        "detail": "selval",
+        "doc": "Select a value based on conditional expression."
+      },
+      {
+        "name": "set_advertised_address",
+        "detail": "set_advertised_address",
+        "doc": "Same as `advertised_address` but it affects only the current message. It has priority if `advertised_address` is also set."
+      },
+      {
+        "name": "set_advertised_port",
+        "detail": "set_advertised_port",
+        "doc": "Same as `advertised_port` but it affects only the current message. It has priority over `advertised_port`."
+      },
+      {
+        "name": "set_forward_no_connect",
+        "detail": "set_forward_no_connect",
+        "doc": "The message will be forwarded only if there is already an existing connection to the destination. It applies only to connection oriented protocols like TCP and TLS (TODO: SCTP), for UDP it will be ignored. The behavior depends in which route block the function is called:"
+      },
+      {
+        "name": "set_forward_close",
+        "detail": "set_forward_close",
+        "doc": "Try to close the connection (the one on which the message is sent out) after forwarding the current message. Can be used in same route blocks as `set_forward_no_connect()`."
+      },
+      {
+        "name": "set_reply_no_connect",
+        "detail": "set_reply_no_connect",
+        "doc": "Like `set_forward_no_connect()`, but for replies to the current message (local generated replies and replies forwarded by tm). The behavior depends in which route block the function is called:"
+      },
+      {
+        "name": "set_reply_close",
+        "detail": "set_reply_close",
+        "doc": "Like `set_reply_no_connect`, but closes the TCP connection after sending. Can be used in same route blocks as `set_reply_no_connect`."
+      },
+      {
+        "name": "setavpflag",
+        "detail": "setavpflag",
+        "doc": ""
+      },
+      {
+        "name": "setflag",
+        "detail": "setflag",
+        "doc": "Set a flag for current processed message. The value of the parameter can be in range of 0..31. The flags are used to mark the message for special processing (e.g., accounting) or to keep some state (e.g., message authenticated)."
+      },
+      {
+        "name": "strip",
+        "detail": "strip",
+        "doc": "Strip the first N-th characters from username of R-URI (N is the value of the parameter)."
+      },
+      {
+        "name": "strip_tail",
+        "detail": "strip_tail",
+        "doc": "Strip the last N-th characters from username of R-URI (N is the value of the parameter)."
+      },
+      {
+        "name": "udp_mtu_try_proto",
+        "detail": "udp_mtu_try_proto(proto)",
+        "doc": "- proto - `TCP|TLS|SCTP|UDP` - like `udp_mtu_try_proto` global parameter but works on a per packet basis and not globally."
+      },
+      {
+        "name": "userphone",
+        "detail": "userphone",
+        "doc": "Add `user=phone` parameter to R-URI."
+      }
+    ],
+    "params": [
+      {
+        "name": "advertised_address",
+        "detail": "Core parameters",
+        "doc": "It can be an IP address or string and represents the address advertised in Via header. If empty or not set (default value) the socket address from where the request will be sent is used."
+      },
+      {
+        "name": "advertised_port",
+        "detail": "Core parameters",
+        "doc": "The port advertised in Via header. If empty or not set (default value) the port from where the message will be sent is used. Same warnings as for 'advertised_address'."
+      },
+      {
+        "name": "alias",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **domain**"
+      },
+      {
+        "name": "async_workers",
+        "detail": "Core parameters",
+        "doc": "Specify how many child processes (workers) to create for asynchronous execution in the group \"default\". These are processes that can receive tasks from various components (e.g, modules such as async, acc, sqlops) and execute them locally, which is different process than the task sender."
+      },
+      {
+        "name": "async_nonblock",
+        "detail": "Core parameters",
+        "doc": "Set the non-block mode for the internal sockets used by default group of async workers."
+      },
+      {
+        "name": "async_usleep",
+        "detail": "Core parameters",
+        "doc": "Set the number of microseconds to sleep before trying to receive next task (can be useful when async_nonblock=1)."
+      },
+      {
+        "name": "async_workers_group",
+        "detail": "Core parameters",
+        "doc": "Define groups of asynchronous worker processes."
+      },
+      {
+        "name": "async_tkv_evcb",
+        "detail": "Core parameters",
+        "doc": "Set the name of the event route or KEMI callback for processing tkv."
+      },
+      {
+        "name": "async_tkv_gname",
+        "detail": "Core parameters",
+        "doc": "Set the name of the async group to be used for processing TKV events. The async group has to be defined."
+      },
+      {
+        "name": "auto_aliases",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **auto_domains**"
+      },
+      {
+        "name": "auto_bind_ipv6",
+        "detail": "Core parameters",
+        "doc": "When turned on, Kamailio will automatically bind to all IPv6 addresses (much like the default behaviour for IPv4)."
+      },
+      {
+        "name": "bind_ipv6_link_local",
+        "detail": "Core parameters",
+        "doc": "If set to `1`, try to bind also IPv6 link local addresses by discovering the scope of the interface. If set to `2`, skip binding link local addresses."
+      },
+      {
+        "name": "check_via",
+        "detail": "Core parameters",
+        "doc": "Check if the address in top most via of replies is local. Default value is 0 (check disabled)."
+      },
+      {
+        "name": "children",
+        "detail": "Core parameters",
+        "doc": "Number of children to fork for the UDP interfaces (one set for each interface - ip:port). Default value is 8. For example if you configure the proxy to listen on 3 UDP ports, it will create 3xchildren processes which handle the incoming UDP messages."
+      },
+      {
+        "name": "chroot",
+        "detail": "Core parameters",
+        "doc": "The value must be a valid path in the system. If set, Kamailio will chroot (change root directory) to its value."
+      },
+      {
+        "name": "corelog",
+        "detail": "Core parameters",
+        "doc": "Set the debug level used to print some log messages from core, which might become annoying and don't represent critical errors. For example, such case is failure to parse incoming traffic from the network as SIP message, due to someone sending invalid content."
+      },
+      {
+        "name": "coreparam",
+        "detail": "Core parameters",
+        "doc": "This parameter offers a generic framework to set new core parameters without the need to write new code in Lex/Yacc, but to add to an internal exports structure in the core. The format is:"
+      },
+      {
+        "name": "debug",
+        "detail": "Core parameters",
+        "doc": "Set the debug level. Higher values make Kamailio to print more debug messages. Log messages are usually sent to syslog, except if logging to stderr was activated (see [#log_stderror](#log_stderror) parameter)."
+      },
+      {
+        "name": "description",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **descr desc**"
+      },
+      {
+        "name": "disable_core_dump",
+        "detail": "Core parameters",
+        "doc": "Can be 'yes' or 'no'. By default core dump limits are set to unlimited or a high enough value. Set this config variable to 'yes' to disable core dump-ing (will set core limits to 0)."
+      },
+      {
+        "name": "disable_tls",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **tls_disable**"
+      },
+      {
+        "name": "enable_tls",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **tls_enable**"
+      },
+      {
+        "name": "tls_connection_match_domain",
+        "detail": "Core parameters",
+        "doc": "Value: `yes`/`no` (default `no`)"
+      },
+      {
+        "name": "exit_timeout",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **ser_kill_timeout**"
+      },
+      {
+        "name": "flags",
+        "detail": "Core parameters",
+        "doc": "SIP message (transaction) flags can have string names. The *name* for flags cannot be used for **branch** or **script flags**(\\*)"
+      },
+      {
+        "name": "force_rport",
+        "detail": "Core parameters",
+        "doc": "Value: `yes`/`no` (default `no`)"
+      },
+      {
+        "name": "fork",
+        "detail": "Core parameters",
+        "doc": "If set to 'yes' the proxy will fork and run in daemon mode - one process will be created for each network interface the proxy listens to and for each protocol (TCP/UDP), multiplied with the value of 'children' parameter."
+      },
+      {
+        "name": "fork_delay",
+        "detail": "Core parameters",
+        "doc": "Number of usecs to wait before forking a process."
+      },
+      {
+        "name": "group",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **gid**"
+      },
+      {
+        "name": "http_reply_parse",
+        "detail": "Core parameters",
+        "doc": "Alias: http_reply_hack"
+      },
+      {
+        "name": "ip_free_bind",
+        "detail": "Core parameters",
+        "doc": "Alias: ipfreebind, ip_nonlocal_bind"
+      },
+      {
+        "name": "ipv6_hex_style",
+        "detail": "Core parameters",
+        "doc": "Can be set to `a`, `A` or `c` to specify if locally computed string representation of IPv6 addresses should be expanded lowercase, expanded uppercase or compacted lowercase hexa digits."
+      },
+      {
+        "name": "kemi.onsend_route_callback",
+        "detail": "Core parameters",
+        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `onsend_route` block (from the native configuration file)."
+      },
+      {
+        "name": "kemi.received_route_callback",
+        "detail": "Core parameters",
+        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `event_route[core:msg-received]` block (from the native configuration file). For execution, it also require to have the received_route_mode global parameter set to 1."
+      },
+      {
+        "name": "kemi.reply_route_callback",
+        "detail": "Core parameters",
+        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `reply_route` block (from the native configuration file)."
+      },
+      {
+        "name": "kemi.pre_routing_callback",
+        "detail": "Core parameters",
+        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `event_route[core:pre-routing]` block (from the native configuration file)."
+      },
+      {
+        "name": "latency_cfg_log",
+        "detail": "Core parameters",
+        "doc": "If set to a log level less or equal than debug parameter, a log message with the duration in microseconds of executing request route or reply route is printed to syslog."
+      },
+      {
+        "name": "latency_limit_action",
+        "detail": "Core parameters",
+        "doc": "Limit of latency in us (micro-seconds) for config actions. If a config action executed by cfg interpreter takes longer than its value, a message is printed in the logs, showing config path, line and action name when it is a module function, as well as internal action id."
+      },
+      {
+        "name": "latency_limit_db",
+        "detail": "Core parameters",
+        "doc": "Limit of latency in us (micro-seconds) for db operations. If a db operation executed via DB API v1 takes longer that its value, a message is printed in the logs, showing the first 50 characters of the db query."
+      },
+      {
+        "name": "latency_log",
+        "detail": "Core parameters",
+        "doc": "Log level to print the messages related to latency."
+      },
+      {
+        "name": "listen",
+        "detail": "Core parameters",
+        "doc": "Set the network addresses the SIP server should listen to. It can be an `IP address`, `hostname` or `network interface id` or combination of `protocol:address:port` (e.g., `udp:10.10.10.10:5060`). This parameter can be set multiple times in same configuration file, the server is listening on all addresses specified."
+      },
+      {
+        "name": "loadmodule",
+        "detail": "Core parameters",
+        "doc": "Loads a module for later usage in the configuration script. The module is searched in the path specified by `loadpath` (or `mpath`)."
+      },
+      {
+        "name": "loadmodulex",
+        "detail": "Core parameters",
+        "doc": "Similar to `loadmodule` with the ability to evaluate variables in its parameter."
+      },
+      {
+        "name": "loadpath",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** `mpath`"
+      },
+      {
+        "name": "local_rport",
+        "detail": "Core parameters",
+        "doc": "Similar to **add_local_rport()** function, but done in a global scope, so the function does not have to be executed for each request."
+      },
+      {
+        "name": "log_engine_data",
+        "detail": "Core parameters",
+        "doc": "Set specific data required by the log engine. See also the **log_engine_type**."
+      },
+      {
+        "name": "log_engine_type",
+        "detail": "Core parameters",
+        "doc": "Specify what logging engine to be used and its initialization data. A logging engine is implemented as a module. Supported values are a matter of the module."
+      },
+      {
+        "name": "log_facility",
+        "detail": "Core parameters",
+        "doc": "If Kamailio logs to syslog, you can control the facility for logging. Very useful when you want to divert all Kamailio logs to a different log file. See the man page syslog(3) for more details."
+      },
+      {
+        "name": "log_name",
+        "detail": "Core parameters",
+        "doc": "Allows to configure a log_name prefix which will be used when printing to syslog -- it is also known as syslog tag, and the default value is the application name or full path that printed the log message. This is useful to filter log messages when running many instances of Kamailio on same server."
+      },
+      {
+        "name": "log_prefix",
+        "detail": "Core parameters",
+        "doc": "Specify the text to be prefixed to the log messages printed by Kamailio while processing a SIP message (that is, when executing route blocks). It can contain script variables that are evaluated at runtime. See [#log_prefix_mode](#log_prefix_mode) about when/how evaluation is done."
+      },
+      {
+        "name": "log_prefix_mode",
+        "detail": "Core parameters",
+        "doc": "Control if [log prefix](#log_prefix) is re-evaluated."
+      },
+      {
+        "name": "log_stderror",
+        "detail": "Core parameters",
+        "doc": "With this parameter you can make Kamailio to write log and debug messages to standard error. Possible values are:"
+      },
+      {
+        "name": "cfgengine",
+        "detail": "Core parameters",
+        "doc": "Set the config interpreter engine for execution of the routing logic inside the configuration file. Default is the native interpreter."
+      },
+      {
+        "name": "maxbuffer",
+        "detail": "Core parameters",
+        "doc": "The size in bytes multiplied by 2 not to be exceeded during the auto-probing procedure of discovering and increasing the maximum OS buffer size for receiving UDP messages (socket option SO_RCVBUF). Default value is 262144."
+      },
+      {
+        "name": "maxsndbuffer",
+        "detail": "Core parameters",
+        "doc": "The size in bytes multiplied by 2 not to be exceeded during the auto-probing procedure of discovering and increasing the maximum OS buffer size for sending UDP messages (socket option SO_SNDBUF). Default value is 262144."
+      },
+      {
+        "name": "max_branches",
+        "detail": "Core parameters",
+        "doc": "The maximum number of outgoing branches for each SIP request. It has impact on the size of destination set created in core (e.g., via append_branch()) as well as the serial and parallel forking done via tm module. It replaces the old defined constant MAX_BRANCHES."
+      },
+      {
+        "name": "max_recursive_level",
+        "detail": "Core parameters",
+        "doc": "The parameters set the value of maximum recursive calls to blocks of actions, such as sub-routes or chained IF-ELSE (for the ELSE branches). Default is 256."
+      },
+      {
+        "name": "max_while_loops",
+        "detail": "Core parameters",
+        "doc": "The parameters set the value of maximum loops that can be done within a \"while\". Comes as a protection to avoid infinite loops in config file execution. Default is 100. Setting to 0 disables the protection (you will still get a warning when you start Kamailio if you do something like while(1) {...})."
+      },
+      {
+        "name": "mcast",
+        "detail": "Core parameters",
+        "doc": "This parameter can be used to set the interface that should join the multicast group. This is useful if you want to **listen** on a multicast address and don't want to depend on the kernel routing table for choosing an interface."
+      },
+      {
+        "name": "mcast_loopback",
+        "detail": "Core parameters",
+        "doc": "It can be 'yes' or 'no'. If set to 'yes', multicast datagram are sent over loopback. Default value is 'no'."
+      },
+      {
+        "name": "mcast_ttl",
+        "detail": "Core parameters",
+        "doc": "Set the value for multicast ttl. Default value is OS specific (usually 1)."
+      },
+      {
+        "name": "memdbg",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** `mem_dbg`"
+      },
+      {
+        "name": "memlog",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** `mem_log`"
+      },
+      {
+        "name": "mem_add_size",
+        "detail": "Core parameters",
+        "doc": "Size in bytes to be added for each chunk allocated by the internal `qm` (quick malloc) memory manager. It could be useful in cases when external libraries initialized to use `qm` expose issues of buffer overflow."
+      },
+      {
+        "name": "mem_join",
+        "detail": "Core parameters",
+        "doc": "If set to 1, memory manager (e.g., q_malloc) does join of free fragments. It is effective if MEM_JOIN_FREE compile option is defined."
+      },
+      {
+        "name": "mem_safety",
+        "detail": "Core parameters",
+        "doc": "If set to `1`, memory free operation does not call `abort()` for double freeing a pointer or freeing an invalid address. The server still prints the alerting log messages. If set to 0, the SIP server stops by calling `abort()` to generate a core file."
+      },
+      {
+        "name": "mem_status_mode",
+        "detail": "Core parameters",
+        "doc": "If set to `1`, memory status dump for `qm` allocator will print details about used fragments. If set to `0`, the dump contains only free fragments. It can be set at runtime via cfg param framework (e.g., via `kamcmd`)."
+      },
+      {
+        "name": "mem_summary",
+        "detail": "Core parameters",
+        "doc": "Parameter to control printing of memory debugging information displayed on `exit` or `SIGUSR1`. The value can be composed by following flags:"
+      },
+      {
+        "name": "mhomed",
+        "detail": "Core parameters",
+        "doc": "Set the server to try to locate outbound interface on multihomed host. This parameter affects the selection of the outgoing socket for forwarding requests. By default is off (0) - it is rather time consuming. When deactivated, the incoming socket will be used or the first one for a different protocol, disregarding the destination location. When activated, Kamailio will select a socket that can reach the destination (to be able to connect to the remote address). (Kamailio opens a UDP socket to the destination, then it retrieves the local IP which was assigned by the operating system to the new UDP socket. Then this socket will be closed and the retrieved IP address will be used as IP address in the Via/Record-Route headers)"
+      },
+      {
+        "name": "mlock_pages",
+        "detail": "Core parameters",
+        "doc": "Locks all Kamailio pages into memory making it unswappable (in general one doesn't want his SIP proxy swapped out :-))"
+      },
+      {
+        "name": "modinit_delay",
+        "detail": "Core parameters",
+        "doc": "Number of microseconds to wait after initializing a module - useful to cope with systems where are rate limits on new connections to database or other systems."
+      },
+      {
+        "name": "modparam",
+        "detail": "Core parameters",
+        "doc": "The modparam command will be used to set the options (parameters) for the loaded modules."
+      },
+      {
+        "name": "modparamx",
+        "detail": "Core parameters",
+        "doc": "Similar to **modparam**, with ability to evaluate the variables in its parameters."
+      },
+      {
+        "name": "msg_recv_max_size",
+        "detail": "Core parameters",
+        "doc": "Set the maximum size in bytes of a SIP message to be accepted by Kamailio."
+      },
+      {
+        "name": "msg_apply_changes_mode",
+        "detail": "Core parameters",
+        "doc": "If set to `1`, the `msg_apply_changes()` is executed before the transaction for the SIP request is created. It can enable the use of `t_msg_apply_changes()` inside a `branch_route` block."
+      },
+      {
+        "name": "msg_clone_extra_size",
+        "detail": "Core parameters",
+        "doc": "Size to be allocated extra when cloning the SIP request buffer to transaction. Useful when intending to do raw operations over the content of the buffer (e.g., SIP message body). The value is in bytes."
+      },
+      {
+        "name": "onsend_route_reply",
+        "detail": "Core parameters",
+        "doc": "If set to 1 (yes, on), onsend_route block is executed for received replies that are sent out. Default is 0."
+      },
+      {
+        "name": "open_files_limit",
+        "detail": "Core parameters",
+        "doc": "If set and bigger than the current open file limit, Kamailio will try to increase its open file limit to this number. Note: Kamailio must be started as root to be able to increase a limit past the hard limit (which, for open files, is `1024` on most systems). \"Files\" include network sockets, so you need one for every concurrent session (especially if you use connection-oriented transports, like TCP/TLS)."
+      },
+      {
+        "name": "phone2tel",
+        "detail": "Core parameters",
+        "doc": "By enabling this feature, Kamailio internally treats SIP URIs with user=phone parameter as TEL URIs. If you do not want this behavior, you have to turn it off."
+      },
+      {
+        "name": "pmtu_discovery",
+        "detail": "Core parameters",
+        "doc": "If set to 1, the don't-fragment (DF) bit will be set in outbound IP packets, but no fragmentation from the kernel will be done for IPv4 and IPv6. This means that packets might be dropped and it is up to the user to reduce the packet size and try again."
+      },
+      {
+        "name": "port",
+        "detail": "Core parameters",
+        "doc": "The port the SIP server listens to. The default value for it is 5060."
+      },
+      {
+        "name": "pv_buffer_size",
+        "detail": "Core parameters",
+        "doc": "The size in bytes of internal buffer to print dynamic strings with pseudo-variables inside. The default value is 8192 (8kB). Please keep in mind that for xlog messages, there is a dedicated module parameter to set the internal buffer size."
+      },
+      {
+        "name": "pv_buffer_slots",
+        "detail": "Core parameters",
+        "doc": "The number of internal buffer slots to print dynamic strings with pseudo-variables inside. The default value is 10."
+      },
+      {
+        "name": "pv_cache_limit",
+        "detail": "Core parameters",
+        "doc": "The limit how many pv declarations in the cache after which an action is taken. Default value is 2048."
+      },
+      {
+        "name": "pv_cache_action",
+        "detail": "Core parameters",
+        "doc": "Specify what action to be done when the size of pv cache is exceeded. If `0`, print a warning log message when the limit is exceeded. If `1`, warning log messages is printed and the cache systems tries to drop a `$sht(...)` declaration. Default is `0`."
+      },
+      {
+        "name": "rpc_exec_delta",
+        "detail": "Core parameters",
+        "doc": "Specify the time interval (in seconds) required to wait before executing again an RPC command exported with the flag `RPC_EXEC_DELTA`. Practically it enables an execution rate limit for such command. The rate limiting is per RPC command."
+      },
+      {
+        "name": "rundir",
+        "detail": "Core parameters",
+        "doc": "Alias: run_dir"
+      },
+      {
+        "name": "received_route_mode",
+        "detail": "Core parameters",
+        "doc": "Enable or disable the execution of `event_route[core:msg-received]` routing block or its corresponding Kemi callback."
+      },
+      {
+        "name": "reply_to_via",
+        "detail": "Core parameters",
+        "doc": "If it is set to 1, any local reply is sent to the IP address advertised in top most Via of the request instead of the IP address from which the request was received. Default value is 0 (off)."
+      },
+      {
+        "name": "route_locks_size",
+        "detail": "Core parameters",
+        "doc": "Set the number of mutex locks to be used for synchronizing the execution of config script for messages sharing the same `Call-Id`. In other words, enables Kamailio to execute the config script sequentially for the requests and replies received within the same dialog -- a new message received within the same dialog waits until the previous one is routed out."
+      },
+      {
+        "name": "server_id",
+        "detail": "Core parameters",
+        "doc": "A configurable unique server id that can be used to discriminate server instances within a cluster of servers when all other information, such as IP addresses are the same."
+      },
+      {
+        "name": "server_header",
+        "detail": "Core parameters",
+        "doc": "Set the value of Server header for replies generated by Kamailio. It must contain the header name, but not the ending `CRLF`."
+      },
+      {
+        "name": "server_signature",
+        "detail": "Core parameters",
+        "doc": "This parameter controls the \"Server\" header in any locally generated message."
+      },
+      {
+        "name": "shm_force_alloc",
+        "detail": "Core parameters",
+        "doc": "Tries to pre-fault all the shared memory, before starting. When \"on\", start time will increase, but combined with mlock_pages will guarantee Kamailio will get all its memory from the beginning (no more kswapd slow downs)"
+      },
+      {
+        "name": "shm_mem_size",
+        "detail": "Core parameters",
+        "doc": "Set shared memory size (in Mb)."
+      },
+      {
+        "name": "sip_parser_log",
+        "detail": "Core parameters",
+        "doc": "Log level for printing debug messages for some of the SIP parsing errors."
+      },
+      {
+        "name": "sip_parser_mode",
+        "detail": "Core parameters",
+        "doc": "Control sip parser behaviour."
+      },
+      {
+        "name": "sip_warning",
+        "detail": "Core parameters",
+        "doc": "Can be `0` or `1`. If set to `1` (default value is `0`) a 'Warning' header is added to each reply generated by Kamailio. The header contains several details that help troubleshooting using the network traffic dumps, but might reveal details of your network infrastructure and internal SIP routing."
+      },
+      {
+        "name": "socket",
+        "detail": "Core parameters",
+        "doc": "Specify an address to listen (bind) to, a simplified alternative to `listen` paramter that allows specifying the attributes using a structure style."
+      },
+      {
+        "name": "socket_workers",
+        "detail": "Core parameters",
+        "doc": "Number of workers to process SIP traffic per listen socket - typical use is before a **listen** global parameter."
+      },
+      {
+        "name": "sql_buffer_size",
+        "detail": "Core parameters",
+        "doc": "The size in bytes of the SQL buffer created for data base queries. For database drivers that use the core db_query library, this will be maximum size object that can be written or read from a database. Default value is 65535."
+      },
+      {
+        "name": "statistics",
+        "detail": "Core parameters",
+        "doc": "Kamailio has built-in support for statistics counter. This means, these counters can be increased, decreased, read and cleared. The statistics counter are defined either by the core (e.g. tcp counters), by modules (e.g. 2xx_transactions by \"tmx\" module) or by the script writer using the \"statistics\" module."
+      },
+      {
+        "name": "stats_name_separator",
+        "detail": "Core parameters",
+        "doc": "Specify the character used as a separator for the internal statistics' names. Default value is `_`."
+      },
+      {
+        "name": "tos",
+        "detail": "Core parameters",
+        "doc": "The TOS (Type Of Service) to be used for the sent IP packages (both TCP and UDP)."
+      },
+      {
+        "name": "udp_mtu",
+        "detail": "Core parameters",
+        "doc": "Fallback to another protocol (`udp_mtu_try_proto` must be set also either globally or per packet) if the constructed request size is greater than udp_mtu."
+      },
+      {
+        "name": "udp_mtu_try_proto",
+        "detail": "Core parameters",
+        "doc": "If `udp_mtu != 0` and udp forwarded request size (after adding all the \"local\" headers) `> udp_mtu`, use this protocol instead of udp. Only the Via header will be updated (e.g. The Record-Route will be the one built for udp)."
+      },
+      {
+        "name": "udp_receiver_mode",
+        "detail": "Core parameters",
+        "doc": "Specify how UDP traffic is received, either via a pool of processes per UDP socket or a single multi-threaded process with a thread per socket."
+      },
+      {
+        "name": "uri_host_extra_chars",
+        "detail": "Core parameters",
+        "doc": "Specify additional chars that should be allowed in the host part of URI."
+      },
+      {
+        "name": "user",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **uid**"
+      },
+      {
+        "name": "user_agent_header",
+        "detail": "Core parameters",
+        "doc": "Set the value of User-Agent header for requests generated by Kamailio. It must contain header name as well, but not the ending CRLF."
+      },
+      {
+        "name": "verbose_startup",
+        "detail": "Core parameters",
+        "doc": "Control if printing routing tree and udp probing buffer debug messages should be printed at startup."
+      },
+      {
+        "name": "version_table",
+        "detail": "Core parameters",
+        "doc": "Set the name of the table holding the table version. Useful if the proxy is sharing a database within a project and during upgrades. Default value is \"version\"."
+      },
+      {
+        "name": "wait_worker1_mode",
+        "detail": "Core parameters",
+        "doc": "Enable waiting for child SIP worker one to complete initialization, then create the other child worker processes."
+      },
+      {
+        "name": "wait_worker1_time",
+        "detail": "Core parameters",
+        "doc": "How long to wait for child worker one to complete the initialization. In micro-seconds."
+      },
+      {
+        "name": "wait_worker1_usleep",
+        "detail": "Core parameters",
+        "doc": "Waiting for child worker one to complete the initialization is done in a loop, which loop waits until wait_worker1_time passes. This parameter specifies how long after each iteration of that loop to wait in micro-seconds."
+      },
+      {
+        "name": "workdir",
+        "detail": "Core parameters",
+        "doc": "**Alias name:** **wdir**"
+      },
+      {
+        "name": "xavp_via_params",
+        "detail": "Core parameters",
+        "doc": "Set the name of the XAVP of which subfields will be added as local `Via` -header parameters."
+      },
+      {
+        "name": "xavp_via_fields",
+        "detail": "Core parameters",
+        "doc": "Set the name of xavp from where to take Via header field: address and port. Use them to build local Via header."
+      },
+      {
+        "name": "xavp_via_reply_params",
+        "detail": "Core parameters",
+        "doc": "Set the name of the XAVP of which subfields will be added as header parameters to the top `Via` of the replies sent out."
+      },
+      {
+        "name": "dns",
+        "detail": "DNS Parameters",
+        "doc": "This parameter controls if the SIP server will try doing a DNS lookup on the address in the Via header of a received sip request to decide if adding a `received=src_ip` parameter to the Via is necessary. Note that Vias containing DNS names (instead of IPs) should have `received=` added, so turning dns to yes is not recommended."
+      },
+      {
+        "name": "rev_dns",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_rev_via**"
+      },
+      {
+        "name": "dns_cache_del_nonexp",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_cache_delete_nonexpired**"
+      },
+      {
+        "name": "dns_cache_rec_pref",
+        "detail": "DNS Parameters",
+        "doc": "dns cache record preference, determines how new DNS records are stored internally in relation to existing entries. Possible values: 0 - do not check duplicates 1 - prefer old records 2 - prefer new records 3 - prefer records with longer lifetime"
+      },
+      {
+        "name": "dns_cache_flags",
+        "detail": "DNS Parameters",
+        "doc": "dns cache specific resolver flags, used for overriding the default behaviour (low level). Possible values: 1 - ipv4 only: only DNS A requests are performed, even if Kamailio also listens on ipv6 addresses. 2 - ipv6 only: only DNS AAAA requests are performed. Ignored if dns_try_ipv6 is off or Kamailio doesn't listen on any ipv6 address. 4 - prefer ipv6: try first to resolve a host name to an ipv6 address (DNS AAAA request) and only if this fails try an ipv4 address (DNS A request). By default the ipv4 addresses are preferred."
+      },
+      {
+        "name": "dns_cache_gc_interval",
+        "detail": "DNS Parameters",
+        "doc": "Interval in seconds after which the dns cache is garbage collected (default: 120 s)"
+      },
+      {
+        "name": "dns_cache_init",
+        "detail": "DNS Parameters",
+        "doc": "If off, the dns cache is not initialized at startup and cannot be enabled at runtime, this saves some memory."
+      },
+      {
+        "name": "dns_cache_max_ttl",
+        "detail": "DNS Parameters",
+        "doc": ""
+      },
+      {
+        "name": "dns_cache_mem",
+        "detail": "DNS Parameters",
+        "doc": "Maximum memory used for the dns cache in KB (default 500 K)"
+      },
+      {
+        "name": "dns_cache_min_ttl",
+        "detail": "DNS Parameters",
+        "doc": ""
+      },
+      {
+        "name": "dns_cache_negative_ttl",
+        "detail": "DNS Parameters",
+        "doc": "Tells how long to keep negative DNS responses in cache. If set to 0, disables caching of negative responses. Default is 60 (seconds)."
+      },
+      {
+        "name": "dns_naptr_ignore_rfc",
+        "detail": "DNS Parameters",
+        "doc": "If the DNS lookup should ignore the remote side's protocol preferences, as indicated by the Order field in the NAPTR records and mandated by RFC 2915."
+      },
+      {
+        "name": "dns_retr_no",
+        "detail": "DNS Parameters",
+        "doc": "Number of dns retransmissions before giving up. Default value is system specific, depends also on the '/etc/resolv.conf' content (usually 4)."
+      },
+      {
+        "name": "dns_retr_time",
+        "detail": "DNS Parameters",
+        "doc": "Time in seconds before retrying a dns request. Default value is system specific, depends also on the '/etc/resolv.conf' content (usually 5s)."
+      },
+      {
+        "name": "dns_search_full_match",
+        "detail": "DNS Parameters",
+        "doc": "When name was resolved using dns search list, check the domain added in the answer matches with one from the search list (small performance hit, but more safe)"
+      },
+      {
+        "name": "dns_servers_no",
+        "detail": "DNS Parameters",
+        "doc": "How many dns servers from the ones defined in '/etc/resolv.conf' will be used. Default value is to use all of them."
+      },
+      {
+        "name": "dns_srv_lb",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_srv_loadbalancing**"
+      },
+      {
+        "name": "dns_try_ipv6",
+        "detail": "DNS Parameters",
+        "doc": "Can be 'yes' or 'no'. If it is set to 'yes' and a DNS lookup fails, it will retry it for ipv6 (AAAA record). Default value is 'no'."
+      },
+      {
+        "name": "dns_try_naptr",
+        "detail": "DNS Parameters",
+        "doc": "Enable NAPTR support according to RFC 3263 (see doc/tutorials/dns.txt for more info)"
+      },
+      {
+        "name": "dns_sctp_pref,",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**"
+      },
+      {
+        "name": "dns_use_search_list",
+        "detail": "DNS Parameters",
+        "doc": "Can be 'yes' or 'no'. If set to 'no', the search list in '/etc/resolv.conf' will be ignored (=> fewer lookups => gives up faster). Default value is 'yes'."
+      },
+      {
+        "name": "use_dns_cache",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_use_cache**"
+      },
+      {
+        "name": "use_dns_failover",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_use_failover**"
+      },
+      {
+        "name": "disable_tcp",
+        "detail": "TCP Parameters",
+        "doc": "Global parameter to disable TCP support in the SIP server. Default value is `no`."
+      },
+      {
+        "name": "tcp_accept_aliases",
+        "detail": "TCP Parameters",
+        "doc": "If a message received over a tcp connection has \"alias\" in its via a new tcp alias port will be created for the connection the message came from (the alias port will be set to the via one)."
+      },
+      {
+        "name": "tcp_accept_haproxy",
+        "detail": "TCP Parameters",
+        "doc": "Enable the internal TCP stack to expect a PROXY-protocol-formatted header as the first message of the connection. Both the human-readable (v1) and binary-encoded (v2) variants of the protocol are supported. This option is typically useful if you are behind a TCP load-balancer, such as HAProxy or an AWS' ELB, and allows the load-balancer to provide connection information regarding the upstream client. This enables the use of IP-based ACLs, even behind a load-balancer."
+      },
+      {
+        "name": "tcp_accept_hep3",
+        "detail": "TCP Parameters",
+        "doc": "Enable internal TCP receiving stack to accept HEP3 packets. This option has to be set to **yes** on a Kamailio instance acting as Homer SIPCapture server that is supposed to receive HEP3 packets over TCP/TLS."
+      },
+      {
+        "name": "tcp_accept_iplimit",
+        "detail": "TCP Parameters",
+        "doc": "Set limit for accepted connections from the same IP address."
+      },
+      {
+        "name": "tcp_accept_no_cl",
+        "detail": "TCP Parameters",
+        "doc": "Control whether to throw or not error when there is no Content-Length header for requests received over TCP. It is required to be set to **yes** for XCAP traffic sent over HTTP/1.1 which does not use Content-Length header, but splits large bodies in many chunks. The module **sanity** can be used then to restrict this permission to HTTP traffic only, testing in route block in order to stay RFC3261 compliant about this mandatory header for SIP requests over TCP."
+      },
+      {
+        "name": "tcp_accept_unique",
+        "detail": "TCP Parameters",
+        "doc": "If set to `1`, reject duplicate connections coming from same source IP and port."
+      },
+      {
+        "name": "tcp_async",
+        "detail": "TCP Parameters",
+        "doc": "**Alias name:** **tcp_buf_write**"
+      },
+      {
+        "name": "tcp_check_timer",
+        "detail": "TCP Parameters",
+        "doc": "Set the check interval (in seconds) for tcp connections. It is used to check if there was any data received on new connections or if the receiving of SIP messages takes too long. See also `tcp_msg_data_timeout` and `tcp_msg_read_timeout`."
+      },
+      {
+        "name": "tcp_children",
+        "detail": "TCP Parameters",
+        "doc": "Number of children processes to be created for reading from TCP connections. If no value is explicitly set, the same number of TCP children as UDP children (see \"children\" parameter) will be used."
+      },
+      {
+        "name": "tcp_clone_rcvbuf",
+        "detail": "TCP Parameters",
+        "doc": "Control if the received buffer should be cloned from the TCP stream, needed by functions working inside the SIP message buffer (such as msg_apply_changes())."
+      },
+      {
+        "name": "tcp_connection_lifetime",
+        "detail": "TCP Parameters",
+        "doc": "Lifetime in seconds for TCP sessions. TCP sessions which are inactive for longer than **tcp_connection_lifetime** will be closed by Kamailio. Default value is defined is `120`. Setting this value to 0 will close the TCP connection pretty quick."
+      },
+      {
+        "name": "tcp_connection_match",
+        "detail": "TCP Parameters",
+        "doc": "If set to `1`, try to be more strict in matching outbound TCP connections, attempting to lookup first the connection using also local port, not only the local IP and remote IP+port."
+      },
+      {
+        "name": "tcp_connect_timeout",
+        "detail": "TCP Parameters",
+        "doc": "Time in seconds before an ongoing attempt to establish a new TCP connection will be aborted. Lower this value for faster detection of TCP connection problems. The default value is 10s."
+      },
+      {
+        "name": "tcp_conn_wq_max",
+        "detail": "TCP Parameters",
+        "doc": "Maximum bytes queued for write allowed per connection. Attempting to queue more bytes would result in an error and in the connection being closed (too slow). If tcp_buf_write is not enabled, it has no effect."
+      },
+      {
+        "name": "tcp_crlf_ping",
+        "detail": "TCP Parameters",
+        "doc": "Enable SIP outbound TCP keep-alive using PING-PONG (CRLFCRLF - CRLF)."
+      },
+      {
+        "name": "tcp_defer_accept",
+        "detail": "TCP Parameters",
+        "doc": "Tcp accepts will be delayed until some data is received (improves performance on proxies with lots of opened tcp connections). See linux `tcp(7)` `TCP_DEFER_ACCEPT` or freebsd `ACCF_DATA(0)`. For now linux and freebsd only."
+      },
+      {
+        "name": "tcp_delayed_ack",
+        "detail": "TCP Parameters",
+        "doc": "Initial ACK for opened connections will be delayed and sent with the first data segment (see linux tcp(7) TCP_QUICKACK). For now linux only."
+      },
+      {
+        "name": "tcp_fd_cache",
+        "detail": "TCP Parameters",
+        "doc": "If enabled FDs used for sending will be cached inside the process calling tcp_send (performance increase for sending over tcp at the cost of slightly slower connection closing and extra FDs kept open)"
+      },
+      {
+        "name": "tcp_keepalive",
+        "detail": "TCP Parameters",
+        "doc": "Enables keepalive for tcp (sets SO_KEEPALIVE socket option)"
+      },
+      {
+        "name": "tcp_keepcnt",
+        "detail": "TCP Parameters",
+        "doc": "Number of keepalives sent before dropping the connection (TCP_KEEPCNT socket option). Linux only."
+      },
+      {
+        "name": "tcp_keepidle",
+        "detail": "TCP Parameters",
+        "doc": "Time before starting to send keepalives, if the connection is idle (TCP_KEEPIDLE socket option). Linux only."
+      },
+      {
+        "name": "tcp_keepintvl",
+        "detail": "TCP Parameters",
+        "doc": "Time interval between keepalive probes, when the previous probe failed (TCP_KEEPINTVL socket option). Linux only."
+      },
+      {
+        "name": "tcp_linger2",
+        "detail": "TCP Parameters",
+        "doc": "Lifetime of orphaned sockets in FIN_WAIT2 state (overrides tcp_fin_timeout on, see linux tcp(7) TCP_LINGER2). Linux only."
+      },
+      {
+        "name": "tcp_listen_backlog",
+        "detail": "TCP Parameters",
+        "doc": "The value for listen backlog parameter for TCP/TLS sockets."
+      },
+      {
+        "name": "tcp_main_threads",
+        "detail": "TCP Parameters",
+        "doc": "If set to 1, the TLS read and encode (for sending) operations are done by threads created by the main TCP process. If set to 0, the operations are done in the old-style, mostly by the SIP worker processes."
+      },
+      {
+        "name": "tcp_max_connections",
+        "detail": "TCP Parameters",
+        "doc": "Maximum number of tcp connections (if the number is exceeded no new tcp connections will be accepted). Default is defined in tcp_init.h: #define DEFAULT_TCP_MAX_CONNECTIONS 2048"
+      },
+      {
+        "name": "tcp_msg_data_timeout",
+        "detail": "TCP Parameters",
+        "doc": "Duration in seconds for how long to wait till data is received on a new tcp connection. Default 20."
+      },
+      {
+        "name": "tcp_msg_read_timeout",
+        "detail": "TCP Parameters",
+        "doc": "Duration in seconds for how long to wait till a SIP message is read on a new tcp connection. Default 20."
+      },
+      {
+        "name": "tcp_no_connect",
+        "detail": "TCP Parameters",
+        "doc": "Stop outgoing TCP connects (also stops TLS) by setting tcp_no_connect to yes."
+      },
+      {
+        "name": "tcp_poll_method",
+        "detail": "TCP Parameters",
+        "doc": "Poll method used (by default the best one for the current OS is selected). For available types see io_wait.c and poll_types.h: none, poll, epoll_lt, epoll_et, sigio_rt, select, kqueue, /dev/poll"
+      },
+      {
+        "name": "tcp_rd_buf_size",
+        "detail": "TCP Parameters",
+        "doc": "Buffer size used for tcp reads. A high buffer size increases performance on server with few connections and lot of traffic on them, but also increases memory consumption (so for lots of connection is better to use a low value). Note also that this value limits the maximum message size (SIP, HTTP) that can be received over tcp."
+      },
+      {
+        "name": "tcp_reuse_port",
+        "detail": "TCP Parameters",
+        "doc": "Allows reuse of TCP ports. This means, for example, that the same TCP ports on which Kamailio is listening on, can be used as source ports of new TCP connections when acting as an UAC. Kamailio must have been compiled in a system implementing SO_REUSEPORT (Linux \\> 3.9.0, FreeBSD, OpenBSD, NetBSD, MacOSX). This parameter takes effect only if also the system on which Kamailio is running on supports SO_REUSEPORT."
+      },
+      {
+        "name": "tcp_script_mode",
+        "detail": "TCP Parameters",
+        "doc": "Specify if connection should be closed (set to CONN_ERROR) if processing the received message results in error (that can also be due to negative return code from a configuration script main route block). If set to 1, the processing continues with the connection open."
+      },
+      {
+        "name": "tcp_send_timeout",
+        "detail": "TCP Parameters",
+        "doc": "Time in seconds after a TCP connection will be closed if it is not available for writing in this interval (and Kamailio wants to send something on it). Lower this value for faster detection of broken TCP connections. The default value is 10s."
+      },
+      {
+        "name": "tcp_source_ipv4,",
+        "detail": "TCP Parameters",
+        "doc": "Set the source IP for all outbound TCP connections. If setting of the IP fails, the TCP connection will use the default IP address."
+      },
+      {
+        "name": "tcp_syncnt",
+        "detail": "TCP Parameters",
+        "doc": "Number of SYN retransmissions before aborting a connect attempt (see linux tcp(7) TCP_SYNCNT). Linux only."
+      },
+      {
+        "name": "tcp_wait_data",
+        "detail": "TCP Parameters",
+        "doc": "Specify how long to wait (in milliseconds) to wait for data on tcp connections in certain cases. Now applies when reading on tcp connection for haproxy protocol."
+      },
+      {
+        "name": "tcp_wq_blk_size",
+        "detail": "TCP Parameters",
+        "doc": "Block size used for tcp async writes. It should be big enough to hold a few datagrams. If it's smaller than a datagram (in fact a tcp write()) size, it will be rounded up. It has no influenced on the number of datagrams queued (for that see tcp_conn_wq_max or tcp_wq_max). It has mostly debugging and testing value (can be ignored)."
+      },
+      {
+        "name": "tcp_wq_max",
+        "detail": "TCP Parameters",
+        "doc": "Maximum bytes queued for write allowed globally. It has no effect if tcp_buf_write is not enabled."
+      },
+      {
+        "name": "tls_port_no",
+        "detail": "TLS Parameters",
+        "doc": "The port the SIP server listens to for TLS connections."
+      },
+      {
+        "name": "tls_max_connections",
+        "detail": "TLS Parameters",
+        "doc": "Maximum number of TLS connections (if the number is exceeded no new TLS connections will be accepted). It cannot exceed tcp_max_connections."
+      },
+      {
+        "name": "tls_threads_mode",
+        "detail": "TLS Parameters",
+        "doc": "Control how to initialize the internal multi-threading system that impacts libssl 3.x."
+      },
+      {
+        "name": "disable_sctp",
+        "detail": "SCTP Parameters",
+        "doc": "Global parameter to disable SCTP support in the SIP server. See also `enable_sctp`."
+      },
+      {
+        "name": "enable_sctp",
+        "detail": "SCTP Parameters",
+        "doc": ""
+      },
+      {
+        "name": "sctp_children",
+        "detail": "SCTP Parameters",
+        "doc": "sctp children no (similar to udp children)"
+      },
+      {
+        "name": "sctp_socket_rcvbuf",
+        "detail": "SCTP Parameters",
+        "doc": "Size for the sctp socket receive buffer"
+      },
+      {
+        "name": "sctp_socket_sndbuf",
+        "detail": "SCTP Parameters",
+        "doc": "Size for the sctp socket send buffer"
+      },
+      {
+        "name": "sctp_autoclose",
+        "detail": "SCTP Parameters",
+        "doc": "Number of seconds before autoclosing an idle association (default: `180` s). Can be changed at runtime, but it will affect only new associations. E.g.:"
+      },
+      {
+        "name": "sctp_send_ttl",
+        "detail": "SCTP Parameters",
+        "doc": "Number of milliseconds before an unsent message/chunk is dropped (default: `32000` ms or `32` s). Can be changed at runtime, e.g.:"
+      },
+      {
+        "name": "sctp_send_retries",
+        "detail": "SCTP Parameters",
+        "doc": "How many times to attempt re-sending a message on a re-opened association, if the sctp stack did give up sending it (it's not related to sctp protocol level retransmission). Useful to improve reliability with peers that reboot/restart or fail over to another machine."
+      },
+      {
+        "name": "sctp_assoc_tracking",
+        "detail": "SCTP Parameters",
+        "doc": "Controls whether or not sctp associations are tracked inside Kamailio. Turning it off would result in less memory being used and slightly better performance, but it will also disable some other features that depend on it (e.g. `sctp_assoc_reuse`). Default: yes."
+      },
+      {
+        "name": "sctp_assoc_reuse",
+        "detail": "SCTP Parameters",
+        "doc": "Controls sctp association reuse. For now only association reuse for replies is affected by it. Default: `yes`. Depends on `sctp_assoc_tracking` being on."
+      },
+      {
+        "name": "sctp_max_assocs",
+        "detail": "SCTP Parameters",
+        "doc": "Maximum number of allowed open sctp associations. -1 means maximum allowed by the OS. Default: -1. Can be changed at runtime (e.g.: `kamcmd cfg.seti sctp max_assocs 10`). When the maximum associations number is exceeded and a new associations is opened by a remote host, the association will be immediately closed. However it is possible that some SIP packets get through (especially if they are sent early, as part of the 4-way handshake)."
+      },
+      {
+        "name": "sctp_srto_initial",
+        "detail": "SCTP Parameters",
+        "doc": "Initial value of the retr. timeout, used in RTO calculations (default: OS specific)."
+      },
+      {
+        "name": "sctp_srto_max",
+        "detail": "SCTP Parameters",
+        "doc": "Maximum value of the retransmission timeout (RTO) (default: OS specific)."
+      },
+      {
+        "name": "sctp_srto_min",
+        "detail": "SCTP Parameters",
+        "doc": "Minimum value of the retransmission timeout (RTO) (default: OS specific)."
+      },
+      {
+        "name": "sctp_asocmaxrxt",
+        "detail": "SCTP Parameters",
+        "doc": "Maximum retransmissions attempts per association (default: OS specific). It should be set to `sctp_pathmaxrxt` `*` no. of expected paths."
+      },
+      {
+        "name": "sctp_init_max_attempts",
+        "detail": "SCTP Parameters",
+        "doc": "Maximum INIT retransmission attempts (default: OS specific)."
+      },
+      {
+        "name": "sctp_init_max_timeo",
+        "detail": "SCTP Parameters",
+        "doc": "Maximum INIT retransmission timeout (RTO max for INIT). Default: OS specific."
+      },
+      {
+        "name": "sctp_hbinterval",
+        "detail": "SCTP Parameters",
+        "doc": "sctp heartbeat interval. Setting it to -1 will disable the heartbeats. Default: OS specific."
+      },
+      {
+        "name": "sctp_pathmaxrxt",
+        "detail": "SCTP Parameters",
+        "doc": "Maximum retransmission attempts per path (see also sctp_asocmaxrxt). Default: OS specific."
+      },
+      {
+        "name": "sctp_sack_delay",
+        "detail": "SCTP Parameters",
+        "doc": "Delay until an ACK is generated after receiving a packet. Default: OS specific."
+      },
+      {
+        "name": "sctp_sack_freq",
+        "detail": "SCTP Parameters",
+        "doc": "Number of packets received before an ACK is sent (without waiting for the `sack_delay` to expire). Default: OS specific."
+      },
+      {
+        "name": "sctp_max_burst",
+        "detail": "SCTP Parameters",
+        "doc": "Maximum burst of packets that can be emitted by an association. Default: OS specific."
+      },
+      {
+        "name": "udp4_raw",
+        "detail": "UDP Parameters",
+        "doc": "Enables raw socket support for sending UDP IPv4 datagrams (40-50% performance increase on linux multi-cpu)."
+      },
+      {
+        "name": "udp4_raw_mtu",
+        "detail": "UDP Parameters",
+        "doc": "MTU value used for UDP IPv4 packets when udp4_raw is enabled. It should be set to the minimum MTU of all the network interfaces that could be used for sending. The default value is 1500. Note that on BSDs it does not need to be set (if set it will be ignored, the proper MTU will be used automatically by the kernel). On Linux it should be set."
+      },
+      {
+        "name": "udp4_raw_ttl",
+        "detail": "UDP Parameters",
+        "doc": "TTL value used for UDP IPv4 packets when udp4_raw is enabled. By default it is set to auto mode (`-1`), meaning that the same TTL will be used as for normal UDP sockets."
+      },
+      {
+        "name": "dst_blocklist_expire",
+        "detail": "Blocklist Parameters",
+        "doc": "**Alias name:** **dst_blocklist_ttl**"
+      },
+      {
+        "name": "dst_blocklist_gc_interval",
+        "detail": "Blocklist Parameters",
+        "doc": "How often the garbage collection will run (eliminating old, expired entries)."
+      },
+      {
+        "name": "dst_blocklist_init",
+        "detail": "Blocklist Parameters",
+        "doc": "If off, the blocklist is not initialized at startup and cannot be enabled at runtime, this saves some memory."
+      },
+      {
+        "name": "dst_blocklist_mem",
+        "detail": "Blocklist Parameters",
+        "doc": "Maximum shared memory amount used for keeping the blocklisted destinations."
+      },
+      {
+        "name": "use_dst_blocklist",
+        "detail": "Blocklist Parameters",
+        "doc": "Enable the destination blocklist: Each failed send attempt will cause the destination to be added to the blocklist. Before any send, this blocklist will be checked and if a match is found, the send is no longer attempted (an error is returned immediately)."
+      },
+      {
+        "name": "real_time",
+        "detail": "Real-Time Parameters",
+        "doc": "Sets real time priority for all the Kamailio processes, or the timers (bitmask)."
+      },
+      {
+        "name": "rt_policy",
+        "detail": "Real-Time Parameters",
+        "doc": "Real time scheduling policy, `0 = SCHED_OTHER`, `1= SCHED_RR` and `2=SCHED_FIFO`"
+      },
+      {
+        "name": "rt_prio",
+        "detail": "Real-Time Parameters",
+        "doc": "Real time priority used for everything except the timers, if `real_time` is enabled."
+      },
+      {
+        "name": "rt_timer1_policy",
+        "detail": "Real-Time Parameters",
+        "doc": "**Alias name:** **rt_ftimer_policy**"
+      },
+      {
+        "name": "rt_timer1_prio",
+        "detail": "Real-Time Parameters",
+        "doc": "**Alias name:** **rt_fast_timer_prio, rt_ftimer_prio**"
+      },
+      {
+        "name": "rt_timer2_policy",
+        "detail": "Real-Time Parameters",
+        "doc": "**Alias name:** **rt_stimer_policy**"
+      },
+      {
+        "name": "rt_timer2_prio",
+        "detail": "Real-Time Parameters",
+        "doc": "**Alias name:** **rt_stimer_prio**"
+      }
+    ],
+    "pvars": [
+      {
+        "name": "$_s",
+        "detail": "Evaluate dynamic format",
+        "doc": "**$\\_s(format)** - returns the string after evaluating all pseudo-variables in format"
+      },
+      {
+        "name": "$ai",
+        "detail": "URI in P-Asserted-Identity header",
+        "doc": "**$ai** - reference to URI in request's P-Asserted-Identity header (see RFC 3325)"
+      },
+      {
+        "name": "$adu",
+        "detail": "Auth Digest URI",
+        "doc": "**$adu** - URI from Authorization or Proxy-Authorization header. This URI is used when calculating the HTTP Digest Response."
+      },
+      {
+        "name": "$aa",
+        "detail": "Auth algorithm",
+        "doc": "**$aa** - algorithm from Authorization or Proxy-Authorization header."
+      },
+      {
+        "name": "$ar",
+        "detail": "Auth realm",
+        "doc": "**$ar** - realm from Authorization or Proxy-Authorization header"
+      },
+      {
+        "name": "$au",
+        "detail": "Auth username user",
+        "doc": "**$au** - user part of username from Authorization or Proxy-Authorization header"
+      },
+      {
+        "name": "$ad",
+        "detail": "Auth username domain",
+        "doc": "**$ad** - domain part of username from Authorization or Proxy-Authorization header"
+      },
+      {
+        "name": "$aU",
+        "detail": "Auth whole username",
+        "doc": "**$aU** - whole username from Authorization or Proxy-Authorization header"
+      },
+      {
+        "name": "$Au",
+        "detail": "Acc username and realm/domain",
+        "doc": "**$Au** - username for accounting purposes. It's a selective pseudo variable (inherited from acc module). It returns the auth username and realm ($au@$ar) if it exists or From URI ($fu) otherwise."
+      },
+      {
+        "name": "$AU",
+        "detail": "Acc username",
+        "doc": "**$AU** - username for accounting purposes. It's a selective pseudo variable (inherited from acc module). It returns the auth username ($au) if it exists or From user ($fU) otherwise."
+      },
+      {
+        "name": "$branch",
+        "detail": "Branch attributes",
+        "doc": "**$branch(name)** - reference to attribute 'name' of a branch"
+      },
+      {
+        "name": "$br",
+        "detail": "Request's first branch",
+        "doc": "**$br** - reference to request's first branch"
+      },
+      {
+        "name": "$bR",
+        "detail": "Request's all branches",
+        "doc": "**$bR** - reference to request's all branches"
+      },
+      {
+        "name": "$bf",
+        "detail": "Branch flags",
+        "doc": "**$bf** - reference to branch flags of branch 0 (RURI) - decimal output"
+      },
+      {
+        "name": "$bF",
+        "detail": "Branch flags",
+        "doc": "**$bF** - reference to branch flags of branch 0 (RURI) - hexa output"
+      },
+      {
+        "name": "$bs",
+        "detail": "Body size",
+        "doc": "**$bs** - body size"
+      },
+      {
+        "name": "$ci",
+        "detail": "Call-Id",
+        "doc": "**$ci** - reference to the value of call-id header"
+      },
+      {
+        "name": "$cl",
+        "detail": "Content-Length",
+        "doc": "**$cl** - reference to the value of content-length header"
+      },
+      {
+        "name": "$cnt",
+        "detail": "Count number of pvs",
+        "doc": "**$cnt(avp)** - return the number of avps"
+      },
+      {
+        "name": "$conid",
+        "detail": "TCP Connection ID",
+        "doc": "**$conid** - The TCP connection ID of the connection the current message arrived on for TCP, TLS, WS, and WSS. Set to $null for SCTP and UDP."
+      },
+      {
+        "name": "$cs",
+        "detail": "CSeq Number",
+        "doc": "**$cs** - reference to the sequence number in the CSeq header. The method in the CSeq header is identical to the request method, thus use $rm to get the method (works also for responses)."
+      },
+      {
+        "name": "$csb",
+        "detail": "CSeq Header Body",
+        "doc": "**$csb** - reference to the CSeq header body (number method)."
+      },
+      {
+        "name": "$ct",
+        "detail": "Contact header",
+        "doc": "**$ct** - reference to the value of contact header"
+      },
+      {
+        "name": "$cts",
+        "detail": "Contact Header Star Status",
+        "doc": "**$cts** - 1 - if Contact header has `*` value; 0 - otherwise"
+      },
+      {
+        "name": "$ctu",
+        "detail": "Contact Header URI",
+        "doc": "**$ctu** - reference to the URI part of the contact header"
+      },
+      {
+        "name": "$cT",
+        "detail": "Content-Type",
+        "doc": "**$cT** - reference to the value of content-type header"
+      },
+      {
+        "name": "$dd",
+        "detail": "Domain of destination URI",
+        "doc": "**$dd** - reference to domain of destination uri (without port)"
+      },
+      {
+        "name": "$def",
+        "detail": "Defined Value",
+        "doc": "**$def(name)** - return a defined value."
+      },
+      {
+        "name": "$defn",
+        "detail": "Defined Value As Number",
+        "doc": "**$defn(name)** - return a defined value as a signed integer."
+      },
+      {
+        "name": "$defs",
+        "detail": "String Quoted Defined Value",
+        "doc": "**$defs(name)** - return string quoted defined value. If the defined value is enclosed between single or double quotes, then the value is returned as it is."
+      },
+      {
+        "name": "$defv",
+        "detail": "Unquoted Defined Value",
+        "doc": "**$defv(name)** - return unquoted defined value. Works for both single and double quotes. If the defined value is not enclosed between quotes, then the value is returned as it is."
+      },
+      {
+        "name": "$di",
+        "detail": "Diversion header URI",
+        "doc": "**$di** - reference to Diversion header URI"
+      },
+      {
+        "name": "$dip",
+        "detail": "Diversion \"privacy\" parameter",
+        "doc": "**$dip** - reference to Diversion header \"privacy\" parameter value"
+      },
+      {
+        "name": "$dir",
+        "detail": "Diversion \"reason\" parameter",
+        "doc": "**$dir** - reference to Diversion header \"reason\" parameter value"
+      },
+      {
+        "name": "$dic",
+        "detail": "Diversion \"counter\" parameter",
+        "doc": "**$dic** - reference to Diversion header \"counter\" parameter value"
+      },
+      {
+        "name": "$dp",
+        "detail": "Port of destination URI",
+        "doc": "**$dp** - reference to port of destination uri"
+      },
+      {
+        "name": "$dP",
+        "detail": "Transport protocol of destination URI",
+        "doc": "**$dP** - reference to transport protocol of destination uri"
+      },
+      {
+        "name": "$ds",
+        "detail": "Destination set",
+        "doc": "**$ds** - reference to destination set"
+      },
+      {
+        "name": "$du",
+        "detail": "Destination URI",
+        "doc": "**$du** - reference to destination uri"
+      },
+      {
+        "name": "$Eb",
+        "detail": "Back Slash",
+        "doc": "Return `\\`."
+      },
+      {
+        "name": "$En",
+        "detail": "LF",
+        "doc": "Return `\\n`."
+      },
+      {
+        "name": "$Et",
+        "detail": "Tab",
+        "doc": "Return `\\t`."
+      },
+      {
+        "name": "$Es",
+        "detail": "Space",
+        "doc": "Return ` `. <!-- markdownlint-disable MD038 -->"
+      },
+      {
+        "name": "$Ec",
+        "detail": "Comma",
+        "doc": "Return `,`."
+      },
+      {
+        "name": "$Eq",
+        "detail": "Double Quote",
+        "doc": "Return `\"`."
+      },
+      {
+        "name": "$Ek",
+        "detail": "Single Quote",
+        "doc": "Return `'`."
+      },
+      {
+        "name": "$Ei",
+        "detail": "Colon",
+        "doc": "Return `:`."
+      },
+      {
+        "name": "$Ej",
+        "detail": "Semicolon",
+        "doc": "Return `;`."
+      },
+      {
+        "name": "$Ev",
+        "detail": "Back Tick",
+        "doc": "Return `\\``."
+      },
+      {
+        "name": "$fd",
+        "detail": "From URI domain",
+        "doc": "**$fd** - reference to domain in URI of 'From' header"
+      },
+      {
+        "name": "$fn",
+        "detail": "From display name",
+        "doc": "**$fn** - reference to display name of 'From' header"
+      },
+      {
+        "name": "$fs",
+        "detail": "Forced Send Socket",
+        "doc": "**$fs** - reference to the forced send socket for the SIP message (if any) in the form \"proto:ip:port\". It is the socket from where Kamailio is going to send out the message."
+      },
+      {
+        "name": "$fsn",
+        "detail": "Forced Send Socket Name",
+        "doc": "**$fsn** - reference to the name of the forced send socket for the SIP message. The name can be assigned to this variable to select a send socket via its name."
+      },
+      {
+        "name": "$ft",
+        "detail": "From tag",
+        "doc": "**$ft** - reference to tag parameter of 'From' header"
+      },
+      {
+        "name": "$fti",
+        "detail": "Initial From tag",
+        "doc": "**$fti** - reference to tag parameter of 'From' header as it was in the initial request (e.g., initial INVITE)."
+      },
+      {
+        "name": "$fu",
+        "detail": "From URI",
+        "doc": "**$fu** - reference to URI of 'From' header"
+      },
+      {
+        "name": "$fU",
+        "detail": "From URI username",
+        "doc": "**$fU** - reference to username in URI of 'From' header"
+      },
+      {
+        "name": "$fUl",
+        "detail": "From URI Username Length",
+        "doc": "**$fUl** - length of the username in the From URI"
+      },
+      {
+        "name": "$mb",
+        "detail": "SIP message buffer",
+        "doc": "**$mb** - reference to SIP message buffer"
+      },
+      {
+        "name": "$mbu",
+        "detail": "updated SIP message buffer",
+        "doc": "**$mbu** - reference to updated SIP message buffer, after applying changes"
+      },
+      {
+        "name": "$mf",
+        "detail": "Flags",
+        "doc": "**$mf** - reference to message/transaction flags set for current SIP request"
+      },
+      {
+        "name": "$mF",
+        "detail": "Flags in hexadecimal",
+        "doc": "**$mF** -reference to message/transaction flags set for current SIP request in hexa-decimal"
+      },
+      {
+        "name": "$mi",
+        "detail": "SIP message id",
+        "doc": "**$mi** - reference to SIP message id"
+      },
+      {
+        "name": "$ml",
+        "detail": "SIP message length",
+        "doc": "**$ml** - reference to SIP message length"
+      },
+      {
+        "name": "$mt",
+        "detail": "SIP Message Type",
+        "doc": "**$mt** - returns 1 if the sip message is a request, returns 2 if the sip message is a reply"
+      },
+      {
+        "name": "$od",
+        "detail": "Domain original R-URI",
+        "doc": "**$od** - reference to domain in request's original R-URI"
+      },
+      {
+        "name": "$op",
+        "detail": "Port in original R-URI",
+        "doc": "**$op** - reference to port of original R-URI"
+      },
+      {
+        "name": "$oP",
+        "detail": "Protocol of original R-URI",
+        "doc": "**$oP** - reference to transport protocol of original R-URI"
+      },
+      {
+        "name": "$ou",
+        "detail": "Original R-URI",
+        "doc": "**$ou** - reference to request's original URI"
+      },
+      {
+        "name": "$oU",
+        "detail": "Username in original R-URI",
+        "doc": "**$oU** - reference to username in request's original URI"
+      },
+      {
+        "name": "$oUl",
+        "detail": "Original R-URI Username Length",
+        "doc": "**$oUl** - the length of the username in the original R-URI"
+      },
+      {
+        "name": "$pd",
+        "detail": "Domain in P-Preferred-Identity header URI",
+        "doc": "**$pd** - reference to domain in request's P-Preferred-Identity header URI (see RFC 3325)"
+      },
+      {
+        "name": "$pn",
+        "detail": "Display Name in P-Preferred-Identity header",
+        "doc": "**$pn** - reference to Display Name in request's P-Preferred-Identity header (see RFC 3325)"
+      },
+      {
+        "name": "$pp",
+        "detail": "Process id",
+        "doc": "**$pp** - reference to process id (pid)"
+      },
+      {
+        "name": "$pr",
+        "detail": "Protocol of received message",
+        "doc": "**$pr** or **$proto** - protocol of received message (udp, tcp, tls, sctp, ws, wss)"
+      },
+      {
+        "name": "$prid",
+        "detail": "protocol id",
+        "doc": "**$prid** - internal protocol id"
+      },
+      {
+        "name": "$pU",
+        "detail": "User in P-Preferred-Identity header URI",
+        "doc": "**$pU** - reference to user in request's P-Preferred-Identity header URI (see RFC 3325)"
+      },
+      {
+        "name": "$pu",
+        "detail": "URI in P-Preferred-Identity header",
+        "doc": "**$pu** - reference to URI in request's P-Preferred-Identity header (see RFC 3325)"
+      },
+      {
+        "name": "$rb",
+        "detail": "Body of request/reply",
+        "doc": "**$rb** - reference to message body"
+      },
+      {
+        "name": "$rc",
+        "detail": "Returned code",
+        "doc": "**$rc** - reference to returned code by last invoked function"
+      },
+      {
+        "name": "$rd",
+        "detail": "Domain in R-URI",
+        "doc": "**$rd** - reference to domain in request's URI (without port) or to the Namespace Specific String of a URN (see RFC 2141)"
+      },
+      {
+        "name": "$rdir",
+        "detail": "Request Direction",
+        "doc": "**$rdir(key)** - get the direction of the request within dialog."
+      },
+      {
+        "name": "$re",
+        "detail": "Remote-Party-ID header URI",
+        "doc": "**$re** - reference to Remote-Party-ID header URI"
+      },
+      {
+        "name": "$rm",
+        "detail": "SIP method",
+        "doc": "**$rm** - reference to request's method. Works also for replies (by using the CSeq header)"
+      },
+      {
+        "name": "$rmid",
+        "detail": "SIP Method ID",
+        "doc": "**$rmid** - returns internal integer representation of SIP method type"
+      },
+      {
+        "name": "$route_uri",
+        "detail": "URI in first Route header",
+        "doc": "**$route_uri** - returns the string with URI field in the first Route header"
+      },
+      {
+        "name": "$rp",
+        "detail": "Port in R-URI",
+        "doc": "**$rp** - reference to port of R-URI"
+      },
+      {
+        "name": "$rP",
+        "detail": "Protocol of R-URI",
+        "doc": "**$rP** - reference to transport protocol of R-URI"
+      },
+      {
+        "name": "$rr",
+        "detail": "SIP reply reason phrase",
+        "doc": "**$rr** - reference to reply's reason phrase (the text after reply code)"
+      },
+      {
+        "name": "$rs",
+        "detail": "SIP reply code",
+        "doc": "**$rs** - reference to reply's status (status-code, response-code, reply-code)"
+      },
+      {
+        "name": "$rt",
+        "detail": "Refer-to URI",
+        "doc": "**$rt** - reference to URI of refer-to header"
+      },
+      {
+        "name": "$ru",
+        "detail": "Request URI",
+        "doc": "**$ru** - reference to request's URI (address in the first line of a SIP request)"
+      },
+      {
+        "name": "$rU",
+        "detail": "Username in R-URI",
+        "doc": "**$rU** - reference to username in request's URI or to the Namespace Identifier of a URN (see RFC 2141)"
+      },
+      {
+        "name": "$rUl",
+        "detail": "R-URI Username Length",
+        "doc": "**$rUl** - the length of the username in R-URI"
+      },
+      {
+        "name": "$rv",
+        "detail": "SIP message version",
+        "doc": "**$rv** - reference to SIP message (reply or request) version"
+      },
+      {
+        "name": "$ruid",
+        "detail": "Record internal Unique ID",
+        "doc": "**$ruid** - the Record internal Unique ID for the location record selected by calling registrar:lookup()"
+      },
+      {
+        "name": "$rz",
+        "detail": "URI Scheme of R-URI",
+        "doc": "**$rz** - returns R-URI scheme, possible values: sip, sips, tel, tels and urn, R-URI scheme parsing error should be reflected by value: none"
+      },
+      {
+        "name": "$RAi",
+        "detail": "Received advertised IP address",
+        "doc": "**$RAi** - reference to advertised IP address of the interface where the request has been received, or $Ri if no advertised address."
+      },
+      {
+        "name": "$RAp",
+        "detail": "Received advertised port",
+        "doc": "**$RAp** - reference to advertised port where the request has been received, or $Rp if no advertised port."
+      },
+      {
+        "name": "$Ri",
+        "detail": "Received IP address",
+        "doc": "**$Ri** - reference to IP address of the interface where the request has been received"
+      },
+      {
+        "name": "$Rp",
+        "detail": "Received port",
+        "doc": "**$Rp** - reference to the port where the message was received"
+      },
+      {
+        "name": "$Rn",
+        "detail": "Received socket name",
+        "doc": "**$Rn** - reference to the name of the socket where the message was received"
+      },
+      {
+        "name": "$RAu",
+        "detail": "Advertised socket URI",
+        "doc": "**$RAu** - local socket where the SIP messages was received in URI format, without transport parameter for UDP, using advertised address when available."
+      },
+      {
+        "name": "$RAut",
+        "detail": "Advertised socket URI",
+        "doc": "**$RAut** - local socket where the SIP messages was received in URI format, always with transport parameter, using advertised address when available."
+      },
+      {
+        "name": "$Ru",
+        "detail": "Received socket URI",
+        "doc": "**$Ru** - local socket where the SIP messages was received in URI format, without transport parameter for UDP."
+      },
+      {
+        "name": "$Rut",
+        "detail": "Received socket URI",
+        "doc": "**$Rut** - local socket where the SIP messages was received in URI format, always with transport parameter."
+      },
+      {
+        "name": "$sas",
+        "detail": "Source address in socket format",
+        "doc": "**$sas** - get source address in socket format (proto:address:port)."
+      },
+      {
+        "name": "$sbranch",
+        "detail": "Static Branch",
+        "doc": "**$sbranch(attr)** - class of variables allowing to manage the values of attributes for static branch. The static branch is internal structure that is used by the functions sbranch_push_ruri() and sbranch_append() from **pv** module, enabling more flexibility in updating the R-URI (first) branch attributes as well as extra branches (e.g., for parallel forking)."
+      },
+      {
+        "name": "$sf",
+        "detail": "Script flags",
+        "doc": "**$sf** - reference to script flags - decimal output"
+      },
+      {
+        "name": "$sF",
+        "detail": "Script flags",
+        "doc": "**$sF** - reference to script flags - hexa output"
+      },
+      {
+        "name": "$si",
+        "detail": "Source IP address",
+        "doc": "**$si** - reference to IP source address of the message - see also $siz"
+      },
+      {
+        "name": "$sid",
+        "detail": "Server ID",
+        "doc": "**$sid** - the value for server id (server_id parameter)"
+      },
+      {
+        "name": "$siz",
+        "detail": "Source IP address",
+        "doc": "**$siz** - reference to IP source address of the message, with enclosing square brackets for IPv6"
+      },
+      {
+        "name": "$sp",
+        "detail": "Source port",
+        "doc": "**$sp** - reference to the source port of the message"
+      },
+      {
+        "name": "$stat",
+        "detail": "Statistics",
+        "doc": "**$stat(name)** - return the value of statistic item specified by 'name'"
+      },
+      {
+        "name": "$su",
+        "detail": "Source address as URI",
+        "doc": "**$su** - returns the representation of source address (ip, port, proto) as SIP URI. If the proto is UDP, then it is not added (being the default transport protocol)."
+      },
+      {
+        "name": "$sut",
+        "detail": "Source address as full URI",
+        "doc": "**$sut** - returns the representation of source address (ip, port, proto) as full SIP URI. The proto UDP is added also as transport parameter."
+      },
+      {
+        "name": "$td",
+        "detail": "To URI Domain",
+        "doc": "**$td** - reference to domain in URI of 'To' header"
+      },
+      {
+        "name": "$tn",
+        "detail": "To display name",
+        "doc": "**$tn** - reference to display name of 'To' header"
+      },
+      {
+        "name": "$tt",
+        "detail": "To tag",
+        "doc": "**$tt** - reference to tag parameter of 'To' header"
+      },
+      {
+        "name": "$tti",
+        "detail": "Initial To tag",
+        "doc": "**$tti** - reference to tag parameter of 'To' header as it was in the SIP response to the initial request (e.g., 200ok to the initial INVITE)."
+      },
+      {
+        "name": "$tts",
+        "detail": "To-Tag State",
+        "doc": "**$tts** - return the To-Tag state: `0` - To-tag is not set; `1` - To-Tag is set"
+      },
+      {
+        "name": "$tu",
+        "detail": "To URI",
+        "doc": "**$tu** - reference to URI of 'To' header"
+      },
+      {
+        "name": "$tU",
+        "detail": "To URI Username",
+        "doc": "**$tU** - reference to username in URI of 'To' header"
+      },
+      {
+        "name": "$tUl",
+        "detail": "To URI Username Length",
+        "doc": "**$tUl** - the length of the username in To URI"
+      },
+      {
+        "name": "$Tb",
+        "detail": "Startup timestamp",
+        "doc": "**$Tb** - reference to unix timestamp of the time at which kamailio was started (boot time)"
+      },
+      {
+        "name": "$Tf",
+        "detail": "String formatted time - cached",
+        "doc": "**$Tf** - reference string formatted time"
+      },
+      {
+        "name": "$TF",
+        "detail": "String formatted time - current",
+        "doc": "**$TF** - reference string formatted time"
+      },
+      {
+        "name": "$Ts",
+        "detail": "Unix time stamp - cached",
+        "doc": "**$Ts** - reference to unix time stamp"
+      },
+      {
+        "name": "$TS",
+        "detail": "Unix time stamp - current",
+        "doc": "**$TS** - reference to unix time stamp"
+      },
+      {
+        "name": "$ua",
+        "detail": "User agent header",
+        "doc": "**$ua** - reference to user agent header field"
+      },
+      {
+        "name": "$version",
+        "detail": "version",
+        "doc": "**$version(num)** - version as number"
+      },
+      {
+        "name": "$env",
+        "detail": "environment variables",
+        "doc": ""
+      },
+      {
+        "name": "$envn",
+        "detail": "environment variables as number",
+        "doc": ""
+      },
+      {
+        "name": "$avp",
+        "detail": "AVPs",
+        "doc": ""
+      },
+      {
+        "name": "$expires",
+        "detail": "Expires Values",
+        "doc": ""
+      },
+      {
+        "name": "$xavp",
+        "detail": "XAVPs",
+        "doc": ""
+      },
+      {
+        "name": "$xavu",
+        "detail": "XAVUs",
+        "doc": ""
+      },
+      {
+        "name": "$xavi",
+        "detail": "XAVIs",
+        "doc": ""
+      },
+      {
+        "name": "$hdr",
+        "detail": "Headers",
+        "doc": ""
+      },
+      {
+        "name": "$hfl",
+        "detail": "Header Field With List Of Bodies",
+        "doc": ""
+      },
+      {
+        "name": "$hdrc",
+        "detail": "Number of Headers",
+        "doc": ""
+      },
+      {
+        "name": "$hflc",
+        "detail": "Number of Header Bodies",
+        "doc": ""
+      },
+      {
+        "name": "$var",
+        "detail": "Private memory variables (zero)",
+        "doc": ""
+      },
+      {
+        "name": "$vz",
+        "detail": "Private memory variables (zero)",
+        "doc": ""
+      },
+      {
+        "name": "$vn",
+        "detail": "Private memory variables (null)",
+        "doc": ""
+      },
+      {
+        "name": "$shv",
+        "detail": "Shared memory variables",
+        "doc": ""
+      },
+      {
+        "name": "$dsv",
+        "detail": "Dispatcher variables",
+        "doc": ""
+      },
+      {
+        "name": "$dsg",
+        "detail": "Dispatcher group attributes",
+        "doc": ""
+      },
+      {
+        "name": "$time",
+        "detail": "Broken-down time",
+        "doc": ""
+      },
+      {
+        "name": "$utime",
+        "detail": "Broken-down time",
+        "doc": ""
+      },
+      {
+        "name": "$timef",
+        "detail": "Strftime Formatted Time",
+        "doc": ""
+      },
+      {
+        "name": "$utimef",
+        "detail": "Strftime Formatted UTC Time",
+        "doc": ""
+      },
+      {
+        "name": "$ccp",
+        "detail": "Config Custom Parameters",
+        "doc": ""
+      },
+      {
+        "name": "$sel",
+        "detail": "Selects",
+        "doc": ""
+      },
+      {
+        "name": "$rcv",
+        "detail": "$rcv(key)",
+        "doc": "Attributes of received data. The variables must be used inside **event_route\\[core:msg-received\\]** routing block."
+      },
+      {
+        "name": "$rpl",
+        "detail": "$rpl(key)",
+        "doc": ""
+      },
+      {
+        "name": "$msgbuf",
+        "detail": "$msgbuf(index)",
+        "doc": ""
+      },
+      {
+        "name": "$hfitname",
+        "detail": "$hfitname(iname)",
+        "doc": "The header name of the header field iterator."
+      },
+      {
+        "name": "$hfitbody",
+        "detail": "$hfitbody(iname)",
+        "doc": "The header body of the header field iterator."
+      },
+      {
+        "name": "$blitval",
+        "detail": "$blitval(iname)",
+        "doc": "The value of the body line iterator."
+      },
+      {
+        "name": "$sndfrom",
+        "detail": "$sndfrom(name)",
+        "doc": "**$snd(name)** - return attributes of the address from where the request is going to be sent (local socket)."
+      },
+      {
+        "name": "$sndto",
+        "detail": "$sndto(name)",
+        "doc": "**$sndto(name)** - return attributes of the address to where the request is going to be sent (remote socket)."
+      },
+      {
+        "name": "$sipdump",
+        "detail": "$sipdump(name)",
+        "doc": "**$sipdump(name)** - return attributes of the message handled in the event_route\\[sipdump:msg\\]."
+      },
+      {
+        "name": "$siptrace",
+        "detail": "$siptrace(name)",
+        "doc": "**$siptrace(name)** - return attributes of the message handled in the event_route\\[siptrace:msg\\]."
+      },
+      {
+        "name": "$BM_time_diff",
+        "detail": "$BM_time_diff",
+        "doc": "$BM_time_diff - the time difference elapsed between calls of bm_start_timer(name) and bm_log_timer(name). The value is 0 if no bm_log_timer() was called."
+      },
+      {
+        "name": "$dlg",
+        "detail": "$dlg(attr)",
+        "doc": "Return the attribute of the current processed dialog."
+      },
+      {
+        "name": "$dlg_ctx",
+        "detail": "$dlg_ctx(attr)",
+        "doc": "Return the attribute of the context for current processed dialog."
+      },
+      {
+        "name": "$dlg_var",
+        "detail": "$dlg_var(key)",
+        "doc": "Store and retrieve custom variable for current processed dialog."
+      },
+      {
+        "name": "$erl_atom",
+        "detail": "$erl_atom(name)",
+        "doc": "_$erl_atom(name)_ pseudo variable allows create analog to Erlang atom data type. Erlang atom is a literal, a constant with name. Formatted output pseudo variable atom could be enclosed in single quotes (') if it does not begin with a lower-case letter or if it contains other characters than alphanumeric characters, underscore (\\_), or @."
+      },
+      {
+        "name": "$erl_list",
+        "detail": "$erl_list(name)",
+        "doc": "Compound data type with a variable number of terms. Formally, a list is either the empty list \\[\\] or consists of one or more elements."
+      },
+      {
+        "name": "$erl_tuple",
+        "detail": "$erl_tuple(name)",
+        "doc": "From the Erlang point of view the tuple compound data type with a fixed number of terms. The module implementation of tuple has the same behavior as the list."
+      },
+      {
+        "name": "$erl_pid",
+        "detail": "$erl_pid(name)",
+        "doc": "Holds Eralng process identifier. Provides access to Erlang PID value and could be used in send message."
+      },
+      {
+        "name": "$erl_ref",
+        "detail": "$erl_ref(name)",
+        "doc": "Holds Erlang reference. Provides access to reference value and could be used in send message."
+      },
+      {
+        "name": "$erl_xbuff",
+        "detail": "$erl_xbuff(name)",
+        "doc": "Generic pseudo variable to acts as other pseudo variables exported from Erlang module."
+      },
+      {
+        "name": "$evapi",
+        "detail": "$evapi(srcaddr)",
+        "doc": "The source ip"
+      },
+      {
+        "name": "$sht",
+        "detail": "$sht(htable=>key)",
+        "doc": "Access hash table entries."
+      },
+      {
+        "name": "$shtex",
+        "detail": "$shtex(htable=>key)",
+        "doc": "Access hash table entry expire value. Value represents the seconds until the htable entry will expire and be deleted from htable."
+      },
+      {
+        "name": "$shtcn",
+        "detail": "$shtcn(htable=>exp)",
+        "doc": "Count items matching the name by regexp."
+      },
+      {
+        "name": "$shtcv",
+        "detail": "$shtcv(htable=>exp)",
+        "doc": "Count items matching the value by regexp."
+      },
+      {
+        "name": "$shtinc",
+        "detail": "$shtinc(htable=>key)",
+        "doc": "Atomic increment of the value for the hash table item."
+      },
+      {
+        "name": "$shtdec",
+        "detail": "$shtdec(htable=>key)",
+        "doc": "Atomic decrement of the value for the hash table item."
+      },
+      {
+        "name": "$shtitkey",
+        "detail": "$shtitkey(iname)",
+        "doc": "The key at the current position in the iterator."
+      },
+      {
+        "name": "$shtitval",
+        "detail": "$shtitval(iname)",
+        "doc": "The value at the current position in the iterator."
+      },
+      {
+        "name": "$shtrecord",
+        "detail": "$shtrecord(id)",
+        "doc": "Get the key or the value of expired item inside the event_route\\[htable:expired:\\_table_name\\_\\]."
+      },
+      {
+        "name": "$mct",
+        "detail": "$mct(key)",
+        "doc": "Access hash table entries stored in the memcached server."
+      },
+      {
+        "name": "$mcinc",
+        "detail": "$mcinc(key)",
+        "doc": "Do an atomic increment operation on the value stored in memcached. You need to add a value previously."
+      },
+      {
+        "name": "$mcdec",
+        "detail": "$mcdec(key)",
+        "doc": "Do an atomic decrement operation on the value stored in memcached. You need to add a value previously."
+      },
+      {
+        "name": "$http_req_id",
+        "detail": "$http_req_id",
+        "doc": "The $http_req_id read-only variable can be used in REQUEST_ROUTE to retrive the unique identifier for a query after sending it or in the HTTP callback route to retrive the id of the query the reply belongs to. Useful mainly in non-transactional context."
+      },
+      {
+        "name": "$http_req",
+        "detail": "$http_req(key)",
+        "doc": "The $http_req(key) write-only variable can be used to set custom parameters before sending a HTTP query."
+      },
+      {
+        "name": "$xml",
+        "detail": "$xml(name=>spec)",
+        "doc": "- name - id to refer the documet - spec - specifier: + doc - set/get the document as text + xpath:xpath-expression - evaluate xpath expression"
+      },
+      {
+        "name": "$T_branch_idx",
+        "detail": "$T_branch_idx",
+        "doc": "- the index (starting with 0 for the first branch) of the branch for which is executed the branch_route\\[\\]. - in failure_route\\[\\] block, the value is the number of completed branches added to the number of new new branches - in request_route block, the value is number of created branches - in onreply_route\\[\\], the value is the index of the branch receiving the reply - if used outside of transaction processing, the value is '-1'"
+      },
+      {
+        "name": "$T_reply_ruid",
+        "detail": "$T_reply_ruid",
+        "doc": "- the ruid stored in the current branch of the transaction. The ruid is stored in a branch from the details in a contact binding. In an event_route\\[tm:branch-failure\\] block, this is the ruid of the branch that sent a failure reply. In a failure_route\\[\\] block, this is the ruid of the winning failure response."
+      },
+      {
+        "name": "$T_reply_code",
+        "detail": "$T_reply_code",
+        "doc": "- the code of the reply, as follows: in request_route will be the last stateful sent reply; in reply_route will be the current processed reply; in failure_route will be the negative winning reply. In case of no-reply or error, '0' value is returned"
+      },
+      {
+        "name": "$T_req",
+        "detail": "$T_req(pv)",
+        "doc": "- can be used in reply routes or inside the modules to get access to attributes of the request belonging to same transaction as the reply"
+      },
+      {
+        "name": "$T_rpl",
+        "detail": "$T_rpl(pv)",
+        "doc": "- can be used in failure routes or inside the modules to get access to attributes of the winning reply belonging to same transaction as the request"
+      },
+      {
+        "name": "$T_inv",
+        "detail": "$T_inv(pv)",
+        "doc": "- can be used in request routes or inside the modules to get access to attributes of the INVITE request while processing a CANCEL."
+      },
+      {
+        "name": "$T",
+        "detail": "$T(name)",
+        "doc": "- pseudo-variable class to access TM attributes"
+      },
+      {
+        "name": "$T_branch",
+        "detail": "$T_branch(name)",
+        "doc": "- pseudo-variable class to access TM branch attributes"
+      },
+      {
+        "name": "$uac_req",
+        "detail": "$uac_req(key)",
+        "doc": "- used to build the input for uac_send_req() function of UAC module"
+      },
+      {
+        "name": "$rr_count",
+        "detail": "$rr_count",
+        "doc": "- Number of Record Routes in received SIP request or reply."
+      },
+      {
+        "name": "$rr_top_count",
+        "detail": "$rr_top_count",
+        "doc": "- If topmost Record Route in received SIP request or reply is a double Record Route, value of $rr_top_count is 2. If it a single Record Route, value of $rr_top_count is 1. If there is no Record Route(s), value of $rr_top_count is 0."
+      },
+      {
+        "name": "$mqk",
+        "detail": "$mqk(q)",
+        "doc": "- return the key of fetched item from queue q"
+      },
+      {
+        "name": "$mqv",
+        "detail": "$mqv(q)",
+        "doc": "- return the value of fetched item from queue q"
+      },
+      {
+        "name": "$TV",
+        "detail": "$TV(name)",
+        "doc": "Seconds and microseconds taken from struct timeval. The time at that moment is represented by **seconds.microseconds**."
+      },
+      {
+        "name": "$nh",
+        "detail": "$nh(key)",
+        "doc": "Return attributes of next hop for the SIP messages. For SIP requests, the address is taken from dst_uri, if set, if not from new r-uri or original r-uri. For SIP replies, the attributes are taken from 2nd Via header (username is always $null for SIP replies)."
+      },
+      {
+        "name": "$redis",
+        "detail": "$redis(res=>key)",
+        "doc": "Access the attributes of the Redis response."
+      },
+      {
+        "name": "$redisd",
+        "detail": "$redisd(key)",
+        "doc": "Return the corresponding value for various defines from hiredis library."
+      },
+      {
+        "name": "$gip",
+        "detail": "$gip(pvc=>key)",
+        "doc": "Variables exported by GeoIP module, returning geo-location attributes. The attributes are populated upon calling function **geoip_match(ipaddr, pvc)**."
+      },
+      {
+        "name": "$gip2",
+        "detail": "$gip2(pvc=>key)",
+        "doc": "Variables exported by GeoIP2 module, returning geo-location attributes. The attributes are populated upon calling function **geoip_match2(ipaddr, pvc)**."
+      },
+      {
+        "name": "$tls",
+        "detail": "$tls(key)",
+        "doc": "Variables related to TLS communication and certificates."
+      },
+      {
+        "name": "$tls_version",
+        "detail": "$tls_version",
+        "doc": "The TLS/SSL version which is used on the TLS connection from which the message was received. String type."
+      },
+      {
+        "name": "$tls_description",
+        "detail": "$tls_description",
+        "doc": "The TLS/SSL description of the TLS connection from which the message was received. String type."
+      },
+      {
+        "name": "$tls_cipher_info",
+        "detail": "$tls_cipher_info",
+        "doc": "The TLS/SSL cipher which is used on the TLS connection from which the message was received. String type."
+      },
+      {
+        "name": "$tls_cipher_bits",
+        "detail": "$tls_cipher_bits",
+        "doc": "The number of cipher bits which are used on the TLS connection from which the message was received. String and Integer type."
+      },
+      {
+        "name": "$tls_peer_version",
+        "detail": "$tls_peer_version",
+        "doc": "The version of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_version",
+        "detail": "$tls_my_version",
+        "doc": "The version of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_serial",
+        "detail": "$tls_peer_serial",
+        "doc": "The serial number of the certificate. String and Integer type."
+      },
+      {
+        "name": "$tls_my_serial",
+        "detail": "$tls_my_serial",
+        "doc": "The serial number of the certificate. String and Integer type."
+      },
+      {
+        "name": "$tls_peer_subject",
+        "detail": "$tls_peer_subject",
+        "doc": "ASCII dump of the fields in the subject section of the certificate. String type. Example:"
+      },
+      {
+        "name": "$tls_peer_issuer",
+        "detail": "$tls_peer_issuer",
+        "doc": "ASCII dump of the fields in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_subject",
+        "detail": "$tls_my_subject",
+        "doc": "ASCII dump of the fields in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_issuer",
+        "detail": "$tls_my_issuer",
+        "doc": "ASCII dump of the fields in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_subject_cn",
+        "detail": "$tls_peer_subject_cn",
+        "doc": "commonName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_issuer_cn",
+        "detail": "$tls_peer_issuer_cn",
+        "doc": "commonName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_subject_cn",
+        "detail": "$tls_my_subject_cn",
+        "doc": "commonName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_issuer_cn",
+        "detail": "$tls_my_issuer_cn",
+        "doc": "commonName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_subject_locality",
+        "detail": "$tls_peer_subject_locality",
+        "doc": "localityName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_issuer_locality",
+        "detail": "$tls_peer_issuer_locality",
+        "doc": "localityName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_subject_locality",
+        "detail": "$tls_my_subject_locality",
+        "doc": "localityName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_issuer_locality",
+        "detail": "$tls_my_issuer_locality",
+        "doc": "localityName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_subject_country",
+        "detail": "$tls_peer_subject_country",
+        "doc": "countryName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_issuer_country",
+        "detail": "$tls_peer_issuer_country",
+        "doc": "countryName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_subject_country",
+        "detail": "$tls_my_subject_country",
+        "doc": "countryName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_issuer_country",
+        "detail": "$tls_my_issuer_country",
+        "doc": "countryName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_subject_state",
+        "detail": "$tls_peer_subject_state",
+        "doc": "stateOrProvinceName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_issuer_state",
+        "detail": "$tls_peer_issuer_state",
+        "doc": "stateOrProvinceName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_subject_state",
+        "detail": "$tls_my_subject_state",
+        "doc": "stateOrProvinceName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_issuer_state",
+        "detail": "$tls_my_issuer_state",
+        "doc": "stateOrProvinceName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_subject_organization",
+        "detail": "$tls_peer_subject_organization",
+        "doc": "organizationName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_issuer_organization",
+        "detail": "$tls_peer_issuer_organization",
+        "doc": "organizationName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_subject_organization",
+        "detail": "$tls_my_subject_organization",
+        "doc": "organizationName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_issuer_organization",
+        "detail": "$tls_my_issuer_organization",
+        "doc": "organizationName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_subject_unit",
+        "detail": "$tls_peer_subject_unit",
+        "doc": "organizationalUnitName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_subject_uid",
+        "detail": "$tls_peer_subject_uid",
+        "doc": "UID in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_issuer_unit",
+        "detail": "$tls_peer_issuer_unit",
+        "doc": "organizationalUnitName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_subject_unit",
+        "detail": "$tls_my_subject_unit",
+        "doc": "organizationalUnitName in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_subject_uid",
+        "detail": "$tls_my_subject_uid",
+        "doc": "UID in the subject section of the certificate. String type."
+      },
+      {
+        "name": "$tls_my_issuer_unit",
+        "detail": "$tls_my_issuer_unit",
+        "doc": "organizationalUnitName in the issuer section of the certificate. String type."
+      },
+      {
+        "name": "$tls_peer_san_email",
+        "detail": "$tls_peer_san_email",
+        "doc": "email address in the \"subject alternative name\" extension. String type."
+      },
+      {
+        "name": "$tls_my_san_email",
+        "detail": "$tls_my_san_email",
+        "doc": "email address in the \"subject alternative name\" extension. String type."
+      },
+      {
+        "name": "$tls_peer_san_hostname",
+        "detail": "$tls_peer_san_hostname",
+        "doc": "hostname (DNS) in the \"subject alternative name\" extension. String type."
+      },
+      {
+        "name": "$tls_my_san_hostname",
+        "detail": "$tls_my_san_hostname",
+        "doc": "hostname (DNS) in the \"subject alternative name\" extension. String type."
+      },
+      {
+        "name": "$tls_peer_san_uri",
+        "detail": "$tls_peer_san_uri",
+        "doc": "URI in the \"subject alternative name\" extension. String type."
+      },
+      {
+        "name": "$tls_my_san_uri",
+        "detail": "$tls_my_san_uri",
+        "doc": "URI in the \"subject alternative name\" extension. String type."
+      },
+      {
+        "name": "$tls_peer_san_ip",
+        "detail": "$tls_peer_san_ip",
+        "doc": "ip address in the \"subject alternative name\" extension. String type."
+      },
+      {
+        "name": "$tls_my_san_ip",
+        "detail": "$tls_my_san_ip",
+        "doc": "ip address in the \"subject alternative name\" extension. String type."
+      },
+      {
+        "name": "$tls_peer_verified",
+        "detail": "$tls_peer_verified",
+        "doc": "Returns 1 if the peer's certificate was successfully verified. Otherwise it returns 0. String and Integer type."
+      },
+      {
+        "name": "$tls_peer_revoked",
+        "detail": "$tls_peer_revoked",
+        "doc": "Returns 1 if the peer's certificate was revoked. Otherwise it returns 0. String and Integer type."
+      },
+      {
+        "name": "$tls_peer_expired",
+        "detail": "$tls_peer_expired",
+        "doc": "Returns 1 if the peer's certificate is expired. Otherwise it returns 0. String and Integer type."
+      },
+      {
+        "name": "$tls_peer_selfsigned",
+        "detail": "$tls_peer_selfsigned",
+        "doc": "Returns 1 if the peer's certificate is selfsigned. Otherwise it returns 0. String and Integer type."
+      },
+      {
+        "name": "$tls_peer_notBefore",
+        "detail": "$tls_peer_notBefore",
+        "doc": "Returns the notBefore validity date of the peer's certificate. String type."
+      },
+      {
+        "name": "$tls_peer_notAfter",
+        "detail": "$tls_peer_notAfter",
+        "doc": "Returns the notAfter validity date of the peer's certificate. String type."
+      },
+      {
+        "name": "$tls_peer_server_name",
+        "detail": "$tls_peer_server_name",
+        "doc": "The SNI server name of the peer"
+      },
+      {
+        "name": "$tls_peer_raw_cert",
+        "detail": "$tls_peer_raw_cert",
+        "doc": "The raw PEM-encoded client certificate. String type."
+      },
+      {
+        "name": "$tls_my_raw_cert",
+        "detail": "$tls_my_raw_cert",
+        "doc": "The raw PEM-encoded client certificate. String type."
+      },
+      {
+        "name": "$tls_peer_urlencoded_cert",
+        "detail": "$tls_peer_urlencoded_cert",
+        "doc": "The PEM-encoded client certificate, urlencoded. String type."
+      },
+      {
+        "name": "$tls_my_urlencoded_cert",
+        "detail": "$tls_my_urlencoded_cert",
+        "doc": "The PEM-encoded client certificate, urlencoded. String type."
+      },
+      {
+        "name": "$msg",
+        "detail": "$msg(attr)",
+        "doc": "Return attributes of SIP message:"
+      },
+      {
+        "name": "$pos",
+        "detail": "$pos(key)",
+        "doc": "Get attributes after a function of the module is executed."
+      },
+      {
+        "name": "$hu",
+        "detail": "$hu",
+        "doc": "- URL of http request."
+      },
+      {
+        "name": "$nghttp2",
+        "detail": "$nghttp2(name)",
+        "doc": "The attributes of HTTP messages handled by nghttp2 module."
+      },
+      {
+        "name": "$msrp",
+        "detail": "$msrp(buf)",
+        "doc": "The entire content of MSRP frame - first line, headers, body and end-line."
+      },
+      {
+        "name": "$sipt",
+        "detail": "$sipt(calling_party_number.presentation) / $sipt_presentation",
+        "doc": "Returns the value of the Address presentation restricted indicator contained in the Calling Party Number header of the IAM message if it exists. Returns -1 if there isn't a Calling Party Number header."
+      },
+      {
+        "name": "$dns",
+        "detail": "DNS Query Result",
+        "doc": ""
+      },
+      {
+        "name": "$HN",
+        "detail": "Hostname details",
+        "doc": ""
+      },
+      {
+        "name": "$RANDOM",
+        "detail": "Random number",
+        "doc": ""
+      },
+      {
+        "name": "$jsonrpl",
+        "detail": "JSONRPC Reply",
+        "doc": "This variable gives access to JSONRPC reply after executing jsonrpc_exec(...) in kamailio.cfg."
+      },
+      {
+        "name": "$cfg",
+        "detail": "Config File Attributes",
+        "doc": "Attributes related to configuration file."
+      },
+      {
+        "name": "$lsock",
+        "detail": "Listen Socket Attributes",
+        "doc": "Get attributes for listen sockets."
+      },
+      {
+        "name": "$atkv",
+        "detail": "Async Type-Key-Value Event Attributes",
+        "doc": "Attributes for Async Type-Key-Value events."
+      },
+      {
+        "name": "$evr",
+        "detail": "$evr(key)",
+        "doc": "evrexec attributes:"
+      },
+      {
+        "name": "$subs",
+        "detail": "Subscription Attributes",
+        "doc": "This variable gives access to attributes of the current subscription. The variable has to be used after executing _handle_subscription()_ in order to provide accurate values."
+      },
+      {
+        "name": "$ulc",
+        "detail": "Registered Contact Attributes",
+        "doc": "Access the attributes of contact addresses stored in 'profile'."
+      },
+      {
+        "name": "$hep",
+        "detail": "HEP Packet Attributes",
+        "doc": "The key refers to HEP packet header values:"
+      },
+      {
+        "name": "$sruid",
+        "detail": "Unique ID",
+        "doc": ""
+      },
+      {
+        "name": "$ltt",
+        "detail": "Local To-Tag",
+        "doc": ""
+      },
+      {
+        "name": "$via0",
+        "detail": "Via[0] Attributes",
+        "doc": ""
+      },
+      {
+        "name": "$via1",
+        "detail": "Second Via Attributes",
+        "doc": ""
+      },
+      {
+        "name": "$viaZ",
+        "detail": "Last Via Attributes",
+        "doc": ""
+      },
+      {
+        "name": "$C",
+        "detail": "Foreground and background colors",
+        "doc": ""
+      },
+      {
+        "name": "$K",
+        "detail": "Kamailio Constants",
+        "doc": ""
+      }
+    ]
+  }
+}

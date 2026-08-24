@@ -1191,9 +1191,31 @@ impl LanguageServer for Backend {
     async fn initialized(&self, _: InitializedParams) {
         let cached = self.harvest(true).await;
         self.register_watchers().await;
+        // Core parameters, functions and pseudo-variables are the
+        // LANGUAGE, not a module.  Without a configured wiki checkout
+        // the harvest yields none of them, which left `debug`,
+        // `children` and every other global uncompletable until the
+        // user had cloned kamailio-wiki.  The vendored catalogue fills
+        // that in; a real checkout always wins, because only that is
+        // exact for the user's version.
+        let builtin = {
+            let core = self.core.read().unwrap();
+            core.functions.is_empty() && core.params.is_empty() && core.pvars.is_empty()
+        };
+        if builtin {
+            *self.core.write().unwrap() = catalog::builtin_core().core.clone();
+        }
         let n = self.catalog.read().unwrap().len();
         let c = self.core.read().unwrap().functions.len();
         let tag = if cached { ", cached" } else { "" };
+        let tag = if builtin {
+            format!(
+                "{tag}, core docs built in from {}",
+                catalog::builtin_core().version
+            )
+        } else {
+            tag.to_string()
+        };
         self.client
             .log_message(
                 MessageType::INFO,

@@ -422,6 +422,47 @@ fn cookbook_dir(wiki_root: &Path) -> Option<PathBuf> {
     best.map(|(_, p)| p)
 }
 
+/// The vendored core catalogue: what the core language looks like in
+/// the version this release pins.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BuiltinCore {
+    /// The Kamailio version the docs were harvested from.
+    pub version: String,
+    /// The harvested core docs.
+    pub core: CoreDocs,
+}
+
+/// The built-in core catalogue, used when no wiki checkout is
+/// configured.
+///
+/// Core parameters, functions and pseudo-variables are the LANGUAGE,
+/// not a module: requiring a wiki checkout before `log_level`
+/// completes makes the extension useless out of the box.  A wiki checkout the
+/// user configures still wins, because only that is exact for their
+/// build — so every built-in entry says which version it came from.
+pub fn builtin_core() -> &'static BuiltinCore {
+    static B: std::sync::OnceLock<BuiltinCore> = std::sync::OnceLock::new();
+    B.get_or_init(|| {
+        let mut b: BuiltinCore = serde_json::from_str(include_str!("core_builtin.json"))
+            .expect("the vendored core catalogue must parse");
+        let note = format!(
+            "\n\n*Built-in documentation from Kamailio {} — set `kamailioWiki` \
+             to your own source tree for version-exact docs.*",
+            b.version
+        );
+        for it in b
+            .core
+            .functions
+            .iter_mut()
+            .chain(b.core.params.iter_mut())
+            .chain(b.core.pvars.iter_mut())
+        {
+            it.doc.push_str(&note);
+        }
+        b
+    })
+}
+
 /// Harvest the core-language docs from a kamailio-wiki checkout;
 /// missing or unparsable pages simply yield empty sections.
 pub fn harvest_core(wiki_root: &Path) -> CoreDocs {
