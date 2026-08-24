@@ -2,6 +2,25 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.13.0] — 2026-08-24
+
+- **The core language completes out of the box.** `debug`, `children`,
+  `listen` and the rest used to offer nothing until you had cloned
+  kamailio-wiki — 19 control-flow keywords was the whole vocabulary. A
+  catalogue harvested from the 6.1.x cookbook (43 functions, 222
+  parameters, 292 pseudo-variables) now ships with the extension.
+  Hover on any built-in entry says which version it came from; set
+  `kamailioWiki` and your own checkout wins, because only that is
+  exact for the version you run. Module documentation is still
+  tree-only — what modules exist depends on what you built.
+- **`exit` no longer completes as `exit()`.** It is documented among
+  the core functions, so with a checkout configured it inserted a
+  snippet for a statement written `exit;`. Statement keywords stay
+  statements.
+- **Hover no longer comes back empty for `exit` and friends**, where a
+  bare keyword used to beat the documented entry purely by arriving
+  first.
+
 ## [0.12.0] — 2026-08-24
 
 - **Wider config recognition**: `kamailio*.cfg` and `*.kamailio.cfg`
