@@ -167,7 +167,7 @@ Everything below is optional. Put it in Zed's `settings.json`:
   half: a config opening with `#!KAMAILIO` (or `#!OPENSER`, `#!SER`,
   `#!MAXCOMPAT`, `#!ALL`) is recognised whatever it is named.
 - **`kamailioPath`** turns on real diagnostics: the server runs your
-  Kamailio binary with `-C` and reports what the parser says.
+  Kamailio binary with `-c` and reports what the parser says.
 - **`kamailioSrc`** points at a source tree matching your build, and
   **`kamailioWiki`** at a
   [kamailio-wiki](https://github.com/kamailio/kamailio-wiki) checkout.
