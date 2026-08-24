@@ -57,7 +57,7 @@ Via LSP `initializationOptions` (or environment fallback):
 |---|---|---|---|
 | `kamailioPath` | `KAMAILIO_LSP_BIN` | `kamailio` | Binary used for `-c` diagnostics. |
 | `kamailioSrc` | `KAMAILIO_LSP_SRC` | *(none)* | Source tree to harvest module docs from. |
-| `kamailioWiki` | `KAMAILIO_LSP_WIKI` | *(none)* | kamailio-wiki checkout for core-language docs. |
+| `kamailioWiki` | `KAMAILIO_LSP_WIKI` | *(none)* | kamailio-wiki checkout for core-language docs. Not needed to get started: a catalogue harvested from the 6.1.x cookbook ships with the server and is used whenever no checkout is configured, so `debug`, `log_facility` and friends complete on a fresh install. A configured checkout always wins. |
 | `modulesPath` | — | *(none)* | Module search path for the checker (`-L`). |
 
 Diagnostics fidelity note: `-c` loads the modules the cfg references,

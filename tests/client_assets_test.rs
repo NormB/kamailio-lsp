@@ -67,8 +67,25 @@ fn manifest_references_the_icon() {
     // read — and understating it, as the v0.11.3 note did by saying
     // only `kamailio.cfg` was claimed, sends people to configure
     // something that already worked.
-    let listing =
-        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/client/README.md")).unwrap();
+    // Both pages count.  The marketplace listing is what a prospective
+    // user reads; the getting-started guide is where someone whose
+    // file has no colours actually goes, and its "No colors" row named
+    // only `kamailio.cfg` long after the patterns had widened.
+    let pages = [
+        (
+            "client/README.md",
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/client/README.md"))
+                .unwrap(),
+        ),
+        (
+            "docs/GETTING_STARTED.md",
+            std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/docs/GETTING_STARTED.md"
+            ))
+            .unwrap(),
+        ),
+    ];
     let patterns = lang["filenamePatterns"]
         .as_array()
         .cloned()
@@ -76,15 +93,23 @@ fn manifest_references_the_icon() {
     for p in &patterns {
         let p = p.as_str().unwrap();
         assert!(!p.starts_with("*.cfg") && p != "*", "{p} claims every .cfg");
-        assert!(
-            listing.contains(p),
-            "client/README.md does not tell the reader that {p} is claimed"
-        );
+        for (name, text) in &pages {
+            assert!(
+                text.contains(p),
+                "{name} does not tell the reader that {p} is claimed"
+            );
+        }
     }
-    assert!(
-        listing.contains("#!KAMAILIO"),
-        "client/README.md must say the first-line marker is honoured"
-    );
+    // the marker set is the lexer's, so the pages must carry all of it
+    // rather than the one everybody remembers
+    for (name, text) in &pages {
+        for marker in ["KAMAILIO", "OPENSER", "SER", "MAXCOMPAT", "ALL"] {
+            assert!(
+                text.contains(&format!("#!{marker}")),
+                "{name} does not say #!{marker} is honoured"
+            );
+        }
+    }
 }
 
 #[test]

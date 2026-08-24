@@ -112,12 +112,16 @@ found in module <tm>`). Squiggles refresh every time you save.
 - Type `$` — pseudo-variables (`$ru`, `$si`, …) with descriptions.
 - If a list ever disappears, press **Ctrl+Space** to bring it back.
 
-For the richest documentation in these popups, also set
-**Kamailio Lsp: Kamailio Src** (in the same Settings page) to a
-folder containing the Kamailio source code matching your version, and
-**Kamailio Lsp: Kamailio Wiki** to a clone of the
-[kamailio-wiki](https://github.com/kamailio/kamailio-wiki) repository
-(core parameters, functions, and pseudo-variables).
+The core language — `debug`, `log_facility` and the other globals,
+core functions, and pseudo-variables — is documented out of the box:
+the extension ships a catalogue harvested from the Kamailio 6.1.x
+cookbook, and hover tells you so. Module documentation is a different
+matter, because which modules exist depends on what you built. For
+that set **Kamailio Lsp: Kamailio Src** (in the same Settings page) to
+a folder containing the Kamailio source code matching your version;
+and for core docs exact to your own version rather than the pinned
+one, set **Kamailio Lsp: Kamailio Wiki** to a clone of the
+[kamailio-wiki](https://github.com/kamailio/kamailio-wiki) repository.
 
 ### Reading and moving around
 
@@ -132,8 +136,8 @@ folder containing the Kamailio source code matching your version, and
 
 | Symptom | Fix |
 |---|---|
-| No colors | The file must be named `kamailio.cfg` (or start with a `#!KAMAILIO` first line). |
+| No colors | The file has to match one of the claimed names — `kamailio.cfg`, `kamailio*.cfg` (so `kamailio-proxy.cfg` works), or `*.kamailio.cfg` — or open with a script-type marker: `#!KAMAILIO`, `#!OPENSER`, `#!SER`, `#!MAXCOMPAT` or `#!ALL`. A plain `.cfg` with no marker is not enough; the extension deliberately does not claim every `.cfg` on your disk. |
 | No red squiggles | Set **Kamailio Path** (step above), save the file, and make sure you trusted the folder. |
 | Squiggles on a correct file | The checker uses *your* Kamailio version — a config written for another version can legitimately fail. |
-| Completion has no documentation | Set **Kamailio Src** to a Kamailio source folder. |
+| Completion has no documentation | Core parameters, functions and pseudo-variables carry built-in documentation, so this only applies to **module** entries: set **Kamailio Src** to a Kamailio source folder for those, and **Kamailio Wiki** to replace the built-in core docs with ones exact to your version. |
 | Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (254 documented modules)"). |
