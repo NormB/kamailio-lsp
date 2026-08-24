@@ -139,6 +139,16 @@ experience: an `kamailio` binary (diagnostics) and a Kamailio source
 tree plus a kamailio-wiki checkout (documentation). Version-proven
 against Kamailio 6.1.x and 6.0.x.
 
+## Privacy
+
+Everything stays on your machine. The extension talks to a local
+server over stdin/stdout: no HTTP client is linked into it, there is
+no telemetry or analytics, and no model is involved — hover and
+completion text is parsed from Kamailio's own documentation on disk.
+The only program it runs is your own `kamailio` binary, for `-c`
+diagnostics. Your editor's own telemetry, and any AI extension you
+have installed, are a separate matter from this one.
+
 ## Links
 
 [Repository](https://github.com/NormB/kamailio-lsp) ·

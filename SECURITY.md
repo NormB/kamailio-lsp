@@ -21,10 +21,14 @@ impact assessment, and (optionally) your name/handle for credit.
 
 ## Scope
 
-- **The `-C` execution model** — the server runs `kamailio -c` on the
+- **The `-c` execution model** — the server runs `kamailio -c` on the
   opened file, which dlopens the modules that file loads. Bypasses of
   the documented opt-out (`kamailioPath` empty), or ways to make the
-  server run `-C` on files/paths the user did not open, are in scope.
+  server run `-c` on files/paths the user did not open, are in scope.
+- **The no-network property** — the server links no HTTP client and
+  opens no sockets; it speaks to the editor over stdin/stdout. Any
+  path by which configuration content, file paths, or environment
+  values reach the network is a vulnerability, not a feature request.
 - **Parser robustness** — crafted cfg text, README/markdown module
   docs, or `kamailio -c` output that crashes the server or corrupts
   its responses (all three parsers are fuzz-adjacent surfaces; they
@@ -39,3 +43,15 @@ impact assessment, and (optionally) your name/handle for credit.
 - Code execution caused by opening an untrusted cfg *with diagnostics
   deliberately enabled* — that is the documented trust model; see the
   Security section of `docs/ADMIN.md`.
+
+## Data handling
+
+No configuration content leaves the machine. There is no telemetry,
+no analytics, no crash reporting, no update check, and no model in the
+product — hover and completion text is parsed from Kamailio's own
+documentation on disk. The server reads the cfg and its include
+closure plus the source tree and wiki checkout you configure, writes a
+documentation cache under `cacheDir`, and executes exactly one
+external program: your `kamailio` binary, for `-c` diagnostics. The
+Data handling section of `README.md` has the full account, including
+the `trace.server` caveat.
