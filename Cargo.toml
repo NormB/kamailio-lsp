@@ -1,6 +1,6 @@
 [package]
 name = "kamailio-lsp"
-version = "0.14.3"
+version = "0.14.4"
 edition = "2024"
 # Verified by the `msrv` CI job, which builds with exactly this
 # toolchain — a declared MSRV nothing checks is a wish, not a fact.
