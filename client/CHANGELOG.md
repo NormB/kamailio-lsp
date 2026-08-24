@@ -2,6 +2,23 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.12.0] — 2026-08-24
+
+- **Wider config recognition**: `kamailio*.cfg` and `*.kamailio.cfg`
+  join `kamailio.cfg`, so `kamailio-local.cfg` and split configs work.
+  The first-line rule now covers every script-type marker the parser
+  accepts — `#!SER`, `#!KAMAILIO`, `#!OPENSER`, `#!MAXCOMPAT`, `#!ALL`
+  — not just `#!KAMAILIO`. The generic `.cfg` extension is still
+  deliberately not claimed.
+- **Corrects the 0.11.3 note**, which said only files named exactly
+  `kamailio.cfg` were claimed. That was wrong: a config opening with
+  `#!KAMAILIO` already worked under any name.
+- **The installer now tells you it opts you out of updates.**
+  `install.sh` sideloads a VSIX, and an editor never offers updates
+  for a sideloaded extension — an install can sit many releases behind
+  with nothing indicating it. The installers and the Getting Started
+  guide now say so, and name the two ways out.
+
 ## [0.11.3] — 2026-08-23
 
 - **Says which files it recognises.** Only files named exactly
