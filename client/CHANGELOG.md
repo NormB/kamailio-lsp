@@ -2,6 +2,37 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.14.0] — 2026-08-24
+
+- **Every module's functions and parameters now ship with the
+  extension.** 0.13.0 gave you the core language before you configured
+  anything; that left the half a real config is actually made of.
+  `is_method` is a `textops` function, not core, so with nothing
+  configured `loadmodule "` offered nothing at all and a module call
+  completed to the core entries and stopped. 254 modules, 1224
+  functions and 2185 parameters harvested from the Kamailio 6.1.4 tree
+  now ship alongside. Module functions still appear only inside a
+  config that `loadmodule`s them — the built-ins never invite a call
+  your config cannot make.
+- **The two halves keep their own provenance**, because they come from
+  different places: the core language from the 6.1.x cookbook, the
+  modules from the 6.1.4 tree. The startup line says so, and hover on
+  any built-in entry names the version it came from.
+- **What the built-ins cannot know is what you compiled.** The module
+  list is what 6.1.4 documents, not what exists on your system; the
+  `-c` checker still reports a module it cannot load. Set `kamailioSrc`
+  (or `kamailioWiki`) and your own checkout replaces the matching
+  built-in catalogue wholesale — never merged, because blending two
+  versions is wrong in a way neither is alone.
+- **Hover now reads the syntax before it guesses.** A global
+  `log_facility=LOG_LOCAL0` and `modparam("acc", "log_facility", …)`
+  are two different things that share a name, and your config already
+  says which one is on screen: the first is the core parameter, the
+  second is that module's. Previously, with a catalogue loaded, the
+  global hovered as the module's parameter — and a module you had not
+  even loaded could shadow the language. Both are fixed, and signature
+  help resolved in the same wrong order.
+
 ## [0.13.1] — 2026-08-24
 
 Documentation and test work; the server behaves exactly as 0.13.0 did.
