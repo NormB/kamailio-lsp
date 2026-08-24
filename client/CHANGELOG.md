@@ -2,6 +2,16 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.11.3] — 2026-08-23
+
+- **Says which files it recognises.** Only files named exactly
+  `kamailio.cfg` are claimed — the generic `.cfg` extension is
+  deliberately left alone so unrelated tools' config files are not
+  hijacked. That was true all along and documented nowhere, so a
+  split config or a `kamailio-local.cfg` silently got no language
+  support and no explanation. The listing now states the rule and how
+  to widen it with `files.associations`.
+
 ## [0.11.2] — 2026-08-23
 
 - **This listing now describes what the extension actually does.** It

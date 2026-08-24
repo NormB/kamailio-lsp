@@ -1,6 +1,6 @@
 [package]
 name = "kamailio-lsp"
-version = "0.11.2"
+version = "0.11.3"
 edition = "2024"
 description = "Language Server Protocol implementation for the Kamailio configuration file language"
 license = "MIT OR Apache-2.0"
