@@ -2,6 +2,26 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.13.1] — 2026-08-24
+
+Documentation and test work; the server behaves exactly as 0.13.0 did.
+
+- **The getting-started guide understated which files are claimed.**
+  Its "No colors" row named only `kamailio.cfg` and `#!KAMAILIO`, while
+  the extension also claims `kamailio*.cfg` and `*.kamailio.cfg` and
+  honours every script-type marker the lexer defines — `#!OPENSER`,
+  `#!SER`, `#!MAXCOMPAT`, `#!ALL`. Corrected, and the gate that should
+  have caught it now reads that page too and demands the whole marker
+  set rather than the one everybody remembers.
+- **`README.md` still presented `kamailioWiki` as the only way to get
+  core-language documentation**, and the guide told you to go and set a
+  source folder when completion showed no docs. Wrong since 0.13.0.
+  Both now say the core language is documented out of the box, and a
+  new gate holds every page a new user reads to that claim.
+- Internally: the built-in catalogue is now proven over real LSP
+  stdio rather than only at the library level, and test fixtures clean
+  themselves up when a test fails instead of only when it passes.
+
 ## [0.13.0] — 2026-08-24
 
 - **The core language completes out of the box.** `debug`, `children`,
