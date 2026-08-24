@@ -336,23 +336,46 @@ support and then never answers cannot stall startup. Tree and wiki
 usually live outside the workspace, so their watchers are relative
 patterns rooted at each.
 
-#### Core language, before you configure anything
+#### Documentation before you configure anything
 
-The core language — parameters, functions and pseudo-variables like
-`debug`, `children`, `listen` — is not a module, so it should not need a wiki checkout to
-complete. A catalogue harvested from Kamailio 6.1.x ships with the
-extension and is used when no wiki checkout is configured, which is why
-`log_`-style completion works on a fresh install.
+Two catalogues — the core language and every documented module — are
+built in and used when nothing is configured:
 
-It is clearly labelled: hover any built-in entry and it says which
-version the documentation came from and that setting `kamailioWiki`
-gives you docs exact for your own build. A configured wiki checkout always
-wins — being exact for the version you actually run is the whole
-point of harvesting in the first place.
+- **the core language** — parameters, functions and pseudo-variables
+  like `debug`, `log_facility`, `children`, harvested from the
+  Kamailio 6.1.x cookbook;
+- **every documented module** — 254 of them with their exported
+  functions and parameters, harvested from the 6.1.4 source tree, so
+  `loadmodule "` offers real names and a call like `is_method`
+  completes and hovers.
 
-Module documentation is deliberately NOT shipped this way. What
-modules exist and what they export depends on what you built, so
-there is no honest version to pin it to.
+Both are clearly labelled: hover any built-in entry and it says which
+version the documentation came from and that setting `kamailioSrc` (or
+`kamailioWiki` for the core half) gives you docs exact for your own
+build. A configured source **replaces** the matching built-in
+catalogue rather than merging with it — blending two versions would be
+wrong in a way neither is on its own.
+
+Shipping the module half reverses an earlier decision, which said
+there was no honest version to pin module docs to because what modules
+exist depends on what you built. That objection was right about the
+risk and wrong about the remedy: it applies equally to core
+parameters, which move between releases too, and the answer in both
+cases is provenance plus a total override rather than silence. Two
+things keep it honest:
+
+- **the loaded-module rule still holds** — a module's functions are
+  offered only inside a config that `loadmodule`s it, and a core
+  global outranks a same-named parameter of a module the config never
+  loads;
+- **the checker has the last word** — `-c` loads the modules a config
+  references, so a module you have not built is reported as a
+  diagnostic on the `loadmodule` line itself.
+
+What the built-ins cannot tell you is whether a module is installed on
+*your* system: the name list is what 6.1.4 documents, not what you
+compiled.
+
 
 #### CLI check mode
 

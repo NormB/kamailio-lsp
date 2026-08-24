@@ -72,11 +72,14 @@ extension and it just works.
   `return` is never lifted.
 - **Live settings** — the runtime toggles apply without restarting
   the server.
-- **Core language out of the box** — parameters, functions and
-  pseudo-variables (`debug`, `children`, `listen`) complete before you configure
-  anything, from a catalogue harvested from Kamailio 6.1.x and shipped
-  with the extension. Hover says which version it came from; point
-  `kamailioWiki` at your own wiki checkout for docs exact to your build.
+- **Core language and every module, out of the box** — parameters,
+  functions and pseudo-variables (`debug`, `log_facility`, `children`)
+  and the exported functions and parameters of 254 modules
+  (`is_method`, `t_relay`, …) complete before you configure anything,
+  from catalogues shipped with the extension. Module functions still
+  appear only in a config that loads the module. Hover says which
+  version the docs came from; point `kamailioSrc` (or `kamailioWiki`)
+  at your own checkout for docs exact to your build.
 - **Snippets** — `route`, `failure_route`, `ifmethod`, `modparam`,
   `switch`, `xlog`, and more.
 - **Safe by default** — in untrusted workspaces diagnostics stay off

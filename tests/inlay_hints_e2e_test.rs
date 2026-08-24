@@ -248,9 +248,13 @@ fn preprocessor_symbols_show_what_they_expand_to() {
         !got.iter().any(|(l, _, _)| *l == 1),
         "the #!define line hints itself: {got:?}"
     );
-    // and a name inside a string is not a use
+    // and a name inside a string is not a use.  Only DEFINE hints are
+    // in question here — `xlog("PORT")` legitimately carries a
+    // parameter-name hint now that xlog's signature is documented, and
+    // asserting the line is bare would be asserting that it is not.
     assert!(
-        !got.iter().any(|(l, _, _)| *l == 4),
+        !got.iter()
+            .any(|(l, _, lab)| *l == 4 && lab.starts_with("= ")),
         "a name inside a string is not a use: {got:?}"
     );
     let _ = child.kill();

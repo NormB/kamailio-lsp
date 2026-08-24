@@ -1205,17 +1205,40 @@ impl LanguageServer for Backend {
         if builtin {
             *self.core.write().unwrap() = catalog::builtin_core().core.clone();
         }
+        // The same argument one level up: `is_method` is a textops
+        // function, so a core-only fallback still left every module
+        // call undocumented and `loadmodule "` offering nothing.  What
+        // a module exports moves between releases, so a harvested tree
+        // REPLACES this rather than merging — blending two versions
+        // would be wrong in a way neither is alone.
+        let builtin_mods = self.catalog.read().unwrap().is_empty();
+        if builtin_mods {
+            *self.catalog.write().unwrap() = catalog::builtin_modules().modules.clone();
+        }
         let n = self.catalog.read().unwrap().len();
         let c = self.core.read().unwrap().functions.len();
-        let tag = if cached { ", cached" } else { "" };
-        let tag = if builtin {
-            format!(
-                "{tag}, core docs built in from {}",
-                catalog::builtin_core().version
-            )
+        let mut tag = if cached {
+            ", cached".to_string()
         } else {
-            tag.to_string()
+            String::new()
         };
+        // the two catalogues have different provenance — core comes
+        // from the wiki, modules from the source tree — so when both
+        // are in use and the versions differ, say both rather than
+        // letting one stand for the other
+        let core_v = &catalog::builtin_core().version;
+        let mods_v = &catalog::builtin_modules().version;
+        match (builtin, builtin_mods) {
+            (true, true) if core_v == mods_v => {
+                tag.push_str(&format!(", core and module docs built in from {core_v}"))
+            }
+            (true, true) => tag.push_str(&format!(
+                ", core docs built in from {core_v}, module docs built in from {mods_v}"
+            )),
+            (true, false) => tag.push_str(&format!(", core docs built in from {core_v}")),
+            (false, true) => tag.push_str(&format!(", module docs built in from {mods_v}")),
+            (false, false) => {}
+        }
         self.client
             .log_message(
                 MessageType::INFO,
