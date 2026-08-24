@@ -44,7 +44,47 @@ fn manifest_references_the_icon() {
         "must not claim *.cfg: {lang}"
     );
     assert_eq!(lang["filenames"][0], "kamailio.cfg");
-    assert_eq!(lang["firstLine"], "^#!KAMAILIO");
+
+    // A first-line marker must be one the real lexer defines.  The
+    // script types are `#!SER`, `#!KAMAILIO`|`#!OPENSER` and
+    // `#!MAXCOMPAT`|`#!ALL` (src/core/cfg.lex): claiming a file on a
+    // marker the parser has never heard of would be inventing a rule.
+    let first = lang["firstLine"].as_str().expect("a first-line rule");
+    assert!(
+        first.starts_with("^#!"),
+        "must anchor on the marker: {first}"
+    );
+    for marker in ["KAMAILIO", "OPENSER", "SER", "MAXCOMPAT", "ALL"] {
+        assert!(
+            first.contains(marker),
+            "{marker} is a script type cfg.lex accepts; the rule omits it"
+        );
+    }
+
+    // Every pattern the extension claims must be documented where a
+    // user will look.  Widening the association silently is how you
+    // hijack someone's file with no explanation on the page they
+    // read — and understating it, as the v0.11.3 note did by saying
+    // only `kamailio.cfg` was claimed, sends people to configure
+    // something that already worked.
+    let listing =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/client/README.md")).unwrap();
+    let patterns = lang["filenamePatterns"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for p in &patterns {
+        let p = p.as_str().unwrap();
+        assert!(!p.starts_with("*.cfg") && p != "*", "{p} claims every .cfg");
+        assert!(
+            listing.contains(p),
+            "client/README.md does not tell the reader that {p} is claimed"
+        );
+    }
+    assert!(
+        listing.contains("#!KAMAILIO"),
+        "client/README.md must say the first-line marker is honoured"
+    );
 }
 
 #[test]

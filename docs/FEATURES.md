@@ -387,11 +387,14 @@ clients that can't pass options.
 
 ## Notes
 
-- Only files named exactly `kamailio.cfg` are claimed by the
-  extension; the generic `.cfg` extension is deliberately left alone
-  so unrelated tools' config files are not hijacked. Split configs
-  and includes under other names need a `files.associations` entry
-  mapping them to `kamailio-cfg`.
+- The extension claims `kamailio.cfg`, `kamailio*.cfg` and
+  `*.kamailio.cfg` by name, and any file whose FIRST LINE is a
+  Kamailio script-type marker — `#!KAMAILIO`, `#!OPENSER`, `#!SER`,
+  `#!MAXCOMPAT` or `#!ALL`, the set `src/core/cfg.lex` accepts —
+  whatever that file is called. The generic `.cfg` extension is
+  deliberately left alone so unrelated tools' config files are not
+  hijacked; anything else needs a `files.associations` entry mapping
+  it to `kamailio-cfg`.
 - The analyzer expands `route(NAME)` through the `#!define` table
   before deciding anything, so a route addressed through an alias
   (`#!define RELAY MYROUTE` + `route(RELAY)`) is resolved rather than

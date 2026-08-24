@@ -25,8 +25,12 @@
         "filenames": [
           "kamailio.cfg"
         ],
-        "firstLine": "^#!KAMAILIO",
-        "configuration": "./language-configuration.json"
+        "firstLine": "^#!(KAMAILIO|OPENSER|SER|MAXCOMPAT|ALL)\\b",
+        "configuration": "./language-configuration.json",
+        "filenamePatterns": [
+          "kamailio*.cfg",
+          "*.kamailio.cfg"
+        ]
       }
     ],
     "grammars": [

@@ -83,10 +83,13 @@ extension and it just works.
 1. Install this extension (the platform packages bundle the server —
    Linux, macOS, and Windows, x64 and arm64).
 2. Open a folder containing a `kamailio.cfg` — syntax colors,
-   completion, and navigation work immediately. Only files named
-   exactly `kamailio.cfg` are claimed, so the generic `.cfg`
-   extension is left alone for unrelated tools. For any other name —
-   split configs, includes, `kamailio-local.cfg` — add a
+   completion, and navigation work immediately. Also recognized:
+   `kamailio*.cfg` and `*.kamailio.cfg` (so `kamailio-local.cfg` and
+   split configs work), and **any file whose first line is a Kamailio
+   script-type marker** — `#!KAMAILIO`, `#!OPENSER`, `#!SER`,
+   `#!MAXCOMPAT` or `#!ALL` — whatever it is called. The generic
+   `.cfg` extension is deliberately left alone so unrelated tools'
+   config files are not hijacked; for anything else, add a
    [`files.associations`](https://code.visualstudio.com/docs/languages/identifiers)
    entry mapping it to `kamailio-cfg`.
 3. For live error checking, point
