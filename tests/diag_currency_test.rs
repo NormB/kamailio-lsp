@@ -42,14 +42,17 @@ fn failed_checks_clear_stale_diagnostics_and_publishes_carry_versions() {
     let (dir, stub, uri) = setup("clear");
     std::fs::write(dir.join("mode"), "error").unwrap();
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "400")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "400")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -103,16 +106,19 @@ fn midflight_buffer_change_suppresses_the_stale_result() {
     let (dir, stub, uri) = setup("race");
     std::fs::write(dir.join("mode"), "error").unwrap();
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "5000")
-        // make every check slow enough to race
-        .env("KAMAILIO_LSP_TEST_CHECK_DELAY_MS", "700")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "5000")
+            // make every check slow enough to race
+            .env("KAMAILIO_LSP_TEST_CHECK_DELAY_MS", "700")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -185,14 +191,17 @@ fn output_flood_is_capped_and_clears_diagnostics() {
     std::fs::write(&cfg, "request_route { exit; }\n").unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .env("KAMAILIO_LSP_OUTPUT_CAP_BYTES", "65536")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .env("KAMAILIO_LSP_OUTPUT_CAP_BYTES", "65536")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(

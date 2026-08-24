@@ -24,7 +24,7 @@ fn boot(
     extra_opts: serde_json::Value,
     stub_errors: usize,
 ) -> (
-    std::process::Child,
+    Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
     String,
@@ -63,16 +63,19 @@ fn boot(
         opts[k] = v.clone();
     }
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env_remove("KAMAILIO_LSP_BIN")
-        .env_remove("KAMAILIO_LSP_SRC")
-        .env_remove("KAMAILIO_LSP_WIKI")
-        .env_remove("KAMAILIO_LSP_CACHE_DIR")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env_remove("KAMAILIO_LSP_BIN")
+            .env_remove("KAMAILIO_LSP_SRC")
+            .env_remove("KAMAILIO_LSP_WIKI")
+            .env_remove("KAMAILIO_LSP_CACHE_DIR")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &base,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(

@@ -38,15 +38,18 @@ fn full_stack_against_a_real_kamailio_tree() {
     std::fs::write(&cfg, &bad).unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", &bin) // empty = diagnostics off
-        .env("KAMAILIO_LSP_SRC", &tree)
-        .env("KAMAILIO_LSP_WIKI", &wiki)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", &bin) // empty = diagnostics off
+            .env("KAMAILIO_LSP_SRC", &tree)
+            .env("KAMAILIO_LSP_WIKI", &wiki)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
 
@@ -174,14 +177,17 @@ fn real_binary_include_errors_are_never_silent() {
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", &bin)
-        .env("KAMAILIO_LSP_SRC", "")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", &bin)
+            .env("KAMAILIO_LSP_SRC", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(

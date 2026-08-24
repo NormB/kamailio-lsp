@@ -24,7 +24,7 @@ fn boot(
     capabilities: serde_json::Value,
     opts: serde_json::Value,
 ) -> (
-    std::process::Child,
+    Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
     std::path::PathBuf,
@@ -32,16 +32,19 @@ fn boot(
     let base = std::env::temp_dir().join(format!("kamlsp-harv-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env_remove("KAMAILIO_LSP_BIN")
-        .env_remove("KAMAILIO_LSP_SRC")
-        .env_remove("KAMAILIO_LSP_WIKI")
-        .env_remove("KAMAILIO_LSP_CACHE_DIR")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env_remove("KAMAILIO_LSP_BIN")
+            .env_remove("KAMAILIO_LSP_SRC")
+            .env_remove("KAMAILIO_LSP_WIKI")
+            .env_remove("KAMAILIO_LSP_CACHE_DIR")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &base,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(

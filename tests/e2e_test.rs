@@ -34,14 +34,17 @@ fn diagnostics_flow_over_stdio() {
     std::fs::write(&cfg, "loadmodule \"nope.so\"\nbroken here\n").unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .env("KAMAILIO_LSP_SRC", "") // no catalog needed for this flow
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("server binary must spawn");
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .env("KAMAILIO_LSP_SRC", "") // no catalog needed for this flow
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("server binary must spawn"),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
 
@@ -141,13 +144,16 @@ fn check_invocation_carries_the_kamailio_flags() {
     std::fs::write(&cfg, "request_route { exit; }\n").unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env_remove("KAMAILIO_LSP_BIN")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env_remove("KAMAILIO_LSP_BIN")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -203,14 +209,17 @@ fn hanging_kamailio_check_is_bounded_and_reported() {
     let cfg = dir.join("t.cfg");
     std::fs::write(&cfg, "request_route { exit; }\n").unwrap();
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "300")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "300")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
 
@@ -258,13 +267,16 @@ fn empty_kamailio_bin_disables_checks_entirely() {
     let cfg = dir.join("t.cfg");
     std::fs::write(&cfg, "request_route { exit; }\n").unwrap();
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", "") // explicit opt-out
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", "") // explicit opt-out
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
 
@@ -315,13 +327,16 @@ fn symbol_columns_are_utf16_on_multibyte_lines() {
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", "")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -364,13 +379,16 @@ fn folding_and_nested_symbols_over_stdio() {
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", "")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -436,13 +454,16 @@ fn references_rename_highlight_over_stdio() {
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", "")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -549,13 +570,16 @@ fn event_route_names_cannot_be_renamed_but_still_highlight() {
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", "")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -626,13 +650,16 @@ fn include_file_errors_surface_on_the_include_directive() {
     perm.set_mode(0o755);
     std::fs::set_permissions(&stub, perm).unwrap();
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -695,13 +722,16 @@ fn filtered_out_diags_still_yield_a_root_fallback() {
     perm.set_mode(0o755);
     std::fs::set_permissions(&stub, perm).unwrap();
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -762,14 +792,17 @@ fn checker_runs_in_the_configs_directory() {
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .env("KAMAILIO_LSP_SRC", "")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .env("KAMAILIO_LSP_SRC", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
@@ -827,17 +860,20 @@ fn newer_save_supersedes_a_slow_check() {
     std::fs::write(&cfg, slow_text).unwrap();
     let uri = format!("file://{}", cfg.display());
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", stub.display().to_string())
-        .env("KAMAILIO_LSP_SRC", "")
-        // the run timeout must not rescue the old serialized behavior:
-        // only superseding the slow run can produce a timely result
-        .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "60000")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .env("KAMAILIO_LSP_SRC", "")
+            // the run timeout must not rescue the old serialized behavior:
+            // only superseding the slow run can produce a timely result
+            .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "60000")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(

@@ -17,15 +17,18 @@ fn hot_handlers_share_one_index_build_per_version() {
     let cfg = base.join("t.cfg");
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", "")
-        .env("KAMAILIO_LSP_SRC", "")
-        .env("KAMAILIO_LSP_TRACE_INDEX", "1")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", "")
+            .env("KAMAILIO_LSP_SRC", "")
+            .env("KAMAILIO_LSP_TRACE_INDEX", "1")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+        &base,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(

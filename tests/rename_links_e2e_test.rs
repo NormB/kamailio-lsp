@@ -10,7 +10,7 @@ fn start(
     cfg_name: &str,
     tag: &str,
 ) -> (
-    std::process::Child,
+    Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
     String,
@@ -22,14 +22,17 @@ fn start(
     let cfg = base.join(cfg_name);
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
-        .env("KAMAILIO_LSP_BIN", "")
-        .env("KAMAILIO_LSP_SRC", "")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", "")
+            .env("KAMAILIO_LSP_SRC", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &base,
+    );
     let rx = spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
     write_msg(
