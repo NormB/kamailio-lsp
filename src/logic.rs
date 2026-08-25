@@ -1045,7 +1045,13 @@ impl IncludeGraph {
         let mut parents: std::collections::BTreeMap<std::path::PathBuf, Vec<std::path::PathBuf>> =
             std::collections::BTreeMap::new();
         for (path, text) in configs {
-            for inc in analyze::includes(text) {
+            // Only the includes this config demonstrably READS: a
+            // conditional the preprocessor may compile out must not
+            // make its target look like part of this program.  The
+            // closure stays lenient — extra routes in scope is a much
+            // smaller wrong than a file claimed by a root that never
+            // opens it.
+            for inc in analyze::active_includes(text) {
                 let entry = parents.entry(resolve_include(path, &inc.name)).or_default();
                 if !entry.contains(path) {
                     entry.push(path.clone());

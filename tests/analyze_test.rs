@@ -472,3 +472,75 @@ fn include_links_skip_comments_strings_and_hostile_paths() {
         "bang.cfg"
     );
 }
+
+/// The preprocessor decides which includes exist.
+///
+/// A file inside a `#!ifdef` for a symbol nobody defined is never
+/// opened by the real parser — it does not even report syntax errors
+/// in it — so treating it as part of that configuration is worse than
+/// treating it as part of nothing: it gets analysed against a program
+/// it is not in, and the checker runs on a root that never reads it.
+#[test]
+fn active_includes_skips_what_the_preprocessor_compiles_out() {
+    use kamailio_lsp::analyze::active_includes;
+    let names =
+        |t: &str| -> Vec<String> { active_includes(t).into_iter().map(|i| i.name).collect() };
+
+    // plain, unconditional
+    assert_eq!(names("include_file \"a.cfg\"\n"), vec!["a.cfg"]);
+
+    // guarded by a symbol defined above it: the parser reads it
+    assert_eq!(
+        names("#!define ON\n#!ifdef ON\ninclude_file \"a.cfg\"\n#!endif\n"),
+        vec!["a.cfg"]
+    );
+
+    // guarded by a symbol nobody defines: the parser never opens it
+    assert!(names("#!ifdef OFF\ninclude_file \"a.cfg\"\n#!endif\n").is_empty());
+
+    // the define must come FIRST, as the preprocessor reads top-down
+    assert!(names("#!ifdef ON\ninclude_file \"a.cfg\"\n#!endif\n#!define ON\n").is_empty());
+
+    // `#!else` of a satisfied ifdef is dead
+    assert_eq!(
+        names(
+            "#!define ON\n#!ifdef ON\ninclude_file \"y.cfg\"\n#!else\ninclude_file \"n.cfg\"\n#!endif\n"
+        ),
+        vec!["y.cfg"]
+    );
+
+    // nesting: an inner conditional inside a dead outer one stays dead
+    assert!(
+        names("#!ifdef OFF\n#!define IN\n#!ifdef IN\ninclude_file \"a.cfg\"\n#!endif\n#!endif\n")
+            .is_empty()
+    );
+
+    // and everything after `#!endif` is live again
+    assert_eq!(
+        names("#!ifdef OFF\ninclude_file \"a.cfg\"\n#!endif\ninclude_file \"b.cfg\"\n"),
+        vec!["b.cfg"]
+    );
+
+    // `#!ifndef` is never claimed: the symbol may be defined by
+    // something this file cannot see
+    assert!(names("#!ifndef OFF\ninclude_file \"a.cfg\"\n#!endif\n").is_empty());
+
+    // the lenient view still sees them all — the closure must not
+    // lose routes just because a conditional is unresolved
+    assert_eq!(
+        kamailio_lsp::analyze::includes("#!ifdef OFF\ninclude_file \"a.cfg\"\n#!endif\n").len(),
+        1
+    );
+
+    // adversarial: never panic
+    for t in [
+        "#!endif\n",
+        "#!ifdef\n",
+        "#!else\n#!endif\n#!endif\n",
+        "#!ifdef A\n",
+        "!!ifdef A\ninclude_file \"a.cfg\"\n!!endif\n",
+        "\0#!ifdef A\n",
+    ] {
+        let _ = active_includes(t);
+    }
+}

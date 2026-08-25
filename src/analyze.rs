@@ -800,3 +800,77 @@ pub fn byte_to_utf16(line: &str, byte_col: usize) -> u32 {
     }
     units
 }
+
+/// The includes a config DEMONSTRABLY reads, skipping any whose
+/// `#!ifdef` cannot be shown to hold.
+///
+/// The preprocessor decides whether an `include_file` is read at all.
+/// A file inside a `#!ifdef` for a symbol nobody defined is never
+/// opened — the real parser does not even report syntax errors in it
+/// — and claiming such a file as part of that configuration is worse
+/// than claiming nothing: it is analysed against a program it is not
+/// part of, and the checker is run on a root that never reads it, so
+/// its own errors go unreported and it looks clean when it is not.
+///
+/// Deliberately one-sided.  A conditional counts as HOLDING only when
+/// the symbol is defined earlier in the same file; a symbol that
+/// might arrive from an earlier include or the command line is
+/// unknown, and an unknown conditional yields nothing.  Wrong that
+/// way costs this feature for that file — the behaviour before it
+/// existed.  Wrong the other way hides real errors.
+pub fn active_includes(text: &str) -> Vec<Located> {
+    let mut defined: Vec<(u32, String)> = Vec::new();
+    // (this level holds, this level is knowable)
+    let mut holds: Vec<bool> = Vec::new();
+    let mut known: Vec<bool> = Vec::new();
+    let mut live: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for (n, line) in text.lines().enumerate() {
+        let n = n as u32;
+        let t = line.trim_start();
+        if let Some(rest) = t.strip_prefix("#!").or_else(|| t.strip_prefix("!!")) {
+            let mut w = rest.split_whitespace();
+            let word = w.next().unwrap_or("");
+            let arg = w.next().unwrap_or("");
+            match word {
+                "define" | "trydef" | "redefine" => {
+                    if !arg.is_empty() {
+                        defined.push((n, arg.to_string()));
+                    }
+                }
+                "ifdef" => {
+                    let seen = defined.iter().any(|(l, name)| name == arg && *l < n);
+                    // only a SATISFIED ifdef is knowable: an unmet one
+                    // may be met by something this file cannot see
+                    holds.push(seen);
+                    known.push(seen);
+                    continue;
+                }
+                "ifndef" => {
+                    holds.push(false);
+                    known.push(false);
+                    continue;
+                }
+                "else" => {
+                    if let (Some(h), Some(k)) = (holds.last_mut(), known.last_mut()) {
+                        *h = *k && !*h;
+                        *k = false;
+                    }
+                    continue;
+                }
+                "endif" => {
+                    holds.pop();
+                    known.pop();
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        if holds.iter().all(|h| *h) {
+            live.insert(n);
+        }
+    }
+    includes(text)
+        .into_iter()
+        .filter(|inc| live.contains(&inc.line))
+        .collect()
+}

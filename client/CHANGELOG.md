@@ -77,6 +77,11 @@ artefacts of opening it on its own.
   Workspace folders were read once, at startup, and never again, so
   everything in a folder you added stayed unrecognised until the
   window was reloaded.
+- **A file behind an unmet `#!ifdef` is no longer treated as part of
+  your configuration.** Kamailio never opens it — it does not even
+  report syntax errors in it — so claiming it meant analysing it
+  against a program it is not in, and checking it through a root that
+  would never surface its own errors.
 - **A failed check no longer invents a file and a line.** When
   `kamailio -c` fails without positioning the error — a module it
   cannot load, a bad module path — the note read "check failed

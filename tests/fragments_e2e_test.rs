@@ -1909,3 +1909,56 @@ fn state_survives_repeated_open_edit_close_cycles() {
     let _ = child.kill();
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// A conditionally-compiled include, end to end.
+///
+/// Found by asking the real parser what it does with
+/// `#!ifdef SYMBOL_NOBODY_DEFINED` around an `include_file`: it never
+/// opens the file, and never reports the syntax error sitting in it.
+/// The graph followed it anyway, so the fragment was claimed by a root
+/// that does not read it — analysed in the wrong program, and checked
+/// through a root that would never surface its errors.
+#[test]
+fn a_conditionally_excluded_include_is_not_claimed() {
+    for (defined, label) in [(true, "defined"), (false, "not defined")] {
+        let base = std::env::temp_dir()
+            .join(format!("frag-cond-{label}-{}", std::process::id()).replace(' ', "-"));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("inc")).unwrap();
+        let def = if defined { "#!define FEATURE_ON\n" } else { "" };
+        std::fs::write(
+            base.join("kamailio.cfg"),
+            format!(
+                "#!KAMAILIO\n{def}#!ifdef FEATURE_ON\ninclude_file \"inc/on.cfg\"\n#!endif\nroute[ROOT_ROUTE] {{\n    exit;\n}}\nrequest_route {{\n    exit;\n}}\n"
+            ),
+        )
+        .unwrap();
+        let frag = "route[COND] {\n    route(ROOT_ROUTE);\n}\n";
+        std::fs::write(base.join("inc/on.cfg"), frag).unwrap();
+        let frag_uri = format!("file://{}", base.join("inc/on.cfg").display());
+
+        let (mut child, rx, mut stdin) = start(&base, "");
+        write_msg(
+            &mut stdin,
+            &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"kamailio/analysisRoot",
+                "params":{"uri": frag_uri}}),
+        );
+        let v = wait_for(&rx, |v| v["id"] == 2, "analysisRoot");
+        if defined {
+            assert!(
+                v["result"]
+                    .as_str()
+                    .is_some_and(|s| s.ends_with("kamailio.cfg")),
+                "the symbol is defined above the guard, so the parser reads it: {v}"
+            );
+        } else {
+            assert!(
+                v["result"].is_null(),
+                "the parser never opens this file; claiming it as part of that \
+                 configuration analyses it against a program it is not in: {v}"
+            );
+        }
+        let _ = child.kill();
+        let _ = std::fs::remove_dir_all(&base);
+    }
+}

@@ -504,3 +504,63 @@ fn the_real_parser_sees_the_same_program_whole_or_split() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Oracle: what the REAL parser does with a conditional include.
+///
+/// This is the ground truth the rule above is derived from, pinned so
+/// it cannot quietly stop being true.  A syntax error inside a file
+/// guarded by an unmet `#!ifdef` is NOT reported, because the file is
+/// never opened; define the symbol and the same error appears.
+#[test]
+fn the_real_parser_does_not_open_a_conditionally_excluded_include() {
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
+    let mpath = common::required_env("KAMAILIO_LSP_TEST_MPATH");
+
+    let dir = std::env::temp_dir().join(format!("kamlsp-cond-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("inc")).unwrap();
+    // a file that cannot possibly parse
+    std::fs::write(dir.join("inc/on.cfg"), "route[BROKEN] {\n    exit\n}\n").unwrap();
+
+    let run = |defined: bool| -> usize {
+        let def = if defined { "#!define FEATURE_ON\n" } else { "" };
+        let cfg = dir.join("kamailio.cfg");
+        std::fs::write(
+            &cfg,
+            format!("#!KAMAILIO\nloadmodule \"sl.so\"\n{def}#!ifdef FEATURE_ON\ninclude_file \"inc/on.cfg\"\n#!endif\nrequest_route {{\n    exit;\n}}\n"),
+        )
+        .unwrap();
+        let mut cmd = Command::new(&bin);
+        cmd.arg("-c")
+            .arg("--all-errors")
+            .arg("-Y")
+            .arg(std::env::temp_dir());
+        if !mpath.is_empty() {
+            cmd.arg("-L").arg(&mpath);
+        }
+        let out = cmd
+            .arg("-f")
+            .arg(&cfg)
+            .current_dir(&dir)
+            .output()
+            .expect("the checker runs");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        kamailio_lsp::diag::parse_check_output(&stderr, out.status.code().unwrap_or(0))
+            .into_iter()
+            .filter(|d| d.file.contains("on.cfg"))
+            .count()
+    };
+
+    assert_eq!(
+        run(false),
+        0,
+        "an unmet #!ifdef means the file is never opened, so a syntax error \
+         in it cannot be reported"
+    );
+    assert!(
+        run(true) > 0,
+        "with the symbol defined the same file IS opened and the same error \
+         appears — or this proves nothing about the conditional"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

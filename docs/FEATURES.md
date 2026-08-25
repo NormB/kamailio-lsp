@@ -205,6 +205,19 @@ rebuilds the graph when one is added or removed; without that, "Add
 Folder to Workspace" left every fragment in the new folder
 unrecognised until the window was reloaded.
 
+**A conditionally-compiled include is not claimed.** Kamailio's
+preprocessor decides whether an `include_file` is read at all: a file
+inside a `#!ifdef` for a symbol nobody defined is never opened, and
+the checker does not even report syntax errors in it. Treating such a
+file as part of that configuration is worse than treating it as part
+of nothing — it would be analysed against a program it is not in, and
+checked through a root that never reads it, so its own errors would
+never surface. A conditional counts as holding only when the symbol
+is defined earlier in the same file; anything less certain yields
+nothing, which is simply the behaviour from before this feature
+existed. (OpenSIPS differs here — its 4.0.1 parser reads the include
+either way — so the sibling server deliberately does not do this.)
+
 The scan behind the graph is bounded at 500 configs and **says so in
 the log** when it stops early. Past that bound a root is simply not
 seen and its fragments stop being recognised — no colours, no
