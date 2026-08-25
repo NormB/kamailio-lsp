@@ -522,6 +522,152 @@ fn include_diags_remap_to_the_include_directive() {
     }
 }
 
+use kamailio_lsp::logic::IncludeGraph;
+
+/// Configs as the workspace scan hands them over.
+fn ws(entries: &[(&str, &str)]) -> Vec<(std::path::PathBuf, String)> {
+    entries
+        .iter()
+        .map(|(p, t)| (std::path::PathBuf::from(p), t.to_string()))
+        .collect()
+}
+
+#[test]
+fn the_include_graph_finds_the_root_a_fragment_belongs_to() {
+    use std::path::{Path, PathBuf};
+    // Transitivity is free: `sub/auth.cfg` is never named by
+    // kamailio.cfg, but routes.cfg is itself a scanned config and
+    // names it, so walking parents reaches the top of the chain.
+    let g = IncludeGraph::build(&ws(&[
+        ("/w/kamailio.cfg", "include_file \"routes.cfg\"\n"),
+        ("/w/routes.cfg", "import_file \"sub/auth.cfg\"\n"),
+        ("/w/sub/auth.cfg", "route[AUTH] { exit; }\n"),
+        ("/w/other.cfg", "request_route { exit; }\n"),
+    ]));
+    assert_eq!(
+        g.analysis_root(Path::new("/w/sub/auth.cfg")),
+        Some(PathBuf::from("/w/kamailio.cfg")),
+        "a fragment two levels down belongs to the top of its chain"
+    );
+    assert_eq!(
+        g.analysis_root(Path::new("/w/routes.cfg")),
+        Some(PathBuf::from("/w/kamailio.cfg"))
+    );
+    // a config nothing includes is a program in its own right
+    assert_eq!(g.analysis_root(Path::new("/w/kamailio.cfg")), None);
+    assert_eq!(g.analysis_root(Path::new("/w/other.cfg")), None);
+    // a file the scan never saw
+    assert_eq!(g.analysis_root(Path::new("/w/nope.cfg")), None);
+}
+
+#[test]
+fn the_include_graph_terminates_on_cycles_and_chooses_one_root_stably() {
+    use std::path::{Path, PathBuf};
+    // a <-> b: walking up from either must stop instead of looping
+    let g = IncludeGraph::build(&ws(&[
+        ("/w/a.cfg", "include_file \"b.cfg\"\n"),
+        ("/w/b.cfg", "include_file \"a.cfg\"\n"),
+    ]));
+    let r = g.analysis_root(Path::new("/w/b.cfg"));
+    assert!(r.is_some(), "a cycle still yields a decision: {r:?}");
+    // self-include
+    let g = IncludeGraph::build(&ws(&[("/w/z.cfg", "include_file \"z.cfg\"\n")]));
+    assert_eq!(g.analysis_root(Path::new("/w/z.cfg")), None);
+    // two roots include the same fragment: whichever is chosen, the
+    // choice must not depend on scan order, or a fragment's context
+    // would flicker between edits
+    let fwd = IncludeGraph::build(&ws(&[
+        ("/w/one.cfg", "include_file \"shared.cfg\"\n"),
+        ("/w/two.cfg", "include_file \"shared.cfg\"\n"),
+        ("/w/shared.cfg", "route[S] { exit; }\n"),
+    ]));
+    let rev = IncludeGraph::build(&ws(&[
+        ("/w/shared.cfg", "route[S] { exit; }\n"),
+        ("/w/two.cfg", "include_file \"shared.cfg\"\n"),
+        ("/w/one.cfg", "include_file \"shared.cfg\"\n"),
+    ]));
+    let a = fwd.analysis_root(Path::new("/w/shared.cfg"));
+    assert_eq!(a, rev.analysis_root(Path::new("/w/shared.cfg")));
+    assert_eq!(a, Some(PathBuf::from("/w/one.cfg")));
+    // adversarial: never panic
+    for t in [
+        "",
+        "\0",
+        "include_file",
+        "include_file \"\0\"",
+        "include_file \"..\"",
+    ] {
+        let g = IncludeGraph::build(&ws(&[("/w/x.cfg", t)]));
+        let _ = g.analysis_root(Path::new("/w/x.cfg"));
+    }
+}
+
+#[test]
+fn a_fragment_is_analysed_in_its_roots_closure_not_on_its_own() {
+    use kamailio_lsp::logic::{analyzer_diagnostics_in_closure, include_closure};
+    use std::path::Path;
+    // main.cfg defines HELPER and includes inc.cfg, which calls it.
+    // Checked on its own inc.cfg looks broken; in the root's closure
+    // it is not — the exact noise that made fragments unusable.
+    let main_text = "include_file \"inc.cfg\"\nroute[HELPER] { exit; }\n";
+    let inc_text = "request_route {\n    route(HELPER);\n}\n";
+    let loader = |p: &Path| -> Option<String> {
+        match p.to_str()? {
+            "/w/main.cfg" => Some(main_text.to_string()),
+            "/w/inc.cfg" => Some(inc_text.to_string()),
+            _ => None,
+        }
+    };
+    let alone = include_closure(Path::new("/w/inc.cfg"), inc_text, &loader);
+    let ds = analyzer_diagnostics_in_closure(&alone, Path::new("/w/inc.cfg"), inc_text);
+    assert_eq!(ds.len(), 1, "on its own the call is undefined: {ds:?}");
+
+    let via_root = include_closure(Path::new("/w/main.cfg"), main_text, &loader);
+    let ds = analyzer_diagnostics_in_closure(&via_root, Path::new("/w/inc.cfg"), inc_text);
+    assert!(ds.is_empty(), "in the root's closure it is defined: {ds:?}");
+    // positions still belong to the reported file only
+    let ds = analyzer_diagnostics_in_closure(&via_root, Path::new("/w/main.cfg"), main_text);
+    assert!(ds.is_empty(), "{ds:?}");
+}
+
+#[test]
+fn a_fragments_check_diagnostics_are_routed_to_the_fragment() {
+    use kamailio_lsp::diag::{Diag, Severity};
+    use kamailio_lsp::logic::fragment_check_diag;
+    use std::path::Path;
+    // `kamailio -c` ran on the ROOT (cwd = its directory); the buffer
+    // on screen is the fragment.
+    let checked = Path::new("/w/main.cfg");
+    let reported = Path::new("/w/incdir/sub.cfg");
+    let mk = |file: &str| Diag {
+        file: file.into(),
+        line: 7,
+        end_line: 7,
+        col_start: 4,
+        col_end: 9,
+        severity: Severity::Error,
+        message: "syntax error".into(),
+    };
+    // relative, as the checker spells an include
+    let d = fragment_check_diag(checked, reported, &mk("incdir/sub.cfg")).expect("fragment diag");
+    assert_eq!(d.line, 7, "at the fragment's own line, not folded");
+    assert_eq!(d.col_start, 4);
+    assert_eq!(d.message, "syntax error", "no include-directive prefix");
+    assert_eq!(d.file, reported.display().to_string());
+    // absolute spelling of the same file
+    assert!(fragment_check_diag(checked, reported, &mk("/w/incdir/sub.cfg")).is_some());
+    // the root's own errors belong to the root's buffer, not here
+    assert!(fragment_check_diag(checked, reported, &mk("/w/main.cfg")).is_none());
+    // a sibling fragment's errors are not this fragment's
+    assert!(fragment_check_diag(checked, reported, &mk("incdir/other.cfg")).is_none());
+    // an unpositioned line must not silently become the fragment's
+    assert!(fragment_check_diag(checked, reported, &mk("")).is_none());
+    // adversarial: never panic
+    for f in ["\0", "..", "a\\b", "incdir/../incdir/sub.cfg"] {
+        let _ = fragment_check_diag(checked, reported, &mk(f));
+    }
+}
+
 use kamailio_lsp::logic::{RouteNs, ns_occurrences, route_symbol_ns_at};
 
 #[test]

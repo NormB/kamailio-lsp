@@ -85,6 +85,71 @@ closure use — absolute paths pass through, and links are produced
 even for files that do not exist yet (the editor reports the miss on
 click). Paths in comments or strings never link.
 
+#### An included file opened on its own
+
+A config another config includes is a **fragment**, not a program.
+Checked on its own it flags every route its parent defines as
+undefined and reports every construct it continues as a syntax error,
+and `kamailio -c` was never meant to be handed one. The workspace
+sweep has always known this and skipped fragments — but opening one
+directly used to produce exactly those errors, as artefacts of how
+the file was opened rather than of anything wrong with it.
+
+So a fragment is answered in its **root's** context. Given
+
+```
+/etc/kamailio/
+├── kamailio.cfg          #!KAMAILIO
+│                         include_file "modules.cfg"
+│                         include_file "routing/inbound.cfg"
+├── modules.cfg
+└── routing/
+    ├── inbound.cfg       route[INBOUND] { route(SEND_TO_CARRIER); }
+    └── carriers.cfg      route[SEND_TO_CARRIER] { … }
+```
+
+opening `routing/inbound.cfg` on its own resolves `SEND_TO_CARRIER`,
+offers it in completion, and reports nothing about it — even though
+`inbound.cfg` neither defines it nor includes the file that does.
+
+**The only thing the user must do is open the folder** (in VS Code,
+`File → Open Folder…`), because the root is found by reading the
+configs under the client's workspace folders. A client that opened a
+single file has given the server nothing to read; the root could be
+any directory above it, and guessing is worse than saying so. With no
+folder, every config is a program of its own — the pre-0.15.0
+behaviour.
+
+The server keeps the workspace's include graph inverted — which
+config names which — and climbs it to the top of the chain that
+reaches the open document:
+
+- **Diagnostics.** The analyzer runs over the root's closure, so the
+  routes, modules and `#!define`s the parent brings exist; only
+  findings that land in the fragment are reported. `kamailio -c` is
+  run on the ROOT, and each error it reports is routed to the file it
+  actually names — an error inside the fragment lands on the
+  fragment's own line, and the root's own errors stay on the root.
+- **Navigation and completion.** Go to definition, references,
+  rename, call hierarchy, workspace symbols and route completion all
+  span the root's closure, so a `route()` the parent defines resolves
+  from inside the fragment and is offered while typing there.
+- **`kamailio/analysisRoot`.** A non-LSP request answering "what is
+  this document a piece of": the root's URI, or `null` when the
+  document is a program in its own right — or a file the workspace
+  never includes. The VS Code client uses it to decide whether an
+  unassociated `.cfg` on screen is part of a Kamailio configuration
+  (see **Notes**).
+
+A fragment reached from more than one root has no single true answer;
+the lexicographically first parent is taken at each step, so the
+context cannot flicker between edits. Include cycles terminate at the
+last config not already visited. The graph is rebuilt when a config
+is created, deleted or changed on disk, when a document opens or
+closes, and when an edit adds or removes an include directive —
+nothing else can move a file from one root to another, so ordinary
+typing does not pay for it.
+
 #### Workspace symbols, code lenses
 
 **Ctrl+T** searches route definitions across every open file and its
@@ -422,6 +487,7 @@ clients that can't pass options.
 | `kamailioLsp.checkTimeoutMs` | `checkTimeoutMs` | `KAMAILIO_LSP_CHECK_TIMEOUT_MS` | `10000` | Kill a `-c` run after this many ms. |
 | `kamailioLsp.completion.snippets` | `snippetCompletions` | — | `true` | Function completions as tabstop snippets. |
 | `kamailioLsp.cacheDir` | `cacheDir` | `KAMAILIO_LSP_CACHE_DIR` | platform cache dir | Documentation-catalog cache location. |
+| `kamailioLsp.associateIncludedFiles` | — | — | `true` | Give a plain-text `.cfg` the workspace's configuration includes the Kamailio language (colours, completion, diagnostics). Files another extension already claims are left alone. |
 | `kamailioLsp.trace.server` | — | — | `off` | LSP traffic tracing in the output channel. |
 | — | — | `KAMAILIO_LSP_OUTPUT_CAP_BYTES` | `1048576` | Byte cap on captured `-c` output. |
 | — | — | `KAMAILIO_LSP_TRACE_INDEX` | *(unset)* | Set to any non-empty value to log one stderr line per document-index rebuild — a debugging seam for cache behaviour. |
@@ -434,8 +500,16 @@ clients that can't pass options.
   `#!MAXCOMPAT` or `#!ALL`, the set `src/core/cfg.lex` accepts —
   whatever that file is called. The generic `.cfg` extension is
   deliberately left alone so unrelated tools' config files are not
-  hijacked; anything else needs a `files.associations` entry mapping
-  it to `kamailio-cfg`.
+  hijacked. A `.cfg` your configuration *includes* is picked up
+  anyway, at runtime: VS Code hands it over as plain text, the
+  extension asks the server whether anything includes it
+  (`kamailio/analysisRoot`) and sets the language when something
+  does, so an include named `carrier-routes.cfg` gets the same
+  colours and the same server as the root that pulls it in. A file
+  another extension has already claimed is left to that extension.
+  Turn this off with `kamailioLsp.associateIncludedFiles`; anything
+  the server cannot reach through an include still needs a
+  `files.associations` entry mapping it to `kamailio-cfg`.
 - The analyzer expands `route(NAME)` through the `#!define` table
   before deciding anything, so a route addressed through an alias
   (`#!define RELAY MYROUTE` + `route(RELAY)`) is resolved rather than

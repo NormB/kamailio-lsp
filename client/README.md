@@ -54,6 +54,15 @@ extension and it just works.
   each documented call site, plus what each `#!define` expands to at its uses.
 - **Include links** — Ctrl+Click an `include_file`/`import_file` path
   to open it.
+- **Included files opened on their own** — open the folder (not the
+  single file) and a fragment is answered in the context of the root
+  that includes it. Given `kamailio.cfg` with
+  `include_file "routing/inbound.cfg"`, opening `routing/inbound.cfg`
+  colours it, resolves and completes routes defined anywhere else in
+  the configuration, stops calling them undefined, and runs
+  `kamailio -c` on the root — putting each error back on the file it
+  actually names. Turn the colouring off with
+  **Kamailio Lsp › Associate Included Files**.
 - **Preprocessor symbols** — hover a `#!define` name for what it
   binds, Ctrl+Click to its directive (works inside `#!ifdef` too),
   and find them in the outline. Routes reached through an alias are
@@ -97,7 +106,13 @@ extension and it just works.
    script-type marker** — `#!KAMAILIO`, `#!OPENSER`, `#!SER`,
    `#!MAXCOMPAT` or `#!ALL` — whatever it is called. The generic
    `.cfg` extension is deliberately left alone so unrelated tools'
-   config files are not hijacked; for anything else, add a
+   config files are not hijacked — but a `.cfg` your configuration
+   **includes** is picked up anyway: the extension asks the server
+   what includes what and gives it the language, so a split-out
+   `carrier-routes.cfg` gets the same colors and the same server as
+   the root that pulls it in. A file another extension already claims
+   is left to that extension, and for anything the includes do not
+   reach, add a
    [`files.associations`](https://code.visualstudio.com/docs/languages/identifiers)
    entry mapping it to `kamailio-cfg`.
 3. For live error checking, point

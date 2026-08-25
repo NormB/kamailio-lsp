@@ -8,6 +8,14 @@ async fn main() {
     }
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
-    let (service, socket) = LspService::new(kamailio_lsp::server::Backend::new);
+    // `analysisRoot` is not an LSP request: the client needs it before
+    // a document has a language, which is exactly when the standard
+    // document requests do not apply to it yet.
+    let (service, socket) = LspService::build(kamailio_lsp::server::Backend::new)
+        .custom_method(
+            "kamailio/analysisRoot",
+            kamailio_lsp::server::Backend::analysis_root,
+        )
+        .finish();
     Server::new(stdin, stdout, socket).serve(service).await;
 }

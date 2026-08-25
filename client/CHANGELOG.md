@@ -2,6 +2,35 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.15.0] — 2026-08-25
+
+Opening an included file directly now works, in both senses people
+asked for: it gets colours, and it stops reporting problems that were
+artefacts of opening it on its own.
+
+- **A `.cfg` your configuration includes is recognised.** The
+  extension still refuses to claim every `.cfg` on disk — that
+  hijacks unrelated tools' config files — but a fragment named
+  `carrier-routes.cfg` is no longer left as plain text. VS Code hands
+  it over unassociated, the extension asks the server whether
+  anything includes it, and gives it the Kamailio language when
+  something does. Files another extension has already claimed are
+  left alone, and `kamailioLsp.associateIncludedFiles` turns it off.
+- **An included file is analysed as part of its root.** A fragment is
+  not a program: on its own it flagged every route its parent defines
+  as undefined and handed `kamailio -c` something it was never meant
+  to accept. Diagnostics now run over the ROOT's closure and the
+  checker runs on the root, with each error routed back to the file
+  it actually names — an error inside the fragment lands on the
+  fragment's own line.
+- **Navigation from a fragment reaches its parent.** Go to
+  definition, references, rename, call hierarchy, workspace symbols
+  and route completion span the root's closure, so a `route()` the
+  parent defines resolves and completes from inside the include.
+- **New request `kamailio/analysisRoot`** for other clients: what is
+  this document a piece of? The root's URI, or `null` when it is a
+  program in its own right.
+
 ## [0.14.4] — 2026-08-24
 
 Documentation only; the server and the extension behave exactly as
