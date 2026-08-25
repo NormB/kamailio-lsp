@@ -61,6 +61,11 @@
           "default": "",
           "description": "Kamailio source tree to harvest module documentation from (completion/hover)."
         },
+        "kamailioLsp.kamailioVersion": {
+          "type": "string",
+          "default": "",
+          "description": "Built-in Kamailio release to check modparam names against (e.g. 6.0.7). Empty means the newest the catalogue covers. Ignored when kamailioSrc is set."
+        },
         "kamailioLsp.kamailioWiki": {
           "type": "string",
           "default": "",

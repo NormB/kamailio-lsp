@@ -85,6 +85,27 @@ core keywords and route names, and module hover is unavailable.
 { "kamailioSrc": "/home/user/src/kamailio" }
 ```
 
+#### kamailioVersion (string)
+
+Which built-in Kamailio release to check `modparam` names against.
+What a module exports moves between releases, so a configuration that
+is correct on one can look wrong when judged against another.
+
+Accepts any release the built-in catalogue covers — currently
+`5.8.8`, `6.0.7` and `6.1.4`. An unrecognised value is reported and
+the newest is used, rather than silently checking against a release
+you did not ask for.
+
+Ignored when `kamailioSrc` is set: your own tree is exact for your
+build, and this is a choice among the ones shipped here.
+
+*Default value is the newest release the catalogue covers.
+Environment fallback: `KAMAILIO_LSP_VERSION`.*
+
+```json title="Set kamailioVersion parameter"
+{ "kamailioVersion": "6.0.7" }
+```
+
 #### kamailioWiki (string)
 
 kamailio-wiki checkout to harvest core-language documentation from.

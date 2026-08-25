@@ -303,3 +303,76 @@ fn check_runs_the_catalogue_check_and_names_the_catalogue() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The release checked against is selectable, and selecting one the
+/// catalogue really covers changes the answer.
+///
+/// `rr::ignore_user` exists in 5.8.8 and 6.0.7 and was dropped by
+/// 6.1: on the newest release it warns and says where it exists, and
+/// on 6.0.7 it is simply correct. A test that only checked the header
+/// would pass even if the selection changed nothing.
+#[test]
+fn the_checked_release_is_selectable() {
+    let dir = setup("version");
+    let cfg = dir.join("v.cfg");
+    std::fs::write(
+        &cfg,
+        "request_route {\n    xlog(\"x\");\n}\nmodparam(\"rr\", \"ignore_user\", 1)\n",
+    )
+    .unwrap();
+    let run = |version: &str| {
+        let out = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .args(["check", cfg.to_str().unwrap()])
+            .env("KAMAILIO_LSP_BIN", "")
+            .env("KAMAILIO_LSP_SRC", "")
+            .env("KAMAILIO_LSP_VERSION", version)
+            .output()
+            .unwrap();
+        (
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    };
+
+    // the newest release: warns, and says which releases do have it
+    let (newest_out, newest_err) = run("");
+    assert!(newest_out.contains("ignore_user"), "stdout: {newest_out}");
+    assert!(
+        newest_out.contains("it exists in"),
+        "a parameter another release exports must say so; stdout: {newest_out}"
+    );
+    assert!(newest_err.contains("6.1.4"), "stderr: {newest_err}");
+
+    // a release that really exports it: silent
+    let (older_out, older_err) = run("6.0.7");
+    assert!(older_err.contains("6.0.7"), "stderr: {older_err}");
+    assert!(
+        !older_out.contains("ignore_user"),
+        "6.0.7 exports it, so there is nothing to warn about; stdout: {older_out}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An unsupported release must not quietly become the newest — the
+/// run would then report on a release nobody asked about.
+#[test]
+fn an_unsupported_release_is_reported_not_swallowed() {
+    let dir = setup("badversion");
+    let cfg = dir.join("b.cfg");
+    std::fs::write(&cfg, "request_route {\n    xlog(\"x\");\n}\n").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .args(["check", cfg.to_str().unwrap()])
+        .env("KAMAILIO_LSP_BIN", "")
+        .env("KAMAILIO_LSP_SRC", "")
+        .env("KAMAILIO_LSP_VERSION", "9.9.9")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("no built-in catalogue for Kamailio 9.9.9"),
+        "stderr: {stderr}"
+    );
+    assert!(stderr.contains("supported:"), "stderr: {stderr}");
+    assert!(stderr.contains("using"), "stderr: {stderr}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
