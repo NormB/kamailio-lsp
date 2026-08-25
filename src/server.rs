@@ -1707,7 +1707,8 @@ impl LanguageServer for Backend {
             self.client
                 .log_message(
                     MessageType::INFO,
-                    "kamailio-lsp: workspace diagnostics stopped at 500 configs;                      the sweep is incomplete",
+                    "kamailio-lsp: workspace diagnostics stopped at 500 configs; \
+                     the sweep is incomplete",
                 )
                 .await;
         }
