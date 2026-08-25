@@ -247,3 +247,36 @@ fn the_gate_actually_counts_something() {
     assert!(loads >= 3, "corpus too thin: {loads} loadmodules");
     assert!(modparams >= 2, "corpus too thin: {modparams} modparams");
 }
+
+/// Includes were the one construct the two sides modelled differently
+/// and nothing compared.
+///
+/// The scanner followed `#!include_file` — correctly, the real parser
+/// reads it — while the kamailio grammar classified the whole line as
+/// a generic preprocessor directive and the OpenSIPS grammar had no
+/// include rule at all.  The corpus even recorded the disagreement as
+/// the expected tree.  An editor driven by the grammar and a server
+/// driven by the scanner then disagreed about what the file contains,
+/// which for a feature built entirely on include directives is the
+/// disagreement that matters most.
+#[test]
+fn grammar_and_scanner_agree_on_includes() {
+    let mut total = 0usize;
+    for case in corpus_cases() {
+        let tree = parse_sexp(&case.expected);
+        let grammar = count(&tree, "include", None);
+        let scanner = kamailio_lsp::analyze::includes(&case.input).len();
+        assert_eq!(
+            grammar, scanner,
+            "include count drift in corpus case '{}': grammar {grammar}, \
+             scanner {scanner}\ninput:\n{}",
+            case.name, case.input
+        );
+        total += grammar;
+    }
+    assert!(
+        total >= 3,
+        "the corpus must exercise includes — bare and prefixed — or this \
+         gate compares zero against zero: {total}"
+    );
+}

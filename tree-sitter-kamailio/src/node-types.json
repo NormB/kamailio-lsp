@@ -1113,14 +1113,6 @@
     "named": false
   },
   {
-    "type": "import_file",
-    "named": false
-  },
-  {
-    "type": "include_file",
-    "named": false
-  },
-  {
     "type": "loadmodule",
     "named": false
   },

@@ -34,7 +34,19 @@ module.exports = grammar({
     comment: _ => token(choice(seq('#', /[^\n]*/), seq('//', /[^\n]*/))),
     block_comment: _ => token(seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')),
 
-    include: $ => seq(choice('include_file', 'import_file'), $.string),
+    // The `#!`/`!!` prefix is honoured by the real parser — an
+    // include written that way IS read — but `preproc` is a
+    // whole-line token that would otherwise swallow it, so the
+    // keyword needs a token of its own outranking it.  Without this
+    // the grammar and the server's scanner disagree about what an
+    // include is, and only one of them is right.
+    include: $ => seq(
+      token(prec(3, seq(
+        optional(choice('#!', '!!')),
+        choice('include_file', 'import_file'),
+      ))),
+      $.string,
+    ),
 
     loadmodule: $ => seq(choice('loadmodule', 'loadpath'), $.string),
 
