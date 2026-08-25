@@ -257,3 +257,49 @@ include_file \"inc/routes.cfg\"\nroute[HELPER] {\n    exit;\n}\nrequest_route {\
     assert!(stdout.contains("NOWHERE"), "{stdout}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The CLI runs the same `modparam` catalogue check the editor does.
+///
+/// It did not, so a configuration was green in CI and warned about in
+/// the editor — the two surfaces disagreeing about the same file.
+#[test]
+fn check_runs_the_catalogue_check_and_names_the_catalogue() {
+    let dir = setup("catalogue");
+    let cfg = dir.join("m.cfg");
+    // a real tm parameter and one no Kamailio release exports
+    std::fs::write(
+        &cfg,
+        "request_route {\n    xlog(\"x\");\n}\nmodparam(\"tm\", \"fr_timer\", 5)\nmodparam(\"tm\", \"not_a_real_parameter\", 1)\n",
+    )
+    .unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .args(["check", cfg.to_str().unwrap()])
+        .env("KAMAILIO_LSP_BIN", "")
+        .env("KAMAILIO_LSP_SRC", "")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+
+    assert!(
+        stdout.contains("not_a_real_parameter"),
+        "the catalogue check must run in the CLI; stdout: {stdout}"
+    );
+    // the version belongs in the message, so a pasted line explains
+    // itself without the header
+    assert!(
+        stdout.contains("is not exported by module 'tm' in Kamailio"),
+        "the finding must name the catalogue; stdout: {stdout}"
+    );
+    assert!(
+        !stdout.contains("fr_timer"),
+        "a real parameter must not warn; stdout: {stdout}"
+    );
+    // findings are `file:line:col: sev: msg` for other tools to parse,
+    // so the header goes to stderr rather than among them
+    assert!(
+        stderr.contains("modparam checks against Kamailio"),
+        "the run must say what it judged against; stderr: {stderr}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
