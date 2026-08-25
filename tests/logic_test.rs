@@ -865,19 +865,20 @@ fn catalog_diagnostics_flag_undocumented_modparams() {
     let cat = catalog(); // tm documents fr_timer; htable documents htable
     // unknown param of a KNOWN module → warning at the param
     let text = "modparam(\"tm\", \"fr_tmer\", 5)\n";
-    let ds = catalog_diagnostics(&cat, text);
+    let origin = kamailio_lsp::catalog::CatalogOrigin::BuiltIn("6.1.4".to_string());
+    let ds = catalog_diagnostics(&cat, &origin, text);
     assert_eq!(ds.len(), 1, "{ds:?}");
     assert!(ds[0].message.contains("fr_tmer") && ds[0].message.contains("tm"));
     assert_eq!(ds[0].line, 0);
     assert!(ds[0].col_start < ds[0].col_end);
     // documented param → clean
-    assert!(catalog_diagnostics(&cat, "modparam(\"tm\", \"fr_timer\", 5)\n").is_empty());
+    assert!(catalog_diagnostics(&cat, &origin, "modparam(\"tm\", \"fr_timer\", 5)\n").is_empty());
     // UNKNOWN module → silent (the catalog may simply not cover it)
-    assert!(catalog_diagnostics(&cat, "modparam(\"nope\", \"x\", 1)\n").is_empty());
+    assert!(catalog_diagnostics(&cat, &origin, "modparam(\"nope\", \"x\", 1)\n").is_empty());
     // empty catalog → silent everywhere
-    assert!(catalog_diagnostics(&[], text).is_empty());
+    assert!(catalog_diagnostics(&[], &origin, text).is_empty());
     // modparamx counts
-    let ds = catalog_diagnostics(&cat, "modparamx(\"tm\", \"fr_tmer\", 5)\n");
+    let ds = catalog_diagnostics(&cat, &origin, "modparamx(\"tm\", \"fr_tmer\", 5)\n");
     assert_eq!(ds.len(), 1);
 }
 
@@ -1422,16 +1423,17 @@ fn the_workspace_sweep_reaches_configs_not_named_cfg() {
 /// keeps its true positives.
 #[test]
 fn a_module_documenting_nothing_at_all_stays_silent() {
-    use kamailio_lsp::catalog::{Item, ModuleDoc};
+    use kamailio_lsp::catalog::{CatalogOrigin, Item, ModuleDoc};
     use kamailio_lsp::logic::catalog_diagnostics;
 
+    let origin = CatalogOrigin::BuiltIn("6.1.4".to_string());
     let nothing = vec![ModuleDoc {
         name: "unharvested".into(),
         params: Vec::new(),
         functions: Vec::new(),
     }];
     assert!(
-        catalog_diagnostics(&nothing, "modparam(\"unharvested\", \"p\", 1)\n").is_empty(),
+        catalog_diagnostics(&nothing, &origin, "modparam(\"unharvested\", \"p\", 1)\n").is_empty(),
         "an unharvested module must not accuse the config"
     );
 
@@ -1445,7 +1447,12 @@ fn a_module_documenting_nothing_at_all_stays_silent() {
         }],
     }];
     assert_eq!(
-        catalog_diagnostics(&functions_only, "modparam(\"textops\", \"nope\", 1)\n").len(),
+        catalog_diagnostics(
+            &functions_only,
+            &origin,
+            "modparam(\"textops\", \"nope\", 1)\n"
+        )
+        .len(),
         1,
         "a module with functions but no parameters was read, and exports none"
     );
