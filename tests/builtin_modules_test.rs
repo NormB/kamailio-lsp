@@ -133,41 +133,31 @@ fn the_readme_shapes_the_harvester_used_to_miss_are_in_the_catalogue() {
 ///
 /// `3.14. terminate_dialog_on_rx_failure integer` was harvested with
 /// the type inside the name, so the entry could never match the call
-/// site it was supposed to document.  The two exceptions are upstream
-/// prose, not a parsing failure: `mohqueue` documents two parameters
-/// under one heading and `slack` writes `slack url` with a space.
+/// site it was supposed to document.
+///
+/// Two upstream-prose exceptions used to stand here — `mohqueue`
+/// documenting two parameters under one heading, and `slack` writing
+/// `slack url` with a space. Both are gone. A name is now taken from
+/// the module's `param_export_t` table, and no C string literal
+/// carrying a space or a parenthesis is a parameter, so there is
+/// nothing left to excuse and the rule holds without exception.
 #[test]
 fn no_catalogue_entry_carries_its_type_in_its_name() {
     let b = catalog::builtin_modules();
-    let upstream_prose = [
-        ("mohqueue", "db_qtable and db_ctable"),
-        ("slack", "slack url"),
-    ];
-    let mut seen: Vec<(&str, &str)> = Vec::new();
+    let mut checked = 0usize;
     for m in &b.modules {
         for p in &m.params {
-            if !p.name.contains('(') && !p.name.contains(' ') {
-                continue;
-            }
-            let known = upstream_prose
-                .iter()
-                .find(|(mo, pa)| *mo == m.name && *pa == p.name);
+            checked += 1;
             assert!(
-                known.is_some(),
+                !p.name.contains('(') && !p.name.contains(' '),
                 "{}::{} is not a name a modparam could write",
                 m.name,
                 p.name
             );
-            seen.push(*known.unwrap());
         }
     }
-    assert_eq!(
-        seen.len(),
-        upstream_prose.len(),
-        "an exception stopped firing — drop it: {:?}",
-        upstream_prose
-            .iter()
-            .filter(|e| !seen.contains(e))
-            .collect::<Vec<_>>()
+    assert!(
+        checked > 2000,
+        "suspiciously few catalogue entries checked: {checked}"
     );
 }

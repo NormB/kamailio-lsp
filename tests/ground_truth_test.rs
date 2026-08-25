@@ -188,94 +188,27 @@ fn rejected_rename_targets_really_break_configs() {
 /// parameters between them, every one of which made the server warn
 /// about a parameter that exists.
 ///
-/// The exceptions below are the other direction: places where the
-/// EXAMPLE is wrong, or where upstream documents no heading at all.
-/// Each is a finding about Kamailio's documentation, not about this
-/// parser, so each is listed by name rather than waved through by a
-/// count.
-const UPSTREAM_DOC_GAPS: [(&str, &str, &str); 17] = [
-    ("cplc", "cpl_table", "no heading documents it"),
-    ("dispatcher", "ds_interval_mode", "no heading documents it"),
-    ("drouting", "atrrs_avp", "example typo for `attrs_avp`"),
-    (
-        "kazoo",
-        "amqp_consumer_ack_timeout_micro",
-        "heading documents `amqp_consumer_ack_timeout`",
-    ),
-    (
-        "kazoo",
-        "amqp_consumer_ack_timeout_sec",
-        "heading documents `amqp_consumer_ack_timeout`",
-    ),
-    (
-        "kazoo",
-        "amqp_interprocess_timeout_micro",
-        "heading documents `amqp_interprocess_timeout`",
-    ),
-    (
-        "kazoo",
-        "amqp_interprocess_timeout_sec",
-        "heading documents `amqp_interprocess_timeout`",
-    ),
-    (
-        "kazoo",
-        "amqp_query_timeout_micro",
-        "heading documents `amqp_query_timeout`",
-    ),
-    (
-        "kazoo",
-        "amqp_query_timeout_sec",
-        "heading documents `amqp_query_timeout`",
-    ),
-    (
-        "kazoo",
-        "amqp_waitframe_timeout_micro",
-        "heading documents `amqp_waitframe_timeout`",
-    ),
-    (
-        "kazoo",
-        "amqp_waitframe_timeout_sec",
-        "heading documents `amqp_waitframe_timeout`",
-    ),
-    ("msilo", "sc_status", "no heading documents it"),
-    (
-        "msrp",
-        "auth_max_expiresl",
-        "example typo for `auth_max_expires`",
-    ),
-    (
-        "msrp",
-        "auth_min_expiresl",
-        "example typo for `auth_min_expires`",
-    ),
-    ("ndb_cassandra", "port", "no heading documents it"),
-    (
-        "p_usrloc",
-        "db_mode",
-        "documented under `Changes from usrloc module`, not Parameters",
-    ),
-    (
-        "slack",
-        "slack_url",
-        "heading typo: `slack url`, with a space",
-    ),
-];
-
+/// The other direction — an example naming a parameter the module does
+/// not export — used to be a hand-curated array of 17 triples. It is
+/// now derived: a module's `param_export_t` tables are the list
+/// `modparam()` is checked against at startup, so a name absent from
+/// them is not a parameter, whoever wrote it. That is provable rather
+/// than curated, and it carries its own evidence.
 /// G3: every parameter a module's own README sets in an example is in
-/// the catalogue.
+/// the catalogue, unless the module does not export it at all.
 #[test]
 fn the_catalogue_contains_every_parameter_the_readmes_set() {
     let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
-    let modules = std::path::Path::new(&tree).join("src").join("modules");
+    let root = std::path::Path::new(&tree);
     let re =
         regex::Regex::new(r#"modparam\(\s*"([A-Za-z0-9_]+)"\s*,\s*"([A-Za-z0-9_]+)""#).unwrap();
     let catalogue = kamailio_lsp::catalog::builtin_modules();
 
     let mut checked = 0usize;
     let mut missing: Vec<String> = Vec::new();
-    let mut stale: Vec<String> = Vec::new();
-    let mut seen_gap: Vec<(&str, &str)> = Vec::new();
-    let mut dirs: Vec<std::path::PathBuf> = std::fs::read_dir(&modules)
+    let mut not_exported: Vec<String> = Vec::new();
+    let mut with_tables = 0usize;
+    let mut dirs: Vec<std::path::PathBuf> = std::fs::read_dir(root.join("src").join("modules"))
         .expect("a Kamailio source tree has src/modules")
         .flatten()
         .map(|e| e.path())
@@ -292,6 +225,10 @@ fn the_catalogue_contains_every_parameter_the_readmes_set() {
             ));
             continue;
         };
+        let exported = kamailio_lsp::catalog::param_names_from_c(&dir, root);
+        if !exported.names.is_empty() {
+            with_tables += 1;
+        }
         for c in re.captures_iter(&readme) {
             // only what the module says about ITSELF: a README often
             // shows another module's parameter in a worked example
@@ -301,47 +238,38 @@ fn the_catalogue_contains_every_parameter_the_readmes_set() {
             let param = c[2].to_string();
             checked += 1;
             if doc.params.iter().any(|p| p.name == param) {
-                if let Some((_, _, why)) = UPSTREAM_DOC_GAPS
-                    .iter()
-                    .find(|(m, p, _)| *m == module && *p == param)
-                {
-                    stale.push(format!(
-                        "{module}::{param} is harvested now — drop it ({why})"
-                    ));
-                }
                 continue;
             }
-            match UPSTREAM_DOC_GAPS
-                .iter()
-                .find(|(m, p, _)| *m == module && *p == param)
-            {
-                Some((m, p, _)) => {
-                    if !seen_gap.contains(&(m, p)) {
-                        seen_gap.push((m, p));
-                    }
+            // absent from the catalogue is a failure unless the
+            // module's own C tables say it is not a parameter at all
+            if !exported.names.is_empty() && !exported.names.contains(&param) {
+                let entry = format!("{module}::{param}");
+                if !not_exported.contains(&entry) {
+                    not_exported.push(entry);
                 }
-                None => missing.push(format!("{module}::{param}")),
+            } else {
+                missing.push(format!("{module}::{param}"));
             }
         }
     }
     assert!(checked > 2000, "suspiciously few examples read: {checked}");
+    // POSITIVE CONTROL. The exception is "absent from the C tables".
+    // Were the extraction to stop matching, every example would be
+    // excused and this test would pass having proven nothing.
+    assert!(
+        with_tables >= 220,
+        "only {with_tables} modules exposed a parameter table; \
+         the derived exception would excuse everything"
+    );
     assert!(
         missing.is_empty(),
-        "{} parameter(s) a README sets are not in the catalogue:\n{}",
+        "{} parameter(s) a README sets are exported by the module but absent from the catalogue:\n{}",
         missing.len(),
         missing.join("\n")
     );
-    // an exception that no longer fires is an exception that stopped
-    // describing the tree — it hides the next regression
-    assert!(stale.is_empty(), "stale exceptions:\n{}", stale.join("\n"));
-    assert_eq!(
-        seen_gap.len(),
-        UPSTREAM_DOC_GAPS.len(),
-        "exceptions that never fired: {:?}",
-        UPSTREAM_DOC_GAPS
-            .iter()
-            .filter(|(m, p, _)| !seen_gap.contains(&(*m, *p)))
-            .collect::<Vec<_>>()
+    eprintln!(
+        "catalogue covers {checked} README modparam examples; {} example(s) name a parameter the module never exported:\n{}",
+        not_exported.len(),
+        not_exported.join("\n")
     );
-    eprintln!("catalogue covers {checked} README modparam examples");
 }

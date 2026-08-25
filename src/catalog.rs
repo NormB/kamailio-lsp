@@ -315,6 +315,357 @@ fn modules_dir(tree_root: &Path) -> PathBuf {
     }
 }
 
+/// The outcome of reading one module's C parameter tables.
+pub struct ModuleCParams {
+    /// Every `modparam` name found, in declaration order.
+    pub names: Vec<String>,
+    /// Whether every table resolved fully. A table that splices in a
+    /// macro we could not find leaves this false: the name set is then
+    /// possibly short, so it must not be used to drop anything.
+    pub complete: bool,
+}
+
+/// Skip ASCII whitespace in place.
+fn skip_ws(b: &[u8], i: &mut usize) {
+    while *i < b.len() && b[*i].is_ascii_whitespace() {
+        *i += 1;
+    }
+}
+
+/// Strip C comments so a commented-out table entry cannot be read as
+/// an export. String and character literals are copied through: a
+/// `//` inside a literal is text, not a comment.
+fn strip_c_comments(src: &str) -> String {
+    let b = src.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    let mut i = 0usize;
+    while i < b.len() {
+        match b[i] {
+            q @ (b'"' | b'\'') => {
+                let start = i;
+                i += 1;
+                while i < b.len() {
+                    if b[i] == b'\\' {
+                        i += 2;
+                        continue;
+                    }
+                    if b[i] == q {
+                        i += 1;
+                        break;
+                    }
+                    i += 1;
+                }
+                out.extend_from_slice(&b[start..i.min(b.len())]);
+            }
+            b'/' if i + 1 < b.len() && b[i + 1] == b'/' => {
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'/' if i + 1 < b.len() && b[i + 1] == b'*' => {
+                i += 2;
+                while i + 1 < b.len() && !(b[i] == b'*' && b[i + 1] == b'/') {
+                    i += 1;
+                }
+                i = (i + 2).min(b.len());
+                out.push(b' ');
+            }
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Every `modparam` name declared by the `param_export_t` tables in
+/// one C source file, in declaration order and de-duplicated.
+///
+/// This is the list `modparam()` is checked against when Kamailio
+/// starts, so it decides which parameters exist; a module README only
+/// says what they mean.
+pub fn parse_param_export_tables(src: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut complete = true;
+    scan_param_tables(
+        src,
+        &std::collections::BTreeMap::new(),
+        &mut names,
+        &mut complete,
+    );
+    names
+}
+
+/// Find every `param_export_t <ident>[] = { ... }` initialiser and
+/// collect the names it declares.
+fn scan_param_tables(
+    src: &str,
+    macros: &std::collections::BTreeMap<String, String>,
+    out: &mut Vec<String>,
+    complete: &mut bool,
+) {
+    const TY: &str = "param_export_t";
+    let stripped = strip_c_comments(src);
+    let b = stripped.as_bytes();
+    let mut search = 0usize;
+
+    while let Some(rel) = stripped[search..].find(TY) {
+        let at = search + rel;
+        search = at + TY.len();
+        // a whole token, not the tail of some other identifier
+        if at > 0 && (b[at - 1].is_ascii_alphanumeric() || b[at - 1] == b'_') {
+            continue;
+        }
+        // only `<ident>[] = {` opens a table; a prototype or a
+        // `param_export_t *` parameter does not
+        let mut i = search;
+        skip_ws(b, &mut i);
+        let id = i;
+        while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_') {
+            i += 1;
+        }
+        if i == id {
+            continue;
+        }
+        let mut shaped = true;
+        for expect in *b"[]=" {
+            skip_ws(b, &mut i);
+            if i >= b.len() || b[i] != expect {
+                shaped = false;
+                break;
+            }
+            i += 1;
+        }
+        if !shaped {
+            continue;
+        }
+        skip_ws(b, &mut i);
+        if i >= b.len() || b[i] != b'{' {
+            continue;
+        }
+        search = collect_table_entries(&stripped, i, macros, out, complete, 8);
+    }
+}
+
+/// Read one table initialiser, `start` at its opening brace, and
+/// return the index just past its close.
+///
+/// Each entry opens a brace one level inside the table and its name is
+/// the literal that opens it, so `{0, 0, 0}` terminators contribute
+/// nothing and a literal deeper inside an entry's value is an argument
+/// rather than a name.
+fn collect_table_entries(
+    src: &str,
+    start: usize,
+    macros: &std::collections::BTreeMap<String, String>,
+    out: &mut Vec<String>,
+    complete: &mut bool,
+    budget: u8,
+) -> usize {
+    let b = src.as_bytes();
+    let mut i = start;
+    let mut depth = 0usize;
+
+    while i < b.len() {
+        match b[i] {
+            b'{' => {
+                depth += 1;
+                if depth == 2 {
+                    let mut j = i + 1;
+                    skip_ws(b, &mut j);
+                    if j < b.len() && b[j] == b'"' {
+                        let s = j + 1;
+                        let mut e = s;
+                        while e < b.len() && b[e] != b'"' {
+                            if b[e] == b'\\' {
+                                e += 1;
+                            }
+                            e += 1;
+                        }
+                        let name = &src[s..e.min(src.len())];
+                        if !name.is_empty() && !out.iter().any(|n| n == name) {
+                            out.push(name.to_string());
+                        }
+                    }
+                }
+                i += 1;
+            }
+            b'}' => {
+                if depth == 0 {
+                    break;
+                }
+                depth -= 1;
+                i += 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            b'#' => {
+                // A preprocessor directive brackets entries
+                // conditionally — `tm` guards one behind
+                // `USE_DNS_FAILOVER`, `tls` behind `KSR_SSL_ENGINE`. A
+                // catalogue wants the union of both arms, so skip the
+                // directive rather than reading `ifdef` as a macro
+                // this parser cannot find.
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            c if depth == 1 && (c.is_ascii_alphabetic() || c == b'_') => {
+                // A bare identifier between entries is a macro that
+                // splices in more of them. `matrix` assembles its
+                // WHOLE table this way — `matrix_DB_URL`,
+                // `matrix_DB_TABLE`, `matrix_DB_COLS` from
+                // `db_matrix.h` — so without expansion the module
+                // reads as exporting nothing at all.
+                let s = i;
+                while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_') {
+                    i += 1;
+                }
+                match macros.get(&src[s..i]) {
+                    Some(body) if budget > 0 => {
+                        let wrapped = format!("{{{body}}}");
+                        collect_table_entries(&wrapped, 0, macros, out, complete, budget - 1);
+                    }
+                    _ => *complete = false,
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    i
+}
+
+/// `#define <name> ...` bodies that look like table entries.
+///
+/// Only the ones containing a `{"` are kept: those are the ones a
+/// parameter table can splice in.
+fn collect_entry_macros(
+    files: &[std::path::PathBuf],
+) -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::new();
+    for f in files {
+        let Ok(text) = std::fs::read_to_string(f) else {
+            continue;
+        };
+        let stripped = strip_c_comments(&text);
+        let mut lines = stripped.lines();
+        while let Some(line) = lines.next() {
+            let Some(rest) = line.trim_start().strip_prefix("#define") else {
+                continue;
+            };
+            let rest = rest.trim_start();
+            let end = rest
+                .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                .unwrap_or(rest.len());
+            if end == 0 {
+                continue;
+            }
+            let name = rest[..end].to_string();
+            let mut body = rest[end..].to_string();
+            while body.trim_end().ends_with('\\') {
+                let Some(next) = lines.next() else { break };
+                body.push(' ');
+                body.push_str(next);
+            }
+            let body = body.replace('\\', " ");
+            if body.contains("{\"") {
+                out.insert(name, body);
+            }
+        }
+    }
+    out
+}
+
+/// Every C source under `root`, plus its headers when asked.
+fn c_sources(root: &Path, headers: bool) -> Vec<std::path::PathBuf> {
+    let mut files = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let path = e.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|x| x == "c")
+                || (headers && path.extension().is_some_and(|x| x == "h"))
+            {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    files
+}
+
+/// The shared library tree a module's table can splice macros from.
+/// Kamailio keeps it at `src/lib`; a tree rooted inside `src` has it
+/// alongside `modules`.
+fn lib_dir(tree_root: &Path) -> Option<std::path::PathBuf> {
+    [tree_root.join("src").join("lib"), tree_root.join("lib")]
+        .into_iter()
+        .find(|candidate| candidate.is_dir())
+}
+
+/// Every `modparam` name a module exports, unioned across every
+/// `param_export_t` table under its directory.
+///
+/// The union is deliberate. Over-collecting is permissive in both
+/// directions this catalogue cares about — it drops fewer README
+/// entries as phantoms and excuses fewer README examples — whereas
+/// under-collecting warns at a configuration that is correct.
+pub fn param_names_from_c(module_dir: &Path, tree_root: &Path) -> ModuleCParams {
+    let mut macro_files = c_sources(module_dir, true);
+    if let Some(lib) = lib_dir(tree_root) {
+        macro_files.extend(c_sources(&lib, true));
+    }
+    let macros = collect_entry_macros(&macro_files);
+
+    let mut names = Vec::new();
+    let mut complete = true;
+    for f in c_sources(module_dir, false) {
+        let Ok(src) = std::fs::read_to_string(&f) else {
+            continue;
+        };
+        scan_param_tables(&src, &macros, &mut names, &mut complete);
+    }
+    ModuleCParams { names, complete }
+}
+
+/// Reconcile a README harvest against the module's C parameter tables.
+///
+/// The C table decides which parameters exist; the README decides what
+/// they mean. Two conditions hold a module back to its README harvest
+/// untouched: no table at all — `textops` and the other function-only
+/// modules export none — and a table this parser could not fully
+/// resolve. Either way a parser regression degrades to the previous
+/// behaviour rather than deleting real parameters.
+fn reconcile_params_with_c(doc: &mut ModuleDoc, module_dir: &Path, tree_root: &Path) {
+    let found = param_names_from_c(module_dir, tree_root);
+    if found.names.is_empty() {
+        return;
+    }
+    let module = doc.name.clone();
+    if found.complete {
+        // a heading that misnames a parameter put an entry in the
+        // catalogue for something the module never exported
+        doc.params.retain(|p| found.names.contains(&p.name));
+    }
+    for name in found.names {
+        if doc.params.iter().any(|p| p.name == name) {
+            continue;
+        }
+        doc.params.push(Item {
+            name,
+            detail: String::new(),
+            doc: format!("Exported by `{module}`; not documented in the module README."),
+        });
+    }
+}
+
 /// Harvest every module's `README` under a Kamailio source tree.
 pub fn harvest_tree(tree_root: &Path) -> Vec<ModuleDoc> {
     let mut out = Vec::new();
@@ -329,8 +680,9 @@ pub fn harvest_tree(tree_root: &Path) -> Vec<ModuleDoc> {
         let name = e.file_name().to_string_lossy().into_owned();
         let readme = e.path().join("README");
         if let Ok(txt) = std::fs::read_to_string(&readme)
-            && let Ok(m) = parse_readme_txt(&name, &txt)
+            && let Ok(mut m) = parse_readme_txt(&name, &txt)
         {
+            reconcile_params_with_c(&mut m, &e.path(), tree_root);
             out.push(m);
         }
     }
