@@ -1035,3 +1035,33 @@ fn a_circular_define_chain_terminates() {
     let text = "#!define A B\n#!define B A\nrequest_route {\n    route(A);\n}\n";
     let _ = analyzer_diagnostics(Path::new("/x/t.cfg"), text, &loader);
 }
+
+#[test]
+fn the_check_failure_note_never_invents_a_file_or_a_line() {
+    use kamailio_lsp::diag::{Diag, Severity};
+    use kamailio_lsp::logic::check_failure_note;
+    let mk = |file: &str| Diag {
+        file: file.into(),
+        line: 0,
+        end_line: 0,
+        col_start: 0,
+        col_end: 1,
+        severity: Severity::Error,
+        message: "no transport protocol loaded".into(),
+    };
+    // positioned: the note says where, so the reader can go there
+    let n = check_failure_note(Some(&mk("/w/root.cfg")), 1);
+    assert!(n.contains("/w/root.cfg") && n.contains("line 1"), "{n}");
+    // NOT positioned — a missing module, a bad module path.  Naming a
+    // file and a line the parser never gave renders as
+    // "check failed in , line 1: ..." and sends the reader to a line
+    // that has nothing to do with it.
+    let n = check_failure_note(Some(&mk("")), 1);
+    assert!(!n.contains(" in ,"), "invented an empty file: {n}");
+    assert!(!n.contains("line 1"), "invented a line: {n}");
+    assert!(n.contains("no transport protocol loaded"), "{n}");
+    // nothing parsed at all: the exit status is all there is
+    let n = check_failure_note(None, 255);
+    assert!(n.contains("255"), "{n}");
+    assert!(!n.contains("line"), "{n}");
+}

@@ -307,3 +307,123 @@ fn formatting_never_changes_what_the_real_parser_accepts() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// An included FRAGMENT, opened on its own, against the REAL checker.
+///
+/// The stdio test for this uses a stub checker, and a stub can only
+/// echo back what its author expected.  Two things only the real
+/// parser decides: that a fragment handed to `-c` on its own is
+/// rejected, and how it spells the path of a file reached through
+/// `include_file`.
+///
+/// The fixture is built so the two possible behaviours cannot look
+/// alike.  The fragment calls `t_relay()`, a command that exists only
+/// because the ROOT loads `tm`; checked through the root the closure
+/// is clean, checked on its own the parser says "unknown command,
+/// missing loadmodule?".  A syntax error inside the fragment would
+/// NOT discriminate — it reports at the same place either way — so
+/// the presence of any `kamailio -c` diagnostic at all is the signal.
+/// One genuinely undefined route keeps a publish coming so the
+/// absence is observed rather than waited out.
+#[test]
+fn a_fragment_is_checked_through_its_root_by_the_real_parser() {
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
+    let mpath = common::required_env("KAMAILIO_LSP_TEST_MPATH");
+
+    let dir = std::env::temp_dir().join(format!("kamlsp-fragproof-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("inc")).unwrap();
+    std::fs::write(
+        dir.join("kamailio.cfg"),
+        "#!KAMAILIO\nloadmodule \"sl.so\"\nloadmodule \"tm.so\"\ninclude_file \"inc/routes.cfg\"\nroute[PARENT_ONLY] {\n    exit;\n}\nrequest_route {\n    route(HANDLE);\n}\n",
+    )
+    .unwrap();
+    let frag_text =
+        "route[HANDLE] {\n    t_relay();\n    route(PARENT_ONLY);\n    route(NO_SUCH_ROUTE);\n}\n";
+    let frag = dir.join("inc/routes.cfg");
+    std::fs::write(&frag, frag_text).unwrap();
+    let frag_uri = format!("file://{}", frag.display());
+
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", &bin)
+            .env(
+                "KAMAILIO_LSP_CACHE_DIR",
+                dir.join("cache").display().to_string(),
+            )
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+            "capabilities":{},
+            "initializationOptions":{"kamailioPath": bin, "modulesPath": mpath},
+            "workspaceFolders":[{"uri": format!("file://{}", dir.display()), "name":"w"}]}}),
+    );
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"kamailio/analysisRoot",
+            "params":{"uri": frag_uri}}),
+    );
+    let v = wait_for(&rx, |v| v["id"] == 2, "analysisRoot");
+    assert!(
+        v["result"]
+            .as_str()
+            .is_some_and(|s| s.ends_with("kamailio.cfg")),
+        "the real workspace's root must be found: {v}"
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+            "textDocument":{"uri":frag_uri,"languageId":"kamailio-cfg","version":1,
+                            "text":frag_text}}}),
+    );
+    let v = wait_for(
+        &rx,
+        |v| {
+            v["method"] == "textDocument/publishDiagnostics"
+                && v["params"]["uri"] == frag_uri
+                && !v["params"]["diagnostics"].as_array().unwrap().is_empty()
+        },
+        "diagnostics on the fragment",
+    );
+    let items = v["params"]["diagnostics"].as_array().unwrap().clone();
+    let checker: Vec<&serde_json::Value> = items
+        .iter()
+        .filter(|d| d["source"] == "kamailio -c")
+        .collect();
+    assert!(
+        checker.is_empty(),
+        "the closure compiles; any checker error here means the FRAGMENT \
+         was handed to `-c` instead of its root: {checker:?}"
+    );
+    // the route the ROOT defines is in scope...
+    assert!(
+        !items.iter().any(|d| d["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("PARENT_ONLY"))),
+        "a route the root defines must not read as undefined: {items:?}"
+    );
+    // ...and a route nothing defines is still reported, so the absence
+    // above is a decision and not a silenced analyzer
+    assert!(
+        items.iter().any(|d| d["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("NO_SUCH_ROUTE"))),
+        "a genuinely undefined route must still be flagged: {items:?}"
+    );
+    let _ = child.kill();
+    let _ = std::fs::remove_dir_all(&dir);
+}

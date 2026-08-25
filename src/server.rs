@@ -1040,10 +1040,6 @@ impl Backend {
         if mapped.is_empty() && rc != 0 {
             // every positioned error pointed elsewhere (e.g. a nested
             // include): a failed check must never render as clean
-            let context = parsed
-                .first()
-                .map(|d| format!("{}, line {}: {}", d.file, d.line + 1, d.message))
-                .unwrap_or_else(|| format!("kamailio -c failed (rc={rc})"));
             mapped.push(diag::Diag {
                 file: path_str.clone(),
                 line: 0,
@@ -1051,7 +1047,7 @@ impl Backend {
                 col_start: 0,
                 col_end: 1,
                 severity: diag::Severity::Error,
-                message: format!("check failed in {context}"),
+                message: logic::check_failure_note(parsed.first(), rc),
             });
         }
         let diags: Vec<Diagnostic> = mapped

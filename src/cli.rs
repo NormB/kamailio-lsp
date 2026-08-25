@@ -85,11 +85,7 @@ pub fn run_check(args: &[String]) -> i32 {
                     }
                     if attached == 0 && rc != 0 {
                         // everything pointed elsewhere: never silent
-                        let context = parsed
-                            .first()
-                            .map(|d| format!("{}, line {}: {}", d.file, d.line + 1, d.message))
-                            .unwrap_or_else(|| format!("kamailio -c failed (rc={rc})"));
-                        findings.push((0, 0, true, format!("check failed in {context}")));
+                        findings.push((0, 0, true, logic::check_failure_note(parsed.first(), rc)));
                     }
                 }
                 Err(e) => {
