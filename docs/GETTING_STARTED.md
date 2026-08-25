@@ -168,12 +168,15 @@ config lives). The extension finds the root by reading the configs in
 the folder you opened; with a single file open there is nothing to
 read, and every fragment is treated as a program of its own.
 
-Then open `routing/inbound.cfg` — a name no pattern could recognise
-— and it behaves like part of the whole:
+Then open `routing/inbound.cfg` — or `include/globals.inc`, or
+anything else your configuration pulls in — and it behaves like part
+of the whole:
 
 - It gets **syntax colors**, even though nothing about the filename
   says "kamailio". The extension asks the server whether anything in
   the folder includes it, and sets the language when something does.
+  The suffix is not part of the question: the split trees people
+  actually write name their fragments `.inc` as often as `.cfg`.
 - A `route(SEND_TO_CARRIER)` defined over in `carriers.cfg`
   **Ctrl+Clicks through** and is **offered while you type**.
 - It is **not** flagged for using routes it does not define. Before
@@ -196,14 +199,15 @@ Or in `settings.json`:
 
 **If a file is still plain text**, the includes do not reach it — it
 is not included by anything in the folder you opened, or another
-extension already claimed `.cfg` and this one leaves those alone. Tell
-VS Code directly, in `settings.json` (`Ctrl+Shift+P` → *Preferences:
-Open User Settings (JSON)*):
+extension already claimed the file and this one leaves those alone.
+Tell VS Code directly, in `settings.json` (`Ctrl+Shift+P` →
+*Preferences: Open User Settings (JSON)*):
 
 ```json
 {
   "files.associations": {
-    "routing/*.cfg": "kamailio-cfg"
+    "routing/*.cfg": "kamailio-cfg",
+    "include/**/*.inc": "kamailio-cfg"
   }
 }
 ```
@@ -217,7 +221,7 @@ bottom-right status bar (it will say **Plain Text**) and pick
 | Symptom | Fix |
 |---|---|
 | No colors | The file has to match one of the claimed names — `kamailio.cfg`, `kamailio*.cfg` (so `kamailio-proxy.cfg` works), or `*.kamailio.cfg` — or open with a script-type marker: `#!KAMAILIO`, `#!OPENSER`, `#!SER`, `#!MAXCOMPAT` or `#!ALL`. A plain `.cfg` with no marker is not enough; the extension deliberately does not claim every `.cfg` on your disk. One exception is automatic: if something in the folder **includes** the file, it gets the language anyway (turn that off with `kamailioLsp.associateIncludedFiles`). Otherwise add a `files.associations` entry mapping it to `kamailio-cfg`. |
-| No colors on an included file | Open the FOLDER (`File → Open Folder…`), not the single file — the root that includes it has to be somewhere the server can read. If you just added the `include_file` line, save the root and reopen the fragment. |
+| No colors on an included file | Open the FOLDER (`File → Open Folder…`), not the single file — the root that includes it has to be somewhere the server can read. The fragment's name does not matter, but the sweep that finds the ROOT looks for `.cfg`, `.inc` and `.m4`, so a root named anything else needs a `files.associations` entry. If you just added the `include_file` line, save the root and reopen the fragment. |
 | An included file reports routes its parent defines as undefined | Same cause: with no folder open the fragment is treated as a program of its own. Open the folder containing the root. |
 | A huge folder: includes stop being recognised | The scan behind this stops at 500 `.cfg` files and says so in **View → Output → Kamailio LSP**. Open a folder closer to your configuration instead of the whole tree. |
 | No red squiggles | Set **Kamailio Path** (step above), save the file, and make sure you trusted the folder. |
