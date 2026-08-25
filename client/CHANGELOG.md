@@ -2,6 +2,52 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.15.1] — 2026-08-25
+
+**A split configuration whose fragments are named `.inc` now works,
+and its `modparam` lines stop being contradicted.** 0.15.0 taught the
+server to analyse an included file in the context of its root, but
+both halves of the feature still guessed at filenames, and the module
+catalogue behind the `modparam` check was missing sixty-one
+parameters the documentation does describe.
+
+- **A fragment gets the language whatever it is called.** The
+  extension asked the server about a plain-text file only when it was
+  named `*.cfg` — the same filename guess the request exists to avoid.
+  A tree of `include/*.inc` fragments got no colours, no completion
+  and no diagnostics. The suffix test is gone: any plain-text file is
+  asked about, and one nothing includes is still left alone.
+- **The workspace sweep looks for `.inc` and `.m4` too.** It collected
+  `*.cfg` only, so in a tree whose root or fragments are named
+  anything else no fragment ever resolved a root and every one of them
+  was analysed alone. It is still a search for configurations, not a
+  read of every file in the folder.
+- **Sixty-one parameters the READMEs document are back in the
+  catalogue**, each of which the server had been reporting as a
+  parameter that does not exist:
+  - `kazoo` groups its parameters into sub-sections (`4.1. amqp
+    related`, the parameters at `4.1.1.`). All thirty were thrown
+    away, and the four group headings were harvested in their place.
+  - `carrierroute` and `matrix` put their database parameters in a
+    chapter of their own — `Chapter 2. Module parameter for database
+    access.` — whose items restart at `1.`.
+  - `ims_qos` and `ims_qos_npn` write the type with no parentheses at
+    all (`terminate_dialog_on_rx_failure integer`), so the type ended
+    up inside the name.
+  - `rtpengine` restarts its numbering nine parameters before the end
+    of its chapter, `ping_interval` and `enable_dmq` among them.
+- **A module whose documentation could not be read no longer accuses
+  your configuration.** An empty parameter list is not evidence that a
+  parameter does not exist; a module that exports functions but no
+  parameters was read, and still is checked.
+
+The catalogue is now checked against the READMEs' own `modparam`
+examples — 2,500 of them across the pinned 6.1.4 tree — so a harvest
+that silently loses parameters fails CI rather than reaching you as a
+warning about a parameter that exists. The seventeen that remain are
+gaps in Kamailio's own documentation, listed by name and by reason in
+that gate rather than waved through by a count.
+
 ## [0.15.0] — 2026-08-25
 
 **Opening an included file on its own now works.** A configuration

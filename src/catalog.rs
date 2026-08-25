@@ -52,6 +52,46 @@ fn sanitize_doc(text: &str) -> String {
     .into_owned()
 }
 
+/// The type spellings a parameter heading uses.
+///
+/// Kamailio normally parenthesises the type — `fr_timer (integer)` —
+/// but `ims_qos` writes `terminate_dialog_on_rx_failure integer` with
+/// no parentheses at all, and the type then ended up inside the name,
+/// where no `modparam` could ever match it.  Only a word that really
+/// is a type may be split off: `crl` and `script_counter` are real
+/// parameters documented with no type, and `slack url` is an upstream
+/// typo for `slack_url`, not a type annotation.  `integer` is the only
+/// spelling 6.1.4 writes bare; the rest are the spellings the same
+/// corpus uses inside the parentheses.
+const BARE_TYPE_WORDS: [&str; 8] = [
+    "int", "integer", "string", "str", "float", "boolean", "bool", "flag",
+];
+
+/// `name` and `type` for a heading that annotates the type without
+/// parentheses, or `None` when the title is not that shape.
+fn split_bare_type(title: &str) -> Option<(&str, &str)> {
+    let (name, ty) = title.rsplit_once(char::is_whitespace)?;
+    let name = name.trim();
+    if name.is_empty() || name.contains(char::is_whitespace) {
+        return None;
+    }
+    let lowered = ty.to_ascii_lowercase();
+    BARE_TYPE_WORDS
+        .contains(&lowered.as_str())
+        .then_some((name, ty))
+}
+
+/// Does this heading name an item, rather than a group of items?
+///
+/// `kazoo` groups its parameters — `4.1. amqp related` with the
+/// parameters at `4.1.1.` — while `seas` documents `3.1.1. Return
+/// value` under one of its functions.  The two are the same shape
+/// upside down, and this is what tells them apart: an item carries a
+/// signature or a type, a grouping or prose heading does not.
+fn heading_is_item(title: &str) -> bool {
+    title.contains('(') || split_bare_type(title).is_some()
+}
+
 /// Parse one generated plain-text module `README`.
 ///
 /// Structure (a lynx dump of the module docbook): numbered headings
@@ -93,6 +133,13 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
     };
     // (is_param, name, detail, doc-lines, doc-finished)
     let mut cur: Option<(bool, String, String, Vec<String>, bool)> = None;
+    // the heading `cur` came from: its number prefix, its depth, and
+    // whether it looked like an item.  A grouping heading is only
+    // recognised as one when a deeper heading under it turns out to
+    // be the real item, which is a fact from the NEXT heading.
+    let mut cur_nums = String::new();
+    let mut cur_depth = 0usize;
+    let mut cur_is_item = false;
 
     let flush = |cur: &mut Option<(bool, String, String, Vec<String>, bool)>,
                  out: &mut ModuleDoc| {
@@ -117,14 +164,34 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
     };
 
     for line in txt.lines() {
-        if let Some(c) = heading.captures(line) {
+        // `Chapter N. <title>` is not a numbered heading, so a chapter
+        // was invisible here — and `carrierroute` and `matrix` put
+        // their database parameters in one of their own, items
+        // restarting at `1.` at the top level.  Eleven parameters per
+        // module went unharvested, and every configuration setting
+        // one of them was warned about a parameter that exists.
+        if let Some(rest) = line.strip_prefix("Chapter ")
+            && rest.starts_with(|c: char| c.is_ascii_digit())
+        {
             flush(&mut cur, &mut out);
+            let title = rest.split_once(". ").map_or("", |(_, t)| t);
+            if title.to_ascii_lowercase().contains("parameter") {
+                section = Section::Params;
+                sec_prefix = String::new();
+                sec_depth = 0;
+            } else {
+                section = Section::Other;
+            }
+            continue;
+        }
+        if let Some(c) = heading.captures(line) {
             let nums = c[1].to_string();
             let depth = nums.bytes().filter(|b| *b == b'.').count();
             let title = c[2].trim();
             let lowered = title.to_ascii_lowercase();
             let bare = lowered.strip_prefix("exported ").unwrap_or(&lowered);
             if bare == "parameters" || bare == "functions" {
+                flush(&mut cur, &mut out);
                 section = if bare == "parameters" {
                     Section::Params
                 } else {
@@ -134,19 +201,54 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
                 sec_depth = depth;
                 continue;
             }
-            if section != Section::Other && depth == sec_depth + 1 && nums.starts_with(&sec_prefix)
-            {
-                // an item of the active section
+            // `cur` came from a heading that was NOT item-shaped and
+            // this one, underneath it, is: the outer heading grouped
+            // the items rather than being one, so it is dropped
+            // unflushed and the item level moves down to here.  The
+            // reverse nesting — an item-shaped heading with prose
+            // under it, `seas`'s `Return value` — does not match, and
+            // falls through to be ignored.
+            let deepens = cur.is_some()
+                && !cur_is_item
+                && depth > cur_depth
+                && nums.starts_with(&cur_nums)
+                && heading_is_item(title);
+            // `rtpengine` documents 85 parameters as `5.1.`…`5.86.`
+            // and then drops back to `6.`, `7.`, … for the last nine.
+            // A heading at the chapter's own depth normally ENDS the
+            // chapter; what makes this safe is that a renumbered item
+            // still carries its type and a chapter title
+            // (`15. Functions`) does not — across the whole 6.1.4
+            // tree the only nine headings this admits are rtpengine's
+            // nine real parameters.
+            let renumbered =
+                section != Section::Other && depth <= sec_depth && heading_is_item(title);
+            let in_section = section != Section::Other && nums.starts_with(&sec_prefix);
+            let is_item = renumbered
+                || (in_section
+                    && (deepens
+                        || depth == sec_depth + 1
+                        || (cur.is_some() && depth == cur_depth && depth > sec_depth)));
+            if is_item {
+                if deepens {
+                    cur = None; // a group heading is not an item
+                } else {
+                    flush(&mut cur, &mut out);
+                }
                 match section {
                     Section::Params => {
-                        // both `name (type)` and `name(type)` occur
-                        // (presence writes `db_url(str)` unspaced)
+                        // `name (type)`, `name(type)` (presence writes
+                        // `db_url(str)` unspaced) and `name type`
+                        // (ims_qos writes no parentheses at all)
                         let (name, detail) = match title.split_once('(') {
                             Some((n, rest)) => (
                                 n.trim().to_string(),
                                 rest.trim_end_matches(')').trim().to_string(),
                             ),
-                            None => (title.to_string(), String::new()),
+                            None => match split_bare_type(title) {
+                                Some((n, ty)) => (n.to_string(), ty.to_string()),
+                                None => (title.to_string(), String::new()),
+                            },
                         };
                         cur = Some((true, name, detail, Vec::new(), false));
                     }
@@ -156,14 +258,29 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
                     }
                     Section::Other => {}
                 }
+                cur_nums = nums;
+                cur_depth = depth;
+                // a prose heading at the item level is only PROVISIONALLY
+                // an item: if an item-shaped heading turns up under it,
+                // it was a group all along and is retracted above
+                cur_is_item = heading_is_item(title);
                 continue;
             }
+            flush(&mut cur, &mut out);
             if depth <= sec_depth {
                 // a sibling or shallower chapter ends the section
                 section = Section::Other;
+                continue;
             }
-            // deeper headings (e.g. a function's "Return value"
-            // sub-subsection) neither start items nor reset anything
+            // deeper than an item: either a grouping heading whose
+            // own items come next, or a sub-subsection of the item
+            // just closed.  Remember it either way — which one it was
+            // is decided by the heading that follows.
+            if section != Section::Other && nums.starts_with(&sec_prefix) {
+                cur_nums = nums;
+                cur_depth = depth;
+                cur_is_item = false;
+            }
             continue;
         }
         if let Some((_, _, _, lines, finished)) = cur.as_mut() {

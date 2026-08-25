@@ -302,3 +302,212 @@ fn param_headings_without_a_space_before_the_type_parse() {
     assert_eq!(m.params[0].detail, "str");
     assert_eq!(m.params[1].detail, "int");
 }
+
+/// A module whose parameters are GROUPED into sub-sections.
+///
+/// `kazoo` writes `4.1. amqp related` with the parameters themselves
+/// at `4.1.1.`.  Reading the group headings as the items harvested
+/// four entries no `modparam` could ever write and threw away all
+/// thirty real parameters, so a configuration setting any of them was
+/// told, in a warning, that the parameter does not exist.  The
+/// function chapter is grouped the same way.
+const GROUPED: &str = r#"Kazoo Module
+
+4. Parameters
+
+   4.1. amqp related
+
+        4.1.1. node_hostname(str)
+
+4.1. amqp related
+
+4.1.1. node_hostname(str)
+
+   The hostname to announce.
+
+4.1.2. amqp_max_channels(str)
+
+   How many channels.
+
+4.2. presence related
+
+4.2.1. db_url(str)
+
+   Database URL.
+
+5. Functions
+
+5.1. publishing
+
+5.1.1. kazoo_publish(exchange, routing_key, payload)
+
+   Publish a message.
+"#;
+
+#[test]
+fn grouped_parameters_are_harvested_from_the_group() {
+    let m = parse_readme_txt("kazoo", GROUPED).expect("parses");
+    let names: Vec<&str> = m.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(
+        names,
+        vec!["node_hostname", "amqp_max_channels", "db_url"],
+        "{names:?}"
+    );
+    assert_eq!(m.params[0].detail, "str");
+}
+
+#[test]
+fn a_group_heading_is_not_itself_a_parameter() {
+    let m = parse_readme_txt("kazoo", GROUPED).unwrap();
+    for bad in ["amqp related", "presence related"] {
+        assert!(
+            !m.params.iter().any(|p| p.name == bad),
+            "the group heading `{bad}` was harvested as a parameter"
+        );
+    }
+}
+
+#[test]
+fn grouped_functions_are_harvested_from_the_group() {
+    let m = parse_readme_txt("kazoo", GROUPED).unwrap();
+    let names: Vec<&str> = m.functions.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(names, vec!["kazoo_publish"], "{names:?}");
+}
+
+/// A function's own sub-subsection is prose, not another function.
+///
+/// `seas` documents `3.1.1. Return value` under one of its functions.
+/// A rule that read every deeper heading as the real item would drop
+/// the function and harvest its prose heading instead — the grouping
+/// above is recognised because the OUTER heading is not item-shaped
+/// and the inner one is, which is the other way round here.
+#[test]
+fn a_sub_subsection_under_a_function_does_not_replace_it() {
+    let txt = "Seas Module\n\n3. Functions\n\n3.1. as_relay_t(app_name)\n\n   Relay.\n\n3.1.1. Return value\n\n   Negative on error.\n";
+    let m = parse_readme_txt("seas", txt).unwrap();
+    let names: Vec<&str> = m.functions.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(names, vec!["as_relay_t"], "{names:?}");
+}
+
+/// The type written with no parentheses at all.
+///
+/// `ims_qos` writes `3.14. terminate_dialog_on_rx_failure integer`,
+/// so the type ended up inside the name and the entry could never
+/// match the `modparam` it was supposed to document.  Only a word
+/// that is actually a type counts: `3.1. crl` and
+/// `3.2. script_counter` are real parameters documented with no type
+/// at all, and `3.3. db_qtable and db_ctable` is prose.
+#[test]
+fn a_type_written_without_parentheses_is_not_part_of_the_name() {
+    let txt = "IMS QoS Module\n\n3. Parameters\n\n3.1. terminate_dialog_on_rx_failure integer\n\n   Terminate it.\n\n3.2. crl\n\n   A parameter with no type at all.\n\n3.3. script_counter\n\n   Another.\n";
+    let m = parse_readme_txt("ims_qos", txt).unwrap();
+    let names: Vec<&str> = m.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(
+        names,
+        vec!["terminate_dialog_on_rx_failure", "crl", "script_counter"],
+        "{names:?}"
+    );
+    assert_eq!(m.params[0].detail, "integer");
+    assert_eq!(m.params[1].detail, "");
+}
+
+/// Parameters documented in a chapter of their own.
+///
+/// `carrierroute` and `matrix` put their database parameters under
+/// `Chapter 2. Module parameter for database access.`, whose items
+/// restart at `1.` and sit at the top level.  `Chapter N.` is not a
+/// numbered heading, so the chapter was invisible and eleven
+/// parameters went unharvested.
+const PARAM_CHAPTER: &str = r#"Carrierroute Module
+
+Chapter 1. Admin Guide
+
+3. Parameters
+
+3.1. subscriber_table (string)
+
+   The table.
+
+Chapter 2. Module parameter for database access.
+
+   Table of Contents
+
+   1. db_url (String)
+   2. carrierroute_table (String)
+
+1. db_url (String)
+
+   The database URL.
+
+2. carrierroute_table (String)
+
+   The routing table.
+
+Chapter 3. Developer Guide
+
+1. Available Functions
+
+1.1. not_a_script_function(x)
+
+   C API.
+"#;
+
+#[test]
+fn a_parameter_chapter_of_its_own_is_harvested() {
+    let m = parse_readme_txt("carrierroute", PARAM_CHAPTER).expect("parses");
+    let names: Vec<&str> = m.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(
+        names,
+        vec!["subscriber_table", "db_url", "carrierroute_table"],
+        "{names:?}"
+    );
+    assert_eq!(m.params[1].detail, "String");
+}
+
+#[test]
+fn the_next_chapter_ends_a_parameter_chapter() {
+    let m = parse_readme_txt("carrierroute", PARAM_CHAPTER).unwrap();
+    assert!(
+        m.functions.is_empty(),
+        "the developer guide leaked in: {:?}",
+        m.functions
+    );
+    assert!(
+        !m.params.iter().any(|p| p.name == "not_a_script_function"),
+        "the developer guide leaked into the parameters"
+    );
+}
+
+/// Parameters after the chapter's numbering restarts.
+///
+/// `rtpengine` documents 85 parameters as `5.1.`…`5.86.` and then,
+/// for the last nine, drops back to `6.`, `7.`, … — an upstream
+/// numbering glitch, but `ping_interval` and `enable_dmq` are real
+/// parameters and every configuration setting one of them was warned
+/// about it.  A heading at the chapter's own depth normally ENDS the
+/// chapter, so what saves this from swallowing `15. Functions` is
+/// that a renumbered item still carries its type and a chapter title
+/// does not.
+#[test]
+fn parameters_after_the_numbering_restarts_are_harvested() {
+    let txt = "RTPEngine Module\n\n5. Parameters\n\n5.1. rtpengine_sock (string)\n\n   The socket.\n\n6. ping_interval (integer)\n\n   Seconds between pings.\n\n7. enable_dmq (integer)\n\n   DMQ replication.\n\n15. Functions\n\n15.1. rtpengine_offer([flags])\n\n   Offer.\n\n16. Exported Pseudo Variables\n\n16.1. $rtpstat\n\n   Not a function.\n";
+    let m = parse_readme_txt("rtpengine", txt).expect("parses");
+    let params: Vec<&str> = m.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(
+        params,
+        vec!["rtpengine_sock", "ping_interval", "enable_dmq"],
+        "{params:?}"
+    );
+    let funcs: Vec<&str> = m.functions.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(funcs, vec!["rtpengine_offer"], "{funcs:?}");
+}
+
+#[test]
+fn a_chapter_title_never_continues_the_parameter_chapter() {
+    // the same shape with prose chapter titles: `4. Dependencies`
+    // carries no type, so it ends the chapter the way it always did
+    let txt = "M\n\n3. Parameters\n\n3.1. p (int)\n\n   Doc.\n\n4. Dependencies\n\n4.1. Kamailio Modules\n\n   Prose.\n";
+    let m = parse_readme_txt("m", txt).unwrap();
+    let params: Vec<&str> = m.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(params, vec!["p"], "{params:?}");
+}

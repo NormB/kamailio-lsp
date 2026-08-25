@@ -561,7 +561,7 @@ clients that can't pass options.
 | `kamailioLsp.checkTimeoutMs` | `checkTimeoutMs` | `KAMAILIO_LSP_CHECK_TIMEOUT_MS` | `10000` | Kill a `-c` run after this many ms. |
 | `kamailioLsp.completion.snippets` | `snippetCompletions` | — | `true` | Function completions as tabstop snippets. |
 | `kamailioLsp.cacheDir` | `cacheDir` | `KAMAILIO_LSP_CACHE_DIR` | platform cache dir | Documentation-catalog cache location. |
-| `kamailioLsp.associateIncludedFiles` | — | — | `true` | Give a plain-text `.cfg` the workspace's configuration includes the Kamailio language (colours, completion, diagnostics). Files another extension already claims are left alone. |
+| `kamailioLsp.associateIncludedFiles` | — | — | `true` | Give a plain-text file the workspace's configuration includes the Kamailio language (colours, completion, diagnostics), whatever it is named. Files another extension already claims are left alone. |
 | `kamailioLsp.trace.server` | — | — | `off` | LSP traffic tracing in the output channel. |
 | — | — | `KAMAILIO_LSP_OUTPUT_CAP_BYTES` | `1048576` | Byte cap on captured `-c` output. |
 | — | — | `KAMAILIO_LSP_TRACE_INDEX` | *(unset)* | Set to any non-empty value to log one stderr line per document-index rebuild — a debugging seam for cache behaviour. |
@@ -574,13 +574,14 @@ clients that can't pass options.
   `#!MAXCOMPAT` or `#!ALL`, the set `src/core/cfg.lex` accepts —
   whatever that file is called. The generic `.cfg` extension is
   deliberately left alone so unrelated tools' config files are not
-  hijacked. A `.cfg` your configuration *includes* is picked up
-  anyway, at runtime: VS Code hands it over as plain text, the
-  extension asks the server whether anything includes it
+  hijacked. A file your configuration *includes* is picked up anyway,
+  at runtime, whatever it is named: VS Code hands it over as plain
+  text, the extension asks the server whether anything includes it
   (`kamailio/analysisRoot`) and sets the language when something
-  does, so an include named `carrier-routes.cfg` gets the same
-  colours and the same server as the root that pulls it in. A file
-  another extension has already claimed is left to that extension.
+  does, so `carrier-routes.cfg` and `include/globals.inc` both get
+  the same colours and the same server as the root that pulls them
+  in. A file another extension has already claimed is left to that
+  extension.
   Turn this off with `kamailioLsp.associateIncludedFiles`; anything
   the server cannot reach through an include still needs a
   `files.associations` entry mapping it to `kamailio-cfg`.

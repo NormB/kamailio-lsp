@@ -1357,3 +1357,96 @@ fn the_graph_tracks_a_model_through_random_edits() {
         }
     }
 }
+
+/// The workspace sweep must reach a configuration that is not named
+/// `*.cfg`.
+///
+/// A tree whose root is `proxy.inc` — or an `.m4` template — was
+/// invisible to the sweep, so no fragment under it ever resolved a
+/// root and every one of them was analysed alone.  The sweep still
+/// must not read the whole tree: it looks for configurations, not for
+/// every file in the folder.
+#[test]
+fn the_workspace_sweep_reaches_configs_not_named_cfg() {
+    use kamailio_lsp::logic::{configs_in_dir, scan_configs};
+
+    let dir = std::env::temp_dir().join(format!("kamlsp-sweep-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("include")).unwrap();
+    std::fs::write(
+        dir.join("proxy.inc"),
+        "include_file \"include/routes.inc\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("kamailio.m4"),
+        "include_file \"include/routes.inc\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("include/routes.inc"), "request_route { exit; }\n").unwrap();
+    std::fs::write(dir.join("notes.md"), "not a config\n").unwrap();
+
+    let (found, _) = scan_configs(std::slice::from_ref(&dir), 500);
+    let names: Vec<String> = found
+        .iter()
+        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .collect();
+    for want in ["proxy.inc", "kamailio.m4", "routes.inc"] {
+        assert!(
+            names.contains(&want.to_string()),
+            "{want} missing: {names:?}"
+        );
+    }
+    assert!(
+        !names.contains(&"notes.md".to_string()),
+        "the sweep must not collect every file: {names:?}"
+    );
+
+    let here: Vec<String> = configs_in_dir(&dir)
+        .iter()
+        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .collect();
+    assert!(here.contains(&"proxy.inc".to_string()), "{here:?}");
+    assert!(!here.contains(&"notes.md".to_string()), "{here:?}");
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// A module the harvester read nothing from documents nothing, and an
+/// empty list is not evidence that a parameter does not exist.
+///
+/// The sibling found this on `auth_web3`, whose README uses a shape
+/// the harvester does not read: once such a module is in the
+/// catalogue at all, every `modparam` for it reads as undocumented.
+/// A module with functions but no parameters WAS read, so `textops`
+/// keeps its true positives.
+#[test]
+fn a_module_documenting_nothing_at_all_stays_silent() {
+    use kamailio_lsp::catalog::{Item, ModuleDoc};
+    use kamailio_lsp::logic::catalog_diagnostics;
+
+    let nothing = vec![ModuleDoc {
+        name: "unharvested".into(),
+        params: Vec::new(),
+        functions: Vec::new(),
+    }];
+    assert!(
+        catalog_diagnostics(&nothing, "modparam(\"unharvested\", \"p\", 1)\n").is_empty(),
+        "an unharvested module must not accuse the config"
+    );
+
+    let functions_only = vec![ModuleDoc {
+        name: "textops".into(),
+        params: Vec::new(),
+        functions: vec![Item {
+            name: "search".into(),
+            detail: String::new(),
+            doc: String::new(),
+        }],
+    }];
+    assert_eq!(
+        catalog_diagnostics(&functions_only, "modparam(\"textops\", \"nope\", 1)\n").len(),
+        1,
+        "a module with functions but no parameters was read, and exports none"
+    );
+}

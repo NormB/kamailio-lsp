@@ -929,7 +929,26 @@ fn resolve_include(from: &std::path::Path, inc: &str) -> std::path::PathBuf {
     lexically_normal(&joined)
 }
 
-/// The `*.cfg` files sitting DIRECTLY in `dir` — no recursion.
+/// Extensions the sweep will open looking for a configuration.
+///
+/// A split Kamailio tree names its fragments whatever its author felt
+/// like — `.inc` is the common one, `.m4` is what a templated tree
+/// uses — and the root of such a tree need not be a `.cfg` at all.
+/// Restricted to `.cfg` the sweep could not see those trees, so no
+/// fragment in them ever resolved a root.  This is deliberately a
+/// short list rather than "every file": the sweep walks a whole
+/// workspace folder, and reading all of it is not a search, it is a
+/// scan of the user's disk.
+const CONFIG_EXTENSIONS: [&str; 3] = ["cfg", "inc", "m4"];
+
+/// Whether the sweep should treat `path` as a possible configuration.
+fn is_config_candidate(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|x| x.to_str())
+        .is_some_and(|x| CONFIG_EXTENSIONS.contains(&x))
+}
+
+/// The configuration files sitting DIRECTLY in `dir` — no recursion.
 ///
 /// For looking one level up: a fragment in `inc/` is usually included
 /// by a config in the directory above it, and reading that directory's
@@ -942,12 +961,12 @@ pub fn configs_in_dir(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     entries
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.is_file() && p.extension().is_some_and(|x| x == "cfg"))
+        .filter(|p| p.is_file() && is_config_candidate(p))
         .take(200)
         .collect()
 }
 
-/// Every `*.cfg` under `roots`, bounded.
+/// Every configuration file under `roots`, bounded.
 ///
 /// The server scans the client's workspace folders; the CLI scans the
 /// directory holding the files it was given.  Same walk, so the two
@@ -974,7 +993,7 @@ pub fn scan_configs(roots: &[std::path::PathBuf], limit: usize) -> (Vec<std::pat
             }
             if path.is_dir() {
                 stack.push(path);
-            } else if path.extension().is_some_and(|x| x == "cfg") {
+            } else if is_config_candidate(&path) {
                 if out.len() >= limit {
                     return (out, true);
                 }
@@ -1310,8 +1329,9 @@ pub fn analyzer_diagnostics_in_closure(
 /// Catalog-pinned validation: flag `modparam("m", "p", ...)` where
 /// the configured source tree documents module `m` but no parameter
 /// `p`.  Version-exact by construction — the catalog IS the user's
-/// pinned tree; unknown modules stay silent (the catalog may simply
-/// not cover them).  Doc-derived, so kept separate from the
+/// pinned tree; unknown modules, and modules whose documentation was
+/// never harvested, stay silent (the catalog may simply not cover
+/// them).  Doc-derived, so kept separate from the
 /// grammar-derived [`analyzer_diagnostics`] (and from the G1
 /// differential gate, which proves the GRAMMAR model only).
 pub fn catalog_diagnostics(catalog: &[ModuleDoc], text: &str) -> Vec<AnalyzerDiag> {
@@ -1323,6 +1343,14 @@ pub fn catalog_diagnostics(catalog: &[ModuleDoc], text: &str) -> Vec<AnalyzerDia
         let Some(m) = catalog.iter().find(|m| m.name == call.module) else {
             continue;
         };
+        // A module the harvester read NOTHING from documents
+        // nothing, and an empty list is then no evidence that a
+        // parameter does not exist.  A module with functions but no
+        // parameters WAS read, and really exports none — `textops` is
+        // that, and setting one of its parameters is an error.
+        if m.params.is_empty() && m.functions.is_empty() {
+            continue;
+        }
         if m.params.iter().any(|p| p.name == call.param) {
             continue;
         }

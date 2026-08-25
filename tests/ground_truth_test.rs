@@ -66,8 +66,9 @@ fn disk_loader(p: &std::path::Path) -> Option<String> {
 /// (`logic::catalog_diagnostics`) are deliberately excluded — they
 /// assert doc coverage of the configured tree, not parser truth, and
 /// a README gap on an accepted config is a documentation finding, not
-/// an analyzer bug.  (Probed separately 2026-08-20: with the fixed
-/// harvest the full accepted corpus has zero undocumented modparams.)
+/// an analyzer bug.  What the catalogue must contain is G3 below,
+/// against every module in the tree rather than the handful the
+/// corpus configs happen to load.
 #[test]
 fn analyzer_is_silent_on_every_accepted_corpus_config() {
     let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
@@ -172,4 +173,175 @@ fn rejected_rename_targets_really_break_configs() {
         );
     }
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The README's own `modparam` examples, as ground truth for what the
+/// catalogue must contain.
+///
+/// The harvester reads headings; the examples underneath them are
+/// written by the same author for the same release, and they name the
+/// parameter the way a configuration has to write it.  Where the two
+/// disagree the harvester is normally the one that is wrong — that is
+/// how a grouped chapter (`kazoo`), a chapter of its own
+/// (`carrierroute`, `matrix`), an unparenthesised type (`ims_qos`)
+/// and a restarted numbering (`rtpengine`) were each found, sixty-one
+/// parameters between them, every one of which made the server warn
+/// about a parameter that exists.
+///
+/// The exceptions below are the other direction: places where the
+/// EXAMPLE is wrong, or where upstream documents no heading at all.
+/// Each is a finding about Kamailio's documentation, not about this
+/// parser, so each is listed by name rather than waved through by a
+/// count.
+const UPSTREAM_DOC_GAPS: [(&str, &str, &str); 17] = [
+    ("cplc", "cpl_table", "no heading documents it"),
+    ("dispatcher", "ds_interval_mode", "no heading documents it"),
+    ("drouting", "atrrs_avp", "example typo for `attrs_avp`"),
+    (
+        "kazoo",
+        "amqp_consumer_ack_timeout_micro",
+        "heading documents `amqp_consumer_ack_timeout`",
+    ),
+    (
+        "kazoo",
+        "amqp_consumer_ack_timeout_sec",
+        "heading documents `amqp_consumer_ack_timeout`",
+    ),
+    (
+        "kazoo",
+        "amqp_interprocess_timeout_micro",
+        "heading documents `amqp_interprocess_timeout`",
+    ),
+    (
+        "kazoo",
+        "amqp_interprocess_timeout_sec",
+        "heading documents `amqp_interprocess_timeout`",
+    ),
+    (
+        "kazoo",
+        "amqp_query_timeout_micro",
+        "heading documents `amqp_query_timeout`",
+    ),
+    (
+        "kazoo",
+        "amqp_query_timeout_sec",
+        "heading documents `amqp_query_timeout`",
+    ),
+    (
+        "kazoo",
+        "amqp_waitframe_timeout_micro",
+        "heading documents `amqp_waitframe_timeout`",
+    ),
+    (
+        "kazoo",
+        "amqp_waitframe_timeout_sec",
+        "heading documents `amqp_waitframe_timeout`",
+    ),
+    ("msilo", "sc_status", "no heading documents it"),
+    (
+        "msrp",
+        "auth_max_expiresl",
+        "example typo for `auth_max_expires`",
+    ),
+    (
+        "msrp",
+        "auth_min_expiresl",
+        "example typo for `auth_min_expires`",
+    ),
+    ("ndb_cassandra", "port", "no heading documents it"),
+    (
+        "p_usrloc",
+        "db_mode",
+        "documented under `Changes from usrloc module`, not Parameters",
+    ),
+    (
+        "slack",
+        "slack_url",
+        "heading typo: `slack url`, with a space",
+    ),
+];
+
+/// G3: every parameter a module's own README sets in an example is in
+/// the catalogue.
+#[test]
+fn the_catalogue_contains_every_parameter_the_readmes_set() {
+    let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let modules = std::path::Path::new(&tree).join("src").join("modules");
+    let re =
+        regex::Regex::new(r#"modparam\(\s*"([A-Za-z0-9_]+)"\s*,\s*"([A-Za-z0-9_]+)""#).unwrap();
+    let catalogue = kamailio_lsp::catalog::builtin_modules();
+
+    let mut checked = 0usize;
+    let mut missing: Vec<String> = Vec::new();
+    let mut stale: Vec<String> = Vec::new();
+    let mut seen_gap: Vec<(&str, &str)> = Vec::new();
+    let mut dirs: Vec<std::path::PathBuf> = std::fs::read_dir(&modules)
+        .expect("a Kamailio source tree has src/modules")
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    dirs.sort();
+    for dir in dirs {
+        let module = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let Ok(readme) = std::fs::read_to_string(dir.join("README")) else {
+            continue;
+        };
+        let Some(doc) = catalogue.modules.iter().find(|m| m.name == module) else {
+            missing.push(format!(
+                "{module}: the module itself is not in the catalogue"
+            ));
+            continue;
+        };
+        for c in re.captures_iter(&readme) {
+            // only what the module says about ITSELF: a README often
+            // shows another module's parameter in a worked example
+            if c[1] != module {
+                continue;
+            }
+            let param = c[2].to_string();
+            checked += 1;
+            if doc.params.iter().any(|p| p.name == param) {
+                if let Some((_, _, why)) = UPSTREAM_DOC_GAPS
+                    .iter()
+                    .find(|(m, p, _)| *m == module && *p == param)
+                {
+                    stale.push(format!(
+                        "{module}::{param} is harvested now — drop it ({why})"
+                    ));
+                }
+                continue;
+            }
+            match UPSTREAM_DOC_GAPS
+                .iter()
+                .find(|(m, p, _)| *m == module && *p == param)
+            {
+                Some((m, p, _)) => {
+                    if !seen_gap.contains(&(m, p)) {
+                        seen_gap.push((m, p));
+                    }
+                }
+                None => missing.push(format!("{module}::{param}")),
+            }
+        }
+    }
+    assert!(checked > 2000, "suspiciously few examples read: {checked}");
+    assert!(
+        missing.is_empty(),
+        "{} parameter(s) a README sets are not in the catalogue:\n{}",
+        missing.len(),
+        missing.join("\n")
+    );
+    // an exception that no longer fires is an exception that stopped
+    // describing the tree — it hides the next regression
+    assert!(stale.is_empty(), "stale exceptions:\n{}", stale.join("\n"));
+    assert_eq!(
+        seen_gap.len(),
+        UPSTREAM_DOC_GAPS.len(),
+        "exceptions that never fired: {:?}",
+        UPSTREAM_DOC_GAPS
+            .iter()
+            .filter(|(m, p, _)| !seen_gap.contains(&(*m, *p)))
+            .collect::<Vec<_>>()
+    );
+    eprintln!("catalogue covers {checked} README modparam examples");
 }

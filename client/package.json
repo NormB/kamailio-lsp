@@ -2,7 +2,7 @@
   "name": "kamailio-lsp",
   "displayName": "Kamailio Routing Script",
   "description": "Language support for kamailio.cfg configuration files (diagnostics via kamailio -c, completion, hover, go-to-definition).",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "publisher": "NormB",
   "license": "(MIT OR Apache-2.0)",
   "engines": {
@@ -79,7 +79,7 @@
         "kamailioLsp.associateIncludedFiles": {
           "type": "boolean",
           "default": true,
-          "description": "Treat a plain-text .cfg the workspace's configuration includes as a Kamailio config (colours, completion, diagnostics). Files another extension already claims are left alone."
+          "description": "Treat a plain-text file the workspace's configuration includes as a Kamailio config (colours, completion, diagnostics), whatever it is named. Files another extension already claims are left alone."
         },
         "kamailioLsp.enable": {
           "type": "boolean",
