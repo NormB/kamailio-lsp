@@ -136,6 +136,7 @@ fn core() -> kamailio_lsp::catalog::CoreDocs {
             detail: "Request URI".into(),
             doc: "The full request URI.".into(),
         }],
+        log_levels: vec!["L_INFO".into(), "L_DBG".into()],
     }
 }
 

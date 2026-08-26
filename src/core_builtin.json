@@ -2791,6 +2791,16 @@
         "detail": "Kamailio Constants",
         "doc": "$K(key) - return the numeric values corresponding to Kamailio configuration constants."
       }
+    ],
+    "log_levels": [
+      "L_ALERT",
+      "L_BUG",
+      "L_CRIT",
+      "L_ERR",
+      "L_WARN",
+      "L_NOTICE",
+      "L_INFO",
+      "L_DBG"
     ]
   }
 }

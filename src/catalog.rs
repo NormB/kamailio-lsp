@@ -865,6 +865,64 @@ pub fn parse_core_cookbook_md(md: &str) -> Result<(Vec<Item>, Vec<Item>), String
     Ok((params, functions))
 }
 
+/// The log levels `xlog` accepts, read from the C `switch` that
+/// parses them.
+///
+/// The set is not documentation anywhere a harvester can read it, it
+/// differs between releases, and it differs from the set OpenSIPS
+/// takes — so it comes from the source, like `param_export_t` does
+/// for module parameters. The switch dispatches on the THIRD
+/// character of the string, so a `case` letter that is not the third
+/// character of the level it assigns means the shape has changed and
+/// the pairing cannot be trusted; such a case is dropped rather than
+/// guessed at.
+///
+/// Anchored on the `unknown log level` message in the default arm: it
+/// is what distinguishes this switch from every other `case 'X':` in
+/// a source tree.
+pub fn parse_log_levels_c(src: &str) -> Vec<String> {
+    static CASE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let case = CASE.get_or_init(|| {
+        regex::Regex::new(r"case\s*'([A-Z])'\s*:[^;{}]*?(L_[A-Z][A-Z0-9_]*)").unwrap()
+    });
+    let Some(end) = src.find("unknown log level") else {
+        return Vec::new();
+    };
+    // the switch body precedes its default arm; bound the window so a
+    // switch far above the message cannot bleed into it
+    let start = src[..end].rfind("switch").unwrap_or(0);
+    let mut out: Vec<String> = Vec::new();
+    for c in case.captures_iter(&src[start..end]) {
+        let letter = c[1].chars().next().unwrap_or(' ');
+        // `L_CRIT2` is the internal constant for the level a script
+        // spells `L_CRIT`; the trailing digit is not part of the name
+        let name = c[2].trim_end_matches(|ch: char| ch.is_ascii_digit());
+        if name.chars().nth(2) != Some(letter) {
+            continue;
+        }
+        if !out.iter().any(|n| n == name) {
+            out.push(name.to_string());
+        }
+    }
+    out
+}
+
+/// Where the level switch lives in a kamailio checkout. `xlog` is a
+/// module here, not core, so the levels come from the module's own
+/// source. A test holds this against the real tree, so a file moving
+/// upstream fails rather than silently harvesting nothing.
+const LEVEL_SOURCES: &[&str] = &["src/modules/xlog/xlog.c"];
+
+/// The log levels a kamailio source tree accepts.
+pub fn harvest_log_levels(src_root: &Path) -> Vec<String> {
+    LEVEL_SOURCES
+        .iter()
+        .map(|f| std::fs::read_to_string(src_root.join(f)).unwrap_or_default())
+        .map(|src| parse_log_levels_c(&src))
+        .find(|v| !v.is_empty())
+        .unwrap_or_default()
+}
+
 /// Parse the wiki pseudo-variables cookbook (`pseudovariables.md`):
 /// every `##`/`###` heading naming a `$var` becomes an item. Names
 /// are stored as `$` plus the leading word characters (`$avp`, not
@@ -916,6 +974,11 @@ pub struct CoreDocs {
     pub params: Vec<Item>,
     /// Pseudo-variables (`pseudovariables.md`), names include the `$`.
     pub pvars: Vec<Item>,
+    /// The log levels `xlog`'s level argument accepts, in the order
+    /// the C switch lists them. Read from the source, not from prose,
+    /// and not from the other server.
+    #[serde(default)]
+    pub log_levels: Vec<String>,
 }
 
 /// The cookbook directory inside a wiki checkout: either the given
@@ -1325,6 +1388,7 @@ pub fn harvest_core(wiki_root: &Path) -> CoreDocs {
         functions,
         params,
         pvars,
+        log_levels: Vec::new(),
     }
 }
 

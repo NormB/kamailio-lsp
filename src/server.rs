@@ -641,7 +641,10 @@ impl Backend {
                 {
                     return (m, c, true);
                 }
-                let core = wiki_path.map(catalog::harvest_core).unwrap_or_default();
+                let mut core = wiki_path.map(catalog::harvest_core).unwrap_or_default();
+                // the wiki documents the language; the levels `xlog`
+                // takes are a switch in the module source beside it
+                core.log_levels = catalog::harvest_log_levels(p);
                 let out = (catalog::harvest_tree(p), core);
                 if let Some(dir) = &cache_dir {
                     let _ = catalog::save_cache(p, wiki_path, dir, &out.0, &out.1);

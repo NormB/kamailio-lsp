@@ -37,6 +37,7 @@ source tree (result cached per tree):
 | letters in a route | exported functions of **loaded** modules, core functions, core parameters, route names, keywords |
 | `route(` | route names (this file and its includes) |
 | `$` | pseudo-variables with descriptions (the typed `$word` is replaced, never doubled) |
+| `xlog(` | the log levels, quoted — `"L_INFO"`, because the fixup takes a string there. Type `xlog("` and they come unquoted instead. `xlogl` and `xlogm` too; `xdbg`, `xinfo`, `xerr`, `xnotice` and `xwarn` carry their level in the name and take a format alone. The set is read from the `switch` in your tree's `src/modules/xlog/xlog.c`, so it is the set *your* release accepts — kamailio takes `L_BUG`, and the three-argument `xlog(facility, level, format)` form is not offered at its level position |
 
 Function completions insert **snippets** — the cursor lands between
 the parentheses (`t_relay(│)`) — disable with

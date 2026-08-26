@@ -120,6 +120,13 @@ fn complete_files(
             .collect();
     }
     // modparam second argument → params of the named module
+    // an argument whose value is one of a fixed set the C fixup knows.
+    // After the `$` branch on purpose: that same fixup takes a
+    // pseudo-variable as the level (`s.s[0]==PV_MARKER`), so both are
+    // legitimate there and the typed `$` is what says which is wanted.
+    if let Some(levels) = enumerated_argument(core, line_prefix) {
+        return levels;
+    }
     if let Some(module) = analyze::modparam_context(line_prefix) {
         return catalog
             .iter()
@@ -1746,6 +1753,121 @@ fn dedup_completions(items: Vec<Comp>) -> Vec<Comp> {
     }
     out.into_iter().flatten().collect()
 }
+
+/// The call the cursor sits in: the function named before the open
+/// parenthesis, which argument the cursor is in, and whether it is
+/// inside a string literal.
+///
+/// Both signature help and the enumerated-argument offers need this
+/// walk, and they must agree about what argument the cursor is in —
+/// two walks would be two answers.
+pub struct CallSite {
+    /// The identifier before the open parenthesis.
+    pub name: String,
+    /// Zero-based argument index: the commas seen at this depth.
+    pub arg: u32,
+    /// The cursor is inside a string literal.
+    pub in_string: bool,
+}
+
+/// The innermost call the cursor sits in, or `None` outside one.
+pub fn call_site(line_prefix: &str) -> Option<CallSite> {
+    let b = line_prefix.as_bytes();
+    let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let mut stack: Vec<(String, u32)> = Vec::new();
+    let mut in_str = false;
+    let mut i = 0;
+    while i < b.len() {
+        let c = b[i];
+        if in_str {
+            if c == b'\\' {
+                i += 2;
+                continue;
+            }
+            if c == b'"' {
+                in_str = false;
+            }
+            i += 1;
+            continue;
+        }
+        match c {
+            b'"' => in_str = true,
+            b'#' => break,
+            b'(' => {
+                let mut e = i;
+                while e > 0 && (b[e - 1] as char).is_whitespace() {
+                    e -= 1;
+                }
+                let mut st = e;
+                while st > 0 && word(b[st - 1]) {
+                    st -= 1;
+                }
+                let ident = std::str::from_utf8(&b[st..e]).unwrap_or("").to_string();
+                stack.push((ident, 0));
+            }
+            b')' => {
+                stack.pop();
+            }
+            b',' => {
+                if let Some(top) = stack.last_mut() {
+                    top.1 += 1;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    let (name, arg) = stack.pop()?;
+    Some(CallSite {
+        name,
+        arg,
+        in_string: in_str,
+    })
+}
+
+/// The offers for an argument whose value is one of a fixed set the
+/// server's own C fixup recognises.
+///
+/// The parameter is fixed up as a string, so `xlog(L_INFO, ...)` does
+/// not reach the level parser: the quotes belong to the completion.
+/// When the reader has already typed the opening quote, adding
+/// another pair would give `""L_INFO"`, so the bare form is offered
+/// there instead.
+fn enumerated_argument(core: &crate::catalog::CoreDocs, line_prefix: &str) -> Option<Vec<Comp>> {
+    let site = call_site(line_prefix)?;
+    if !LEVEL_ARGUMENTS
+        .iter()
+        .any(|(f, a)| *f == site.name && *a == site.arg)
+    {
+        return None;
+    }
+    Some(
+        core.log_levels
+            .iter()
+            .map(|l| Comp {
+                label: if site.in_string {
+                    l.clone()
+                } else {
+                    format!("\"{l}\"")
+                },
+                detail: "log level".into(),
+                doc: String::new(),
+                kind: CompKind::Keyword,
+            })
+            .collect(),
+    )
+}
+
+/// Which argument of which call is a log level, from the xlog
+/// module's `cmd_export_t` table: the rows whose fixup reaches the
+/// level parser at parameter 1. `xdbg`, `xinfo`, `xerr` and the rest
+/// carry their level in their NAME and take a format alone.
+///
+/// The three-argument `xlog(facility, level, format)` form puts the
+/// level second; it is not offered there, because at completion time
+/// the arity is not yet decided and the two-argument form is what a
+/// configuration is written with.
+const LEVEL_ARGUMENTS: &[(&str, u32)] = &[("xlog", 0), ("xlogl", 0), ("xlogm", 0)];
 
 /// The signature under the cursor: the innermost UNCLOSED call in
 /// `line_prefix` resolved against loaded-module functions first, then
