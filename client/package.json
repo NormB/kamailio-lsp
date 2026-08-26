@@ -152,6 +152,11 @@
           "type": "string",
           "default": "",
           "description": "Documentation-catalog cache directory (empty = the platform cache dir)."
+        },
+        "kamailioLsp.versionInHints": {
+          "type": "boolean",
+          "default": false,
+          "description": "Repeat the Kamailio release under every hover and completion item. Off by default: the status bar shows it continuously and every warning names it."
         }
       }
     },

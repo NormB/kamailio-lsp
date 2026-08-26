@@ -56,6 +56,11 @@ pub struct Backend {
     /// one. A configured source tree still wins over it: that is
     /// exact for their build, and this is a choice among ours.
     wanted_version: std::sync::RwLock<Option<String>>,
+    /// Whether built-in documentation repeats the release it came
+    /// from, under every hover and completion item. Off by default:
+    /// the status bar says it continuously and every warning that
+    /// turns on the release names it.
+    version_in_hints: std::sync::RwLock<bool>,
     core: std::sync::RwLock<catalog::CoreDocs>,
     src: std::sync::RwLock<Option<String>>,
     wiki: std::sync::RwLock<Option<String>>,
@@ -122,6 +127,7 @@ impl Backend {
                 catalog::CatalogOrigin::BuiltIn(catalog::builtin_modules().version.clone()),
             )),
             wanted_version: std::sync::RwLock::new(None),
+            version_in_hints: std::sync::RwLock::new(false),
             core: std::sync::RwLock::new(catalog::CoreDocs::default()),
             src: std::sync::RwLock::new(None),
             wiki: std::sync::RwLock::new(None),
@@ -1341,6 +1347,15 @@ impl LanguageServer for Backend {
         // delays the initialize handshake
         *self.src.write().unwrap() = src;
 
+        *self.version_in_hints.write().unwrap() = opts
+            .get("versionInHints")
+            .and_then(|v| v.as_bool())
+            .unwrap_or_else(|| {
+                std::env::var("KAMAILIO_LSP_VERSION_IN_HINTS")
+                    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false)
+            });
+
         *self.wanted_version.write().unwrap() = opts
             .get("kamailioVersion")
             .and_then(|v| v.as_str())
@@ -1493,7 +1508,14 @@ impl LanguageServer for Backend {
             core.functions.is_empty() && core.params.is_empty() && core.pvars.is_empty()
         };
         if builtin {
-            *self.core.write().unwrap() = catalog::builtin_core().core.clone();
+            let mut core = catalog::builtin_core().core.clone();
+            if *self.version_in_hints.read().unwrap() {
+                // the core catalogue is one vendored artefact: it names
+                // its OWN release, not the module release in use
+                let note = catalog::version_note("core", &catalog::builtin_core().version);
+                catalog::note_core(&mut core, &note);
+            }
+            *self.core.write().unwrap() = core;
         }
         // The same argument one level up: `is_method` is a textops
         // function, so a core-only fallback still left every module
@@ -1527,7 +1549,12 @@ impl LanguageServer for Backend {
                 },
                 None => catalog::builtin_modules().clone(),
             };
-            *self.catalog.write().unwrap() = chosen.modules;
+            let mut modules = chosen.modules;
+            if *self.version_in_hints.read().unwrap() {
+                let note = catalog::version_note("module", &chosen.version);
+                catalog::note_modules(&mut modules, &note);
+            }
+            *self.catalog.write().unwrap() = modules;
             *self.catalog_origin.write().unwrap() = catalog::CatalogOrigin::BuiltIn(chosen.version);
         }
         let n = self.catalog.read().unwrap().len();

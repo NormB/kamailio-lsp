@@ -203,6 +203,7 @@ export function activate(context: vscode.ExtensionContext) {
         'kamailioLsp.kamailioSrc',
         'kamailioLsp.kamailioWiki',
         'kamailioLsp.kamailioVersion',
+        'kamailioLsp.versionInHints',
         'kamailioLsp.modulesPath',
         'kamailioLsp.cacheDir',
         'kamailioLsp.diagnostics.enable',

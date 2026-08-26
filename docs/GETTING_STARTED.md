@@ -229,3 +229,67 @@ bottom-right status bar (it will say **Plain Text**) and pick
 | Completion has no documentation | Core and module entries both carry built-in documentation, so an entry with none is one the pinned version does not document: set **Kamailio Src** (and **Kamailio Wiki**) to sources matching your build. |
 | A module I have is not offered | The built-in list is what 6.1.4 documents, not what you compiled. Set **Kamailio Src** to your own tree. |
 | Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (254 documented modules, 43 core functions, core docs built in from 6.1.x, module docs built in from 6.1.4)"). |
+
+## Checking against a specific Kamailio release
+
+Module parameters move between releases: a name that is correct on one
+can be unknown on another. The server therefore checks `modparam`
+names against ONE release, and tells you which — it is on the status
+bar the whole time a config is open, and every warning names it:
+
+```
+parameter 'x' is not exported by module 'y' in Kamailio 6.1.4 (built in)
+```
+
+### Pick one of the built-in releases
+
+The extension ships catalogues for `5.8.8`, `6.0.7`, `6.1.4`. In VS Code or VSCodium,
+open Settings, search for `kamailioVersion`, and choose from the
+dropdown — it lists exactly the releases that are shipped, so it
+cannot be set to one the server would reject.
+
+Editing `settings.json` directly:
+
+```json
+{ "kamailioLsp.kamailioVersion": "6.1.4" }
+```
+
+Leave it empty for the newest. An unrecognised release is reported in
+the log and the newest is used, rather than silently checking against
+something you did not ask for.
+
+Outside the editor, `kamailio-lsp check` reads the same choice from
+`KAMAILIO_LSP_VERSION`:
+
+```sh
+KAMAILIO_LSP_VERSION=6.1.4 kamailio-lsp check /etc/kamailio/kamailio.cfg
+```
+
+### Or point at your own build
+
+A release that is not shipped — or a patched or forked build — is
+handled by pointing at its source tree instead:
+
+```json
+{ "kamailioLsp.kamailioSrc": "/opt/src/kamailio" }
+```
+
+That wins over the release setting, because it is exact for the build
+you actually run: parameters come from that tree's own module code.
+The status bar then says `the configured source tree` rather than a
+version.
+
+### Seeing the release in hover text
+
+Hover and completion do not repeat the release by default — the status
+bar shows it continuously. If you read hovers in isolation, or paste
+them into tickets, turn it on:
+
+```json
+{ "kamailioLsp.versionInHints": true }
+```
+
+Module documentation then names the release you selected. Core
+documentation names its own: it is a single vendored artefact that
+does not move with that setting, and saying otherwise would misstate
+where those docs came from.
