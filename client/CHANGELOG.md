@@ -2,6 +2,43 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.18.0] — 2026-08-26
+
+**Routing blocks and control statements hover, thirty-five variables
+that hovered blank now say something, and `xlog(` offers its levels.**
+
+- **`request_route`, `branch_route` and the other six hover.** So do
+  `if`, `switch`, `while`, and the `else`, `case` and `default` that
+  are explained inside them. The cookbook documents every one, under
+  "Routing Blocks" and "Script Statements" on the same `core.md` the
+  parameters and functions already came from — and the harvester read
+  two sections of that page and walked past those two. Control
+  keywords used to complete as the word "keyword" with nothing under
+  it; they carry their documentation now.
+- **Thirty-five pseudo-variables had an entry and no text.**
+  `$avp`, `$var`, `$hdr`, `$sht` and thirty-one more are documented
+  with a section of their own rather than as entries under a
+  category, and the walker emitted them the moment it read the
+  heading — before their body had been read, and it never came back
+  for it. A blank hover reads as a broken server, and the variables
+  it hit are the ones configurations are written with.
+- **Typing `xlog(` offers the log levels, quoted.** `L_ALERT`,
+  `L_BUG`, `L_CRIT`, `L_ERR`, `L_WARN`, `L_NOTICE`, `L_INFO`,
+  `L_DBG` — read from the `switch` in your own tree's
+  `src/modules/xlog/xlog.c`, so it is the set your release accepts.
+  `xlogl` and `xlogm` too; `xdbg`, `xinfo`, `xerr`, `xnotice` and
+  `xwarn` carry their level in the name and take a format alone, so
+  they offer none. The quotes come with the level unless you have
+  typed the opening one, and a `$` still offers pseudo-variables,
+  which that argument also accepts.
+- **Ctrl+Alt+H turns the hovers and completion off** (Cmd+Alt+H on
+  macOS), and the same keys turn them back on. For reading someone
+  else's configuration, or showing one to a room, when the popups are
+  in the way. It applies at once — no restart — the status bar reads
+  `Kamailio hints off` so a quiet editor is not mistaken for a broken
+  one, and diagnostics are left alone. `kamailioLsp.assistance` is
+  the setting behind it.
+
 ## [0.17.0] — 2026-08-25
 
 **Hover stops repeating the release, and you decide whether it says it
