@@ -46,6 +46,15 @@ keeping the most informative item. Modules loaded and routes defined
 in `include_file`/`import_file` files count — the closure is followed
 (open editor buffers preferred over disk).
 
+#### Turning the popups off
+
+<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd>
+(<kbd>Cmd</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd> on macOS) stops hovers and
+completion; the same keys bring them back. The status bar reads
+`Kamailio hints off` meanwhile. It applies at once — no restart — and
+leaves diagnostics alone, which have their own switch. The setting
+behind it is `kamailioLsp.assistance`.
+
 #### Signature help
 
 Type `(` or `,` inside a call and the function's signature pops up
@@ -553,6 +562,7 @@ clients that can't pass options.
 | `kamailioLsp.kamailioSrc` | `kamailioSrc` | `KAMAILIO_LSP_SRC` | *(unset)* | Source tree for module completion/hover docs. |
 | `kamailioLsp.kamailioVersion` | `kamailioVersion` | `KAMAILIO_LSP_VERSION` | *(newest)* | Built-in release to check `modparam` names against. Ignored when `kamailioSrc` is set. |
 | `kamailioLsp.versionInHints` | `versionInHints` | `KAMAILIO_LSP_VERSION_IN_HINTS` | `false` | Repeat the release under every hover and completion item. |
+| `kamailioLsp.assistance` | `assistance` | `KAMAILIO_LSP_ASSISTANCE` | `true` | Answer hovers and completion. Toggle with <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd>; diagnostics are unaffected. |
 | `kamailioLsp.kamailioWiki` | `kamailioWiki` | `KAMAILIO_LSP_WIKI` | *(unset)* | kamailio-wiki checkout for core-language docs. |
 | `kamailioLsp.modulesPath` | `modulesPath` | — | *(unset)* | Module search path for the checker (`-L`). |
 | `kamailioLsp.diagnostics.enable` | *(maps to empty `kamailioPath`)* | — | `true` | Toggle diagnostics without losing the configured path. |

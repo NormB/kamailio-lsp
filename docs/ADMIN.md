@@ -243,6 +243,28 @@ tunable via `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` (default 300).
 { "analyzerDiagnostics": false }
 ```
 
+#### assistance (boolean)
+
+Answer hovers and completion at all. Turn it off to read a
+configuration without popups appearing over it — walking a
+colleague's file, or presenting one — and on again the same way.
+
+In VS Code the toggle is bound to <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+
+<kbd>H</kbd> (<kbd>Cmd</kbd>+<kbd>Alt</kbd>+<kbd>H</kbd> on macOS),
+and the status bar reads `Kamailio hints off` while it is off, so a
+silent editor is never mistaken for a broken one. It takes effect
+immediately: no restart, and no reopening the file.
+
+Diagnostics are not part of it. Whether a configuration is valid is
+not noise while reading, and `analyzerDiagnostics` and
+`diagnostics.enable` already switch those separately.
+
+*Default value is `true`.*
+
+```json title="Set assistance parameter"
+{ "assistance": false }
+```
+
 #### codeLensReferences (boolean)
 
 Show a reference-count code lens above every named `route` block

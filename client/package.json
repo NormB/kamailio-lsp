@@ -157,6 +157,11 @@
           "type": "boolean",
           "default": false,
           "description": "Repeat the Kamailio release under every hover and completion item. Off by default: the status bar shows it continuously and every warning names it."
+        },
+        "kamailioLsp.assistance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Answer hovers and completion. Turn off to read a configuration without popups; diagnostics are unaffected and have their own switch. Bound to ctrl+alt+h (cmd+alt+h on macOS) and takes effect immediately."
         }
       }
     },
@@ -164,6 +169,20 @@
       {
         "language": "kamailio-cfg",
         "path": "./snippets/kamailio.code-snippets"
+      }
+    ],
+    "commands": [
+      {
+        "command": "kamailioLsp.toggleAssistance",
+        "title": "Kamailio: Toggle Hovers and Completion"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "kamailioLsp.toggleAssistance",
+        "key": "ctrl+alt+h",
+        "mac": "cmd+alt+h",
+        "when": "editorTextFocus && editorLangId == kamailio-cfg"
       }
     ]
   },

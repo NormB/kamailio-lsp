@@ -25,7 +25,20 @@ function refreshCatalogueStatus(): void {
     }
     const active = vscode.window.activeTextEditor;
     const relevant = active?.document?.languageId === KAMAILIO_LANGUAGE;
-    if (relevant && catalogueText) {
+    if (!relevant) {
+        catalogueStatus.hide();
+        return;
+    }
+    // a silenced editor looks like a broken one, so say so
+    const on = vscode.workspace
+        .getConfiguration('kamailioLsp')
+        .get<boolean>('assistance', true);
+    if (!on) {
+        catalogueStatus.text = '$(circle-slash) Kamailio hints off';
+        catalogueStatus.show();
+        return;
+    }
+    if (catalogueText) {
         catalogueStatus.text = `$(book) ${catalogueText}`;
         catalogueStatus.show();
     } else {
@@ -81,6 +94,7 @@ function buildClient(context: vscode.ExtensionContext): LanguageClient {
             codeLensReferences: cfg.get<boolean>('codeLens.references', true),
             inlayHintParameterNames: cfg.get<boolean>('inlayHints.parameterNames', true),
             inlayHintDefineValues: cfg.get<boolean>('inlayHints.defineValues', true),
+            assistance: cfg.get<boolean>('assistance', true),
             maxDiagnostics: cfg.get<number>('diagnostics.maxProblems', 100),
             cacheDir: cfg.get<string>('cacheDir', ''),
         },
@@ -196,6 +210,25 @@ export function activate(context: vscode.ExtensionContext) {
     // settings changed: the paths that shape initialization need a
     // restart; the runtime toggles are pushed to the running server
     // via workspace/didChangeConfiguration instead
+    // one key turns the popups off and the same key turns them back
+    // on; written to the workspace when there is one, so it does not
+    // silently change every other project the reader opens
+    context.subscriptions.push(
+        vscode.commands.registerCommand('kamailioLsp.toggleAssistance', async () => {
+            const c = vscode.workspace.getConfiguration('kamailioLsp');
+            const target = vscode.workspace.workspaceFolders?.length
+                ? vscode.ConfigurationTarget.Workspace
+                : vscode.ConfigurationTarget.Global;
+            await c.update('assistance', !c.get<boolean>('assistance', true), target);
+        }),
+    );
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration('kamailioLsp.assistance')) {
+                refreshCatalogueStatus();
+            }
+        }),
+    );
     const restartSettings = [
         'kamailioLsp.enable',
         'kamailioLsp.serverPath',
@@ -243,6 +276,7 @@ export function activate(context: vscode.ExtensionContext) {
                                 'inlayHints.defineValues',
                                 true,
                             ),
+                            assistance: cfg.get<boolean>('assistance', true),
                             maxDiagnostics: cfg.get<number>(
                                 'diagnostics.maxProblems',
                                 100,

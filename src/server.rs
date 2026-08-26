@@ -61,6 +61,11 @@ pub struct Backend {
     /// the status bar says it continuously and every warning that
     /// turns on the release names it.
     version_in_hints: std::sync::RwLock<bool>,
+    /// Hovers and completion answer at all. A reader walking someone
+    /// else's configuration turns the popups off with one key and
+    /// back on with the same one; it is pushed live, because a
+    /// setting that needs a restart is a pause and not a toggle.
+    assistance: std::sync::RwLock<bool>,
     core: std::sync::RwLock<catalog::CoreDocs>,
     src: std::sync::RwLock<Option<String>>,
     wiki: std::sync::RwLock<Option<String>>,
@@ -117,6 +122,25 @@ pub struct Backend {
 }
 
 impl Backend {
+    /// Read the assistance toggle out of a settings object.
+    ///
+    /// This server reads its settings in two places — the
+    /// initialization options and the live configuration change — so
+    /// the toggle is written once and called from both. Written twice
+    /// it would drift, and a toggle that works on startup but not
+    /// live is the one case it exists to cover.
+    ///
+    /// An absent value means unchanged: an editor that sends only
+    /// what changed must not turn the popups back on by way of an
+    /// unrelated setting.
+    fn apply_assistance(&self, opts: &serde_json::Value) {
+        if let Some(b) = opts.get("assistance").and_then(|v| v.as_bool()) {
+            *self.assistance.write().unwrap() = b;
+        } else if let Ok(v) = std::env::var("KAMAILIO_LSP_ASSISTANCE") {
+            *self.assistance.write().unwrap() = !(v == "0" || v.eq_ignore_ascii_case("false"));
+        }
+    }
+
     /// Build a backend for one client connection.
     pub fn new(client: Client) -> Self {
         Self {
@@ -128,6 +152,7 @@ impl Backend {
             )),
             wanted_version: std::sync::RwLock::new(None),
             version_in_hints: std::sync::RwLock::new(false),
+            assistance: std::sync::RwLock::new(true),
             core: std::sync::RwLock::new(catalog::CoreDocs::default()),
             src: std::sync::RwLock::new(None),
             wiki: std::sync::RwLock::new(None),
@@ -1325,6 +1350,7 @@ impl LanguageServer for Backend {
         if let Some(b) = opts.get("codeLensReferences").and_then(|v| v.as_bool()) {
             *self.code_lens_refs.write().unwrap() = b;
         }
+        self.apply_assistance(&opts);
         if let Some(n) = opts.get("maxDiagnostics").and_then(|v| v.as_u64()) {
             *self.max_diagnostics.write().unwrap() = (n as usize).max(1);
         }
@@ -1927,6 +1953,7 @@ impl LanguageServer for Backend {
         if let Some(b) = s.get("codeLensReferences").and_then(|v| v.as_bool()) {
             *self.code_lens_refs.write().unwrap() = b;
         }
+        self.apply_assistance(s);
         if let Some(n) = s.get("maxDiagnostics").and_then(|v| v.as_u64()) {
             *self.max_diagnostics.write().unwrap() = (n as usize).max(1);
         }
@@ -1979,6 +2006,9 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, p: CompletionParams) -> Result<Option<CompletionResponse>> {
+        if !*self.assistance.read().unwrap() {
+            return Ok(None);
+        }
         let uri = p.text_document_position.text_document.uri;
         let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
             return Ok(None);
@@ -2092,6 +2122,9 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, p: HoverParams) -> Result<Option<Hover>> {
+        if !*self.assistance.read().unwrap() {
+            return Ok(None);
+        }
         let uri = p.text_document_position_params.text_document.uri;
         let pos = p.text_document_position_params.position;
         let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
