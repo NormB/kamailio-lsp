@@ -871,15 +871,22 @@ pub fn parse_core_cookbook_md(md: &str) -> Result<(Vec<Item>, Vec<Item>), String
         }
         let section = h2.to_ascii_lowercase();
         if PARAM_SECTIONS.contains(&section.as_str()) {
-            let name = h3.split_whitespace().next().unwrap_or("").to_string();
-            if name.is_empty() || name.contains('(') || name.starts_with('$') {
-                continue;
+            // one heading may name a FAMILY:
+            // `### tcp_source_ipv4, tcp_source_ipv6` documents two,
+            // and taking the first word produced a parameter called
+            // `tcp_source_ipv4,` — comma included, unhoverable — while
+            // the rest vanished and looked undocumented ever after
+            for name in h3.split(',') {
+                let name = name.split_whitespace().next().unwrap_or("").to_string();
+                if name.is_empty() || name.contains('(') || name.starts_with('$') {
+                    continue;
+                }
+                params.push(Item {
+                    name,
+                    detail: h2.clone(),
+                    doc: doc.clone(),
+                });
             }
-            params.push(Item {
-                name,
-                detail: h2.clone(),
-                doc,
-            });
         } else if section == "core functions" {
             let name = h3.split('(').next().unwrap_or("").trim().to_string();
             if name.is_empty() || name.contains(' ') {
@@ -956,6 +963,246 @@ pub fn parse_core_blocks_md(md: &str) -> Result<(Vec<Item>, Vec<Item>), String> 
     Ok((routes, statements))
 }
 
+/// A grammar token name: upper-case, and it may contain DIGITS —
+/// `TCP_SOURCE_IPV4`. The same omission as `is_spelling` had, one
+/// level up: a token filter that rejects digits drops the token
+/// before its spelling is ever looked at.
+fn is_token(t: &str) -> bool {
+    !t.is_empty()
+        && t.starts_with(|c: char| c.is_ascii_uppercase())
+        && t.chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// A config-file spelling: lower-case, and it may contain DIGITS —
+/// `tcp_source_ipv4`, `disable_503_translation`. Requiring letters
+/// only dropped those silently, which is the shape of gap this whole
+/// reconciliation exists to close.
+fn is_spelling(w: &str) -> bool {
+    !w.is_empty()
+        && w.starts_with(|c: char| c.is_ascii_lowercase())
+        && w.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// Every way this lexer lets you spell one token.
+///
+/// This dialect writes its alternatives UNQUOTED — `advertise|ADVERTISE`,
+/// `workdir|wdir` — where the sibling server's lexer quotes them, so a
+/// reader written for quoted alternatives returns nothing here.
+///
+/// Two shapes carry different meanings. Alternatives inside one group
+/// (or one bare alternation) are ALIASES: `rewriteuri|seturi` is one
+/// thing spelled two ways. Separate parenthesised groups are PARTS of
+/// one spelling.
+pub fn lexer_spellings(pattern: &str) -> Vec<String> {
+    static GROUP: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let group = GROUP.get_or_init(|| regex::Regex::new(r"\(([^()]*)\)").unwrap());
+    let words = |t: &str| -> Vec<String> {
+        let quoted: Vec<String> = t
+            .split('"')
+            .filter(|w| is_spelling(w))
+            .map(str::to_string)
+            .collect();
+        if !quoted.is_empty() {
+            return quoted;
+        }
+        t.split('|')
+            .map(str::trim)
+            .filter(|w| is_spelling(w))
+            .map(str::to_string)
+            .collect()
+    };
+    let pattern = pattern.trim();
+    let mut out = if pattern.contains('(') {
+        let parts: Vec<String> = group
+            .captures_iter(pattern)
+            .filter_map(|c| words(&c[1]).into_iter().next())
+            .collect();
+        if parts.is_empty() {
+            Vec::new()
+        } else {
+            vec![parts.join("_")]
+        }
+    } else {
+        words(pattern)
+    };
+    let mut seen: Vec<String> = Vec::new();
+    out.retain(|w| {
+        if seen.contains(w) {
+            return false;
+        }
+        seen.push(w.clone());
+        true
+    });
+    out
+}
+
+/// Token to every spelling of it.
+fn lexer_tokens(cfg_lex: &str) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    for line in cfg_lex.split("\n%%").next().unwrap_or(cfg_lex).lines() {
+        let mut it = line.splitn(2, [' ', '\t']);
+        let (Some(tok), Some(pat)) = (it.next(), it.next()) else {
+            continue;
+        };
+        if tok.is_empty() || !is_token(tok) {
+            continue;
+        }
+        let ws = lexer_spellings(pat);
+        if !ws.is_empty() {
+            out.push((tok.to_string(), ws));
+        }
+    }
+    out
+}
+
+/// The body of a named production.
+fn production<'a>(cfg_y: &'a str, name: &str) -> Option<&'a str> {
+    let start = cfg_y.find(&format!("\n{name}:"))? + 1;
+    let rest = &cfg_y[start..];
+    static NEXT: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let next = NEXT.get_or_init(|| regex::Regex::new(r"\n[a-z_]+:").unwrap());
+    Some(match next.find(&rest[name.len() + 1..]) {
+        Some(m) => &rest[..name.len() + 1 + m.start()],
+        None => rest,
+    })
+}
+
+/// Fill in what the grammar accepts and the cookbook never mentions.
+///
+/// The grammar decides what exists, the cookbook decides what it
+/// says. A spelling the cookbook skips gets the documented
+/// spelling's text and a pointer to it; a name documented under no
+/// spelling gets a note, because offering nothing claims it does not
+/// exist.
+///
+/// Globals are read from `assign_stm` alone. The `socket = { ... }`
+/// attributes are assignable too — `bind = …;` — and reading every
+/// `TOKEN EQUAL` in the file would turn all seven of them into core
+/// parameters that no configuration can set at the top level.
+fn reconcile_core_with_grammar(core: &mut CoreDocs, cfg_y: &str, cfg_lex: &str) {
+    let Some(globals) = production(cfg_y, "assign_stm") else {
+        return;
+    };
+    let assignable: Vec<&str> = globals
+        .match_indices(" EQUAL")
+        .filter_map(|(i, _)| globals[..i].rsplit(|c: char| c.is_whitespace()).next())
+        .filter(|t| !t.is_empty() && is_token(t))
+        .collect();
+    // a call is a script FUNCTION only where its production builds an
+    // action, which is what a route body executes
+    let called: Vec<&str> = cfg_y
+        .match_indices(" LPAREN")
+        .filter(|(i, _)| {
+            let rest = &cfg_y[*i..];
+            let end = rest
+                .find("\n\t|")
+                .into_iter()
+                .chain(rest.find("\n\t\t|"))
+                .min()
+                .unwrap_or(rest.len().min(400));
+            rest[..end].contains("mk_action(")
+        })
+        .filter_map(|(i, _)| cfg_y[..i].rsplit(|c: char| c.is_whitespace()).next())
+        .filter(|t| !t.is_empty() && is_token(t))
+        .collect();
+
+    let mut add_params: Vec<Item> = Vec::new();
+    let mut add_functions: Vec<Item> = Vec::new();
+    for (tok, spellings) in lexer_tokens(cfg_lex) {
+        let is_global = assignable.contains(&tok.as_str());
+        let is_called = called.contains(&tok.as_str());
+        if !is_global && !is_called {
+            continue;
+        }
+        // which LIST the documented spelling lives in matters: an
+        // alias of a script function is a script function.
+        // `rewriteuri` is a call and `seturi` is the same call, and
+        // filing it under parameters offers it where a parameter
+        // belongs and hides it where the call does.
+        let documented = spellings.iter().find_map(|w| {
+            core.params
+                .iter()
+                .find(|p| &p.name == w)
+                .map(|d| (d, false))
+                .or_else(|| {
+                    core.functions
+                        .iter()
+                        .find(|f| &f.name == w)
+                        .map(|d| (d, true))
+                })
+                .or_else(|| {
+                    core.statements
+                        .iter()
+                        .find(|s| &s.name == w)
+                        .map(|d| (d, false))
+                })
+        });
+        let known = |core: &CoreDocs, w: &String| {
+            core.params.iter().any(|p| &p.name == w)
+                || core.functions.iter().any(|f| &f.name == w)
+                || core.statements.iter().any(|s| &s.name == w)
+        };
+        match documented {
+            Some((d, is_function)) => {
+                let (doc, from) = (d.doc.clone(), d.name.clone());
+                for w in spellings.iter().filter(|w| **w != from) {
+                    if known(core, w)
+                        || add_params.iter().any(|p| &p.name == w)
+                        || add_functions.iter().any(|f| &f.name == w)
+                    {
+                        continue;
+                    }
+                    let kind = if is_function {
+                        "core function"
+                    } else {
+                        "core parameter"
+                    };
+                    let item = Item {
+                        name: w.clone(),
+                        detail: format!("{kind} — the cookbook spells it `{from}`"),
+                        doc: doc.clone(),
+                    };
+                    if is_function {
+                        add_functions.push(item);
+                    } else {
+                        add_params.push(item);
+                    }
+                }
+            }
+            None => {
+                let Some(name) = spellings.first().cloned() else {
+                    continue;
+                };
+                let note =
+                    format!("The grammar accepts `{name}`. The cookbook does not describe it.");
+                if is_called {
+                    add_functions.push(Item {
+                        name: name.clone(),
+                        detail: format!("core function — `{name}(...)`"),
+                        doc: note,
+                    });
+                } else {
+                    add_params.push(Item {
+                        name,
+                        detail: "core parameter".into(),
+                        doc: note,
+                    });
+                }
+            }
+        }
+    }
+    core.params.extend(add_params);
+    core.functions.extend(add_functions);
+}
+
+/// Fill in the grammar's own names, given a source tree.
+pub fn reconcile_with_tree(core: &mut CoreDocs, src_root: &Path) {
+    let read = |p: &str| std::fs::read_to_string(src_root.join(p)).unwrap_or_default();
+    reconcile_core_with_grammar(core, &read("src/core/cfg.y"), &read("src/core/cfg.lex"));
+}
+
 /// How this lexer spells a token.
 ///
 /// This dialect writes its alternatives UNQUOTED — `advertise|ADVERTISE`,
@@ -1007,7 +1254,7 @@ pub fn parse_socket_attrs_c(cfg_y: &str, cfg_lex: &str) -> Vec<String> {
         let (Some(tok), Some("EQUAL")) = (words.next(), words.next()) else {
             continue;
         };
-        if !tok.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
+        if !is_token(tok) {
             continue;
         }
         if let Some(w) = lexer_spelling(cfg_lex, tok)
@@ -1031,7 +1278,7 @@ pub fn parse_listen_modifiers_c(cfg_y: &str, cfg_lex: &str) -> Vec<String> {
             continue;
         };
         for tok in tail.split_whitespace() {
-            if !tok.chars().all(|c| c.is_ascii_uppercase() || c == '_') || tok.is_empty() {
+            if !is_token(tok) || tok.is_empty() {
                 continue;
             }
             if let Some(w) = lexer_spelling(cfg_lex, tok)

@@ -677,6 +677,10 @@ impl Backend {
                     core.socket_attrs = attrs;
                     core.listen_modifiers = mods;
                 }
+                // the cookbook is not the whole language: the grammar
+                // accepts names no page mentions, and spellings the
+                // pages skip
+                catalog::reconcile_with_tree(&mut core, p);
                 let out = (catalog::harvest_tree(p), core);
                 if let Some(dir) = &cache_dir {
                     let _ = catalog::save_cache(p, wiki_path, dir, &out.0, &out.1);

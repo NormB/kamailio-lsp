@@ -236,3 +236,47 @@ fn a_comment_at_column_zero_inside_an_example_does_not_end_the_section() {
         it.doc
     );
 }
+
+/// One heading, several parameters.
+///
+/// The cookbook documents families together —
+/// `### tcp_source_ipv4, tcp_source_ipv6` and
+/// `### dns_sctp_pref, dns_tcp_pref, dns_tls_pref, dns_udp_pref` —
+/// and taking the first word of the heading produced a parameter
+/// literally named `tcp_source_ipv4,`, comma included, while the
+/// others vanished. A name with a comma in it can never be hovered,
+/// and the missing ones then looked undocumented to every later gate.
+#[test]
+fn a_heading_naming_several_parameters_yields_all_of_them() {
+    const MD: &str = concat!(
+        "## Core parameters\n\n### tcp_source_ipv4, tcp_source_ipv6\n\n",
+        "The source address to bind to.\n\n``` c\ntcp_source_ipv4 = 192.0.2.1\n```\n"
+    );
+    let (params, _) = parse_core_cookbook_md(MD).expect("parses");
+    let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(
+        names,
+        vec!["tcp_source_ipv4", "tcp_source_ipv6"],
+        "{names:?}"
+    );
+    for p in &params {
+        assert!(
+            !p.name.contains(','),
+            "a name with a comma can never be hovered: {:?}",
+            p.name
+        );
+        assert!(
+            p.doc.contains("The source address"),
+            "each shares the section's text: {:?}",
+            p.doc
+        );
+    }
+}
+
+#[test]
+fn a_single_name_heading_is_unaffected() {
+    let (params, _) = parse_core_cookbook_md(PAGE).expect("parses");
+    let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+    assert!(names.contains(&"children"), "{names:?}");
+    assert!(!names.iter().any(|n| n.contains(',')), "{names:?}");
+}

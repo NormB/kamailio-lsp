@@ -65,6 +65,14 @@ core functions. Commas inside strings don't advance the parameter.
 
 #### Hover, go to definition, document symbols
 
+The cookbook is not the whole language. Where the lexer accepts two
+spellings of one thing and the cookbook documents one — `wdir` for
+`workdir`, `seturi` for `rewriteuri` — the other answers as the same
+thing and says which spelling the cookbook uses. An alias of a call
+is a call, not a parameter. Where no page describes a name at all,
+it is still offered with a note saying the cookbook is silent,
+because offering nothing claims it does not exist.
+
 Hovering a core parameter shows its description and the cookbook's
 worked example — the example is where the form is. The default is
 already part of the description here, because this cookbook writes it

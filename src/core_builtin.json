@@ -216,6 +216,116 @@
         "name": "userphone",
         "detail": "userphone",
         "doc": "Add `user=phone` parameter to R-URI."
+      },
+      {
+        "name": "forward_tcp",
+        "detail": "core function — `forward_tcp(...)`",
+        "doc": "The grammar accepts `forward_tcp`. The cookbook does not describe it."
+      },
+      {
+        "name": "forward_udp",
+        "detail": "core function — `forward_udp(...)`",
+        "doc": "The grammar accepts `forward_udp`. The cookbook does not describe it."
+      },
+      {
+        "name": "forward_tls",
+        "detail": "core function — `forward_tls(...)`",
+        "doc": "The grammar accepts `forward_tls`. The cookbook does not describe it."
+      },
+      {
+        "name": "forward_sctp",
+        "detail": "core function — `forward_sctp(...)`",
+        "doc": "The grammar accepts `forward_sctp`. The cookbook does not describe it."
+      },
+      {
+        "name": "add_tcp_alias",
+        "detail": "core function — the cookbook spells it `force_tcp_alias`",
+        "doc": "**Alias name:** **add_tcp_alias**"
+      },
+      {
+        "name": "sethost",
+        "detail": "core function — the cookbook spells it `rewritehost`",
+        "doc": "**Alias name:** **sethost, seth**"
+      },
+      {
+        "name": "seth",
+        "detail": "core function — the cookbook spells it `rewritehost`",
+        "doc": "**Alias name:** **sethost, seth**"
+      },
+      {
+        "name": "sethostport",
+        "detail": "core function — the cookbook spells it `rewritehostport`",
+        "doc": "**Alias name:** **sethostport, sethp**\n\n``` c\n      rewritehostport(\"1.2.3.4:5080\");\n```"
+      },
+      {
+        "name": "sethp",
+        "detail": "core function — the cookbook spells it `rewritehostport`",
+        "doc": "**Alias name:** **sethostport, sethp**\n\n``` c\n      rewritehostport(\"1.2.3.4:5080\");\n```"
+      },
+      {
+        "name": "sethostporttrans",
+        "detail": "core function — the cookbook spells it `rewritehostporttrans`",
+        "doc": "**Alias name:** **sethostporttrans, sethpt**"
+      },
+      {
+        "name": "sethpt",
+        "detail": "core function — the cookbook spells it `rewritehostporttrans`",
+        "doc": "**Alias name:** **sethostporttrans, sethpt**"
+      },
+      {
+        "name": "setuser",
+        "detail": "core function — the cookbook spells it `rewriteuser`",
+        "doc": "**Alias name:** **setuser, setu**"
+      },
+      {
+        "name": "setu",
+        "detail": "core function — the cookbook spells it `rewriteuser`",
+        "doc": "**Alias name:** **setuser, setu**"
+      },
+      {
+        "name": "setuserpass",
+        "detail": "core function — the cookbook spells it `rewriteuserpass`",
+        "doc": "**Alias name:** **setuserpass, setup**"
+      },
+      {
+        "name": "setup",
+        "detail": "core function — the cookbook spells it `rewriteuserpass`",
+        "doc": "**Alias name:** **setuserpass, setup**"
+      },
+      {
+        "name": "setport",
+        "detail": "core function — the cookbook spells it `rewriteport`",
+        "doc": "**Alias name:** **setport, setp**"
+      },
+      {
+        "name": "setp",
+        "detail": "core function — the cookbook spells it `rewriteport`",
+        "doc": "**Alias name:** **setport, setp**"
+      },
+      {
+        "name": "seturi",
+        "detail": "core function — the cookbook spells it `rewriteuri`",
+        "doc": "**Alias name:** **seturi**"
+      },
+      {
+        "name": "remove_branch",
+        "detail": "core function — `remove_branch(...)`",
+        "doc": "The grammar accepts `remove_branch`. The cookbook does not describe it."
+      },
+      {
+        "name": "clear_branches",
+        "detail": "core function — `clear_branches(...)`",
+        "doc": "The grammar accepts `clear_branches`. The cookbook does not describe it."
+      },
+      {
+        "name": "cfg_select",
+        "detail": "core function — `cfg_select(...)`",
+        "doc": "The grammar accepts `cfg_select`. The cookbook does not describe it."
+      },
+      {
+        "name": "cfg_reset",
+        "detail": "core function — `cfg_reset(...)`",
+        "doc": "The grammar accepts `cfg_reset`. The cookbook does not describe it."
       }
     ],
     "params": [
@@ -910,7 +1020,22 @@
         "doc": "Enable NAPTR support according to RFC 3263 (see doc/tutorials/dns.txt for more info)\n\n``` c\ndns_try_naptr = yes | no (default no)\n```"
       },
       {
-        "name": "dns_sctp_pref,",
+        "name": "dns_sctp_pref",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
+      },
+      {
+        "name": "dns_tcp_pref",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
+      },
+      {
+        "name": "dns_tls_pref",
+        "detail": "DNS Parameters",
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
+      },
+      {
+        "name": "dns_udp_pref",
         "detail": "DNS Parameters",
         "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
       },
@@ -1105,7 +1230,12 @@
         "doc": "Time in seconds after a TCP connection will be closed if it is not available for writing in this interval (and Kamailio wants to send something on it). Lower this value for faster detection of broken TCP connections. The default value is 10s.\n\n``` c\ntcp_send_timeout=3\n```"
       },
       {
-        "name": "tcp_source_ipv4,",
+        "name": "tcp_source_ipv4",
+        "detail": "TCP Parameters",
+        "doc": "Set the source IP for all outbound TCP connections. If setting of the IP fails, the TCP connection will use the default IP address.\n\n``` c\ntcp_source_ipv4 = IPv4 address\ntcp_source_ipv6 = IPv6 address\n```"
+      },
+      {
+        "name": "tcp_source_ipv6",
         "detail": "TCP Parameters",
         "doc": "Set the source IP for all outbound TCP connections. If setting of the IP fails, the TCP connection will use the default IP address.\n\n``` c\ntcp_source_ipv4 = IPv4 address\ntcp_source_ipv6 = IPv6 address\n```"
       },
@@ -1328,6 +1458,306 @@
         "name": "rt_timer2_prio",
         "detail": "Real-Time Parameters",
         "doc": "**Alias name:** **rt_stimer_prio**\n\n``` c\nrt_timer2_prio=<int> (default 0)\n```"
+      },
+      {
+        "name": "log_color",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `log_color`. The cookbook does not describe it."
+      },
+      {
+        "name": "domain",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `domain`. The cookbook does not describe it."
+      },
+      {
+        "name": "auto_domains",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `auto_domains`. The cookbook does not describe it."
+      },
+      {
+        "name": "dns_rev_via",
+        "detail": "core parameter — the cookbook spells it `rev_dns`",
+        "doc": "**Alias name:** **dns_rev_via**"
+      },
+      {
+        "name": "dns_srv_loadbalancing",
+        "detail": "core parameter — the cookbook spells it `dns_srv_lb`",
+        "doc": "**Alias name:** **dns_srv_loadbalancing**\n\n``` c\ndns_srv_lb = yes | no (default no)\n```"
+      },
+      {
+        "name": "dns_udp_preference",
+        "detail": "core parameter — the cookbook spells it `dns_udp_pref`",
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
+      },
+      {
+        "name": "dns_tcp_preference",
+        "detail": "core parameter — the cookbook spells it `dns_tcp_pref`",
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
+      },
+      {
+        "name": "dns_tls_preference",
+        "detail": "core parameter — the cookbook spells it `dns_tls_pref`",
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
+      },
+      {
+        "name": "dns_sctp_preference",
+        "detail": "core parameter — the cookbook spells it `dns_sctp_pref`",
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
+      },
+      {
+        "name": "dns_slow_query_ms",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `dns_slow_query_ms`. The cookbook does not describe it."
+      },
+      {
+        "name": "dns_use_cache",
+        "detail": "core parameter — the cookbook spells it `use_dns_cache`",
+        "doc": "**Alias name:** **dns_use_cache**"
+      },
+      {
+        "name": "dns_use_failover",
+        "detail": "core parameter — the cookbook spells it `use_dns_failover`",
+        "doc": "**Alias name:** **dns_use_failover**\n\n``` c\nuse_dns_failover = on | off (default off)\n```"
+      },
+      {
+        "name": "dns_cache_delete_nonexpired",
+        "detail": "core parameter — the cookbook spells it `dns_cache_del_nonexp`",
+        "doc": "**Alias name:** **dns_cache_delete_nonexpired**\n\n``` c\ndns_cache_del_nonexp = yes | no (default: no)\n```"
+      },
+      {
+        "name": "dst_blocklist_ttl",
+        "detail": "core parameter — the cookbook spells it `dst_blocklist_expire`",
+        "doc": "**Alias name:** **dst_blocklist_ttl**\n\n``` c\ndst_blocklist_expire = time in s (default 60 s)\n```"
+      },
+      {
+        "name": "dst_blocklist_udp_imask",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `dst_blocklist_udp_imask`. The cookbook does not describe it."
+      },
+      {
+        "name": "dst_blocklist_tcp_imask",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `dst_blocklist_tcp_imask`. The cookbook does not describe it."
+      },
+      {
+        "name": "dst_blocklist_tls_imask",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `dst_blocklist_tls_imask`. The cookbook does not describe it."
+      },
+      {
+        "name": "dst_blocklist_sctp_imask",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `dst_blocklist_sctp_imask`. The cookbook does not describe it."
+      },
+      {
+        "name": "ipfreebind",
+        "detail": "core parameter — the cookbook spells it `ip_free_bind`",
+        "doc": "Alias: ipfreebind, ip_nonlocal_bind\n\n``` c\n  ip_free_bind = 1\n```"
+      },
+      {
+        "name": "ip_nonlocal_bind",
+        "detail": "core parameter — the cookbook spells it `ip_free_bind`",
+        "doc": "Alias: ipfreebind, ip_nonlocal_bind\n\n``` c\n  ip_free_bind = 1\n```"
+      },
+      {
+        "name": "mem_log",
+        "detail": "core parameter — the cookbook spells it `memlog`",
+        "doc": "**Alias name:** `mem_log`\n\n``` c\ndebug=3    # no memory statistics as debug level\nmemlog=4   # is lower than memlog\n\ndebug=3    # dumping of memory statistics is active as the\nmemlog=2   # debug level is higher or equal memlog\n```"
+      },
+      {
+        "name": "mem_dbg",
+        "detail": "core parameter — the cookbook spells it `memdbg`",
+        "doc": "**Alias name:** `mem_dbg`\n\n``` c\ndebug=3    # no memory debugging as debug level\nmemdbg=4   # is lower than memdbg\n\ndebug=3    # memory debugging is active as the debug level\nmemdbg=2   # is higher or equal memdbg\n```"
+      },
+      {
+        "name": "core_log",
+        "detail": "core parameter — the cookbook spells it `corelog`",
+        "doc": "Set the debug level used to print some log messages from core, which might become annoying and don't represent critical errors. For example, such case is failure to parse incoming traffic from the network as SIP message, due to someone sending invalid content.\n\n``` c\ncorelog=1\n```"
+      },
+      {
+        "name": "sip_parser_log_oneline",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `sip_parser_log_oneline`. The cookbook does not describe it."
+      },
+      {
+        "name": "uid",
+        "detail": "core parameter — the cookbook spells it `user`",
+        "doc": "**Alias name:** **uid**\n\n``` c\n    user=\"kamailio\"\n```"
+      },
+      {
+        "name": "gid",
+        "detail": "core parameter — the cookbook spells it `group`",
+        "doc": "**Alias name:** **gid**\n\n``` c\ngroup=\"kamailio\"\n```"
+      },
+      {
+        "name": "wdir",
+        "detail": "core parameter — the cookbook spells it `workdir`",
+        "doc": "**Alias name:** **wdir**\n\n``` c\nwdir=\"/usr/local/kamailio\"\n# or\nwdir=/usr/kamwd\n```"
+      },
+      {
+        "name": "run_dir",
+        "detail": "core parameter — the cookbook spells it `rundir`",
+        "doc": "Alias: run_dir\n\n``` c\nrundir=\"/tmp\"\n```"
+      },
+      {
+        "name": "tcp_buf_write",
+        "detail": "core parameter — the cookbook spells it `tcp_async`",
+        "doc": "**Alias name:** **tcp_buf_write**\n\n``` c\ntcp_async = yes | no (default yes)\n```"
+      },
+      {
+        "name": "tcp_accept_protocols",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tcp_accept_protocols`. The cookbook does not describe it."
+      },
+      {
+        "name": "tcp_close_rst",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tcp_close_rst`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_disable",
+        "detail": "core parameter — the cookbook spells it `disable_tls`",
+        "doc": "**Alias name:** **tls_disable**\n\n``` c\ndisable_tls=yes\n```"
+      },
+      {
+        "name": "tls_enable",
+        "detail": "core parameter — the cookbook spells it `enable_tls`",
+        "doc": "**Alias name:** **tls_enable**\n\n``` c\nenable_tls=yes # enable tls support in core\n```"
+      },
+      {
+        "name": "tlslog",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tlslog`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_method",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tls_method`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_verify",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tls_verify`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_require_certificate",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tls_require_certificate`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_certificate",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tls_certificate`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_private_key",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tls_private_key`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_ca_list",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tls_ca_list`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_handshake_timeout",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tls_handshake_timeout`. The cookbook does not describe it."
+      },
+      {
+        "name": "tls_send_timeout",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `tls_send_timeout`. The cookbook does not describe it."
+      },
+      {
+        "name": "shm",
+        "detail": "core parameter — the cookbook spells it `shm_mem_size`",
+        "doc": "Set shared memory size (in Mb).\n\n``` c\nshm_mem_size = 64 (default 64)\n```"
+      },
+      {
+        "name": "shm_mem",
+        "detail": "core parameter — the cookbook spells it `shm_mem_size`",
+        "doc": "Set shared memory size (in Mb).\n\n``` c\nshm_mem_size = 64 (default 64)\n```"
+      },
+      {
+        "name": "rt_fast_timer_prio",
+        "detail": "core parameter — the cookbook spells it `rt_timer1_prio`",
+        "doc": "**Alias name:** **rt_fast_timer_prio, rt_ftimer_prio**\n\n``` c\nrt_timer1_prio=<int> (default 0)\n```"
+      },
+      {
+        "name": "rt_ftimer_prio",
+        "detail": "core parameter — the cookbook spells it `rt_timer1_prio`",
+        "doc": "**Alias name:** **rt_fast_timer_prio, rt_ftimer_prio**\n\n``` c\nrt_timer1_prio=<int> (default 0)\n```"
+      },
+      {
+        "name": "rt_ftimer_policy",
+        "detail": "core parameter — the cookbook spells it `rt_timer1_policy`",
+        "doc": "**Alias name:** **rt_ftimer_policy**\n\n``` c\nrt_timer1_policy=<0..3> (default 0)\n```"
+      },
+      {
+        "name": "rt_stimer_prio",
+        "detail": "core parameter — the cookbook spells it `rt_timer2_prio`",
+        "doc": "**Alias name:** **rt_stimer_prio**\n\n``` c\nrt_timer2_prio=<int> (default 0)\n```"
+      },
+      {
+        "name": "rt_stimer_policy",
+        "detail": "core parameter — the cookbook spells it `rt_timer2_policy`",
+        "doc": "**Alias name:** **rt_stimer_policy**\n\n``` c\nrt_timer2_policy=<0..3> (default 0)\n```"
+      },
+      {
+        "name": "ser_kill_timeout",
+        "detail": "core parameter — the cookbook spells it `exit_timeout`",
+        "doc": "**Alias name:** **ser_kill_timeout**\n\n``` c\nexit_timeout = seconds\n```"
+      },
+      {
+        "name": "http_reply_hack",
+        "detail": "core parameter — the cookbook spells it `http_reply_parse`",
+        "doc": "Alias: http_reply_hack\n\n``` c\nhttp_reply_parse=yes\n```"
+      },
+      {
+        "name": "request_route_callback",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `request_route_callback`. The cookbook does not describe it."
+      },
+      {
+        "name": "onsend_route_callback",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `onsend_route_callback`. The cookbook does not describe it."
+      },
+      {
+        "name": "reply_route_callback",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `reply_route_callback`. The cookbook does not describe it."
+      },
+      {
+        "name": "event_route_callback",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `event_route_callback`. The cookbook does not describe it."
+      },
+      {
+        "name": "received_route_callback",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `received_route_callback`. The cookbook does not describe it."
+      },
+      {
+        "name": "pre_routing_callback",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `pre_routing_callback`. The cookbook does not describe it."
+      },
+      {
+        "name": "latency_limit_cfg",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `latency_limit_cfg`. The cookbook does not describe it."
+      },
+      {
+        "name": "hdr_name_extra_chars",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `hdr_name_extra_chars`. The cookbook does not describe it."
+      },
+      {
+        "name": "msg_time",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `msg_time`. The cookbook does not describe it."
       }
     ],
     "pvars": [

@@ -79,8 +79,20 @@ fn the_provenance_note_names_its_catalogue_and_release() {
 /// `cargo run --example gen_core_catalog -- <tree> <version>`.
 #[test]
 fn the_vendored_catalogue_matches_a_fresh_harvest_of_the_pinned_tree() {
-    let tree = common::required_env("KAMAILIO_LSP_TEST_WIKI");
-    let fresh = catalog::harvest_core(std::path::Path::new(&tree));
+    // The vendored catalogue is built from BOTH pinned inputs — the
+    // wiki for the text and the source tree for what the grammar
+    // accepts — so a fresh harvest for comparison must use both, in
+    // the same order the generator does. Comparing against the wiki
+    // alone reports every grammar-derived name as drift.
+    let wiki = common::required_env("KAMAILIO_LSP_TEST_WIKI");
+    let src = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let mut fresh = catalog::harvest_core(std::path::Path::new(&wiki));
+    let (attrs, mods) =
+        catalog::harvest_socket_syntax(std::path::Path::new(&src), std::path::Path::new(&wiki));
+    fresh.socket_attrs = attrs;
+    fresh.listen_modifiers = mods;
+    catalog::reconcile_with_tree(&mut fresh, std::path::Path::new(&src));
+    let fresh = fresh;
     let b = catalog::builtin_core();
     let names = |v: &[catalog::Item]| -> Vec<String> { v.iter().map(|i| i.name.clone()).collect() };
     assert_eq!(

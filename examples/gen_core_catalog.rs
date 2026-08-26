@@ -24,6 +24,7 @@ fn main() {
             kamailio_lsp::catalog::harvest_socket_syntax(src, std::path::Path::new(&tree));
         core.socket_attrs = attrs;
         core.listen_modifiers = mods;
+        kamailio_lsp::catalog::reconcile_with_tree(&mut core, src);
     }
     let out = kamailio_lsp::catalog::BuiltinCore { version, core };
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
