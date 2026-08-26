@@ -733,7 +733,23 @@ fn md_walk(md: &str) -> Result<Vec<(String, String, String)>, String> {
     let mut out: Vec<(String, String, String)> = Vec::new();
     let mut h2 = String::new();
     let mut cur: Option<(String, Vec<String>, bool)> = None;
+    // an H2 that is itself an item is emitted the moment its heading
+    // is read, so that it keeps its place in document order — its
+    // body arrives afterwards and is written back by index
+    let mut h2_body: Option<(usize, Vec<String>, bool)> = None;
     let mut in_fence = false;
+    let finish_h2 = |h2_body: &mut Option<(usize, Vec<String>, bool)>,
+                     out: &mut Vec<(String, String, String)>| {
+        if let Some((idx, lines, _)) = h2_body.take() {
+            out[idx].2 = sanitize_doc(
+                &lines
+                    .join(" ")
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            );
+        }
+    };
     let flush = |h2: &str,
                  cur: &mut Option<(String, Vec<String>, bool)>,
                  out: &mut Vec<(String, String, String)>| {
@@ -758,22 +774,33 @@ fn md_walk(md: &str) -> Result<Vec<(String, String, String)>, String> {
         }
         if let Some(h) = line.strip_prefix("## ") {
             flush(&h2, &mut cur, &mut out);
+            finish_h2(&mut h2_body, &mut out);
             h2 = h.trim().to_string();
             // an H2 that is itself an item (pseudovariables.md mixes
             // levels): surface it with an empty h3 marker
             out.push((h2.clone(), String::new(), String::new()));
+            h2_body = Some((out.len() - 1, Vec::new(), false));
             continue;
         }
         if let Some(h) = line.strip_prefix("### ") {
             flush(&h2, &mut cur, &mut out);
+            finish_h2(&mut h2_body, &mut out);
             cur = Some((h.trim().to_string(), Vec::new(), false));
             continue;
         }
         if line.starts_with('#') {
             flush(&h2, &mut cur, &mut out);
+            finish_h2(&mut h2_body, &mut out);
             continue;
         }
-        if let Some((_, lines, finished)) = cur.as_mut() {
+        // the H2's own body, until its first `###` entry or the next
+        // heading: for `$avp` and `$var` that paragraph is the only
+        // documentation the page has
+        let sink = match cur.as_mut() {
+            Some((_, lines, finished)) => Some((lines, finished)),
+            None => h2_body.as_mut().map(|(_, l, f)| (l, f)),
+        };
+        if let Some((lines, finished)) = sink {
             let t = line.trim();
             if t.is_empty() {
                 if !lines.is_empty() {
@@ -785,6 +812,7 @@ fn md_walk(md: &str) -> Result<Vec<(String, String, String)>, String> {
         }
     }
     flush(&h2, &mut cur, &mut out);
+    finish_h2(&mut h2_body, &mut out);
     Ok(out)
 }
 
@@ -863,10 +891,11 @@ pub fn parse_pvars_md(md: &str) -> Result<Vec<Item>, String> {
     };
     for (h2, h3, doc) in md_walk(md)? {
         if h3.is_empty() {
-            // an H2 that is itself a pvar section; its first paragraph
-            // is not tracked by md_walk, so document from the heading
+            // an H2 that is itself a pvar section: `$avp`, `$var` and
+            // the other containers are documented this way, and the
+            // section's own paragraph is all the documentation there is
             if h2.starts_with('$') {
-                push(&h2, String::new(), &mut out);
+                push(&h2, doc, &mut out);
             }
             continue;
         }

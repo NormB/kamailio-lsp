@@ -1994,117 +1994,117 @@
       {
         "name": "$env",
         "detail": "environment variables",
-        "doc": ""
+        "doc": "**$env(NAME)** - value of the environment variable named NAME"
       },
       {
         "name": "$envn",
         "detail": "environment variables as number",
-        "doc": ""
+        "doc": "**$envn(NAME)** - value-as-number of the environment variable named NAME"
       },
       {
         "name": "$avp",
         "detail": "AVPs",
-        "doc": ""
+        "doc": "**$avp(id)** - the value of the AVP identified by 'id'."
       },
       {
         "name": "$expires",
         "detail": "Expires Values",
-        "doc": ""
+        "doc": "Return the min and max of expires value for current SIP message. Contact headers are checked with higher priority, if no expires parameter there, then Expires header is used"
       },
       {
         "name": "$xavp",
         "detail": "XAVPs",
-        "doc": ""
+        "doc": "**xavp** - eXtended AVPs - are variables that can store multiple values, which can also be grouped in a structure-like fashion. Their value can be a string, an integer number or a list of named values (child values)."
       },
       {
         "name": "$xavu",
         "detail": "XAVUs",
-        "doc": ""
+        "doc": "Similar to XAVPs, but with single value items, therefore there are no indexes in the naming format. XAVUs are also stored in transaction context and destroyed when the transaction is terminated."
       },
       {
         "name": "$xavi",
         "detail": "XAVIs",
-        "doc": ""
+        "doc": "Similar to XAVPs, but with key names are case insensitive. XAVIs are also stored in transaction context and destroyed when the transaction is terminated."
       },
       {
         "name": "$hdr",
         "detail": "Headers",
-        "doc": ""
+        "doc": "**$hdr(name)** - represents the body of first header field identified by 'name'"
       },
       {
         "name": "$hfl",
         "detail": "Header Field With List Of Bodies",
-        "doc": ""
+        "doc": "Similar to **$hdr(name)**, but for some of the standard headers that can have many bodies serialized in the same header field (i.e., comma separated list of bodies in same header field) is able to return the individual body values."
       },
       {
         "name": "$hdrc",
         "detail": "Number of Headers",
-        "doc": ""
+        "doc": "**$hdrc(name)** - get the number of headers with the respective name"
       },
       {
         "name": "$hflc",
         "detail": "Number of Header Bodies",
-        "doc": ""
+        "doc": "Similar to **$hdrc(name)**, but for some of the standard headers that can have many bodies serialized in the same header field (i.e., comma separated list of bodies in same header field) is able to count the number of individual bodies."
       },
       {
         "name": "$var",
         "detail": "Private memory variables (zero)",
-        "doc": ""
+        "doc": "**$var(name)** - refers to variables that can be used in configuration script, having integer or string value. This kind of variables are faster than AVPs, being referenced directly to memory location."
       },
       {
         "name": "$vz",
         "detail": "Private memory variables (zero)",
-        "doc": ""
+        "doc": "Same as $var(name) -- added to pair with $vn(name)."
       },
       {
         "name": "$vn",
         "detail": "Private memory variables (null)",
-        "doc": ""
+        "doc": "Similar to $var(name) and able to hold $null (which is the default value). The value is kept in private memory (pkg) and it is persistent across SIP message processing, within the space of each Kamailio process."
       },
       {
         "name": "$shv",
         "detail": "Shared memory variables",
-        "doc": ""
+        "doc": "**$shv(name)** - it is a class of pseudo-variables stored in shared memory. The value of $shv(name) is visible across all Kamailio processes. Each “shv” has single value and it is initialised to integer 0. You can use “shvset” parameter of **pv module** to initialize the shared variable. The module exports a set of RPC functions to get/set the value of shared variables."
       },
       {
         "name": "$dsv",
         "detail": "Dispatcher variables",
-        "doc": ""
+        "doc": "Return attributes related to dispatcher module."
       },
       {
         "name": "$dsg",
         "detail": "Dispatcher group attributes",
-        "doc": ""
+        "doc": "Return attributes related to dispatcher group that is set via `ds_dsg_fetch()` or `ds_dsg_fetch_uri()`."
       },
       {
         "name": "$time",
         "detail": "Broken-down time",
-        "doc": ""
+        "doc": "**$time(name)** - the PV provides access to broken-down time attributes in the local timezone."
       },
       {
         "name": "$utime",
         "detail": "Broken-down time",
-        "doc": ""
+        "doc": "**$utime(name)** - the PV provides access to broken-down time attributes in UTC."
       },
       {
         "name": "$timef",
         "detail": "Strftime Formatted Time",
-        "doc": ""
+        "doc": "**$timef(format)** - return current time as formatted by strftime 'format'. See 'man strftime' to see the available time attribute specifiers."
       },
       {
         "name": "$utimef",
         "detail": "Strftime Formatted UTC Time",
-        "doc": ""
+        "doc": "**$utimef(format)** - return current time in UTC as formatted by strftime 'format'. See 'man strftime' to see the available time attribute specifiers."
       },
       {
         "name": "$ccp",
         "detail": "Config Custom Parameters",
-        "doc": ""
+        "doc": "Get the value for global custom parameters:"
       },
       {
         "name": "$sel",
         "detail": "Selects",
-        "doc": ""
+        "doc": "**$sel(name)** - return the value of **select** specified by name. **select** refers a class of config variables introduced by SER 2.0, allowing to select and return parts of sip messages and not only."
       },
       {
         "name": "$rcv",
@@ -2114,12 +2114,12 @@
       {
         "name": "$rpl",
         "detail": "$rpl(key)",
-        "doc": ""
+        "doc": "Attributes of the SIP reply processed at that moment. The variables must be used during SIP reply processing, otherwise it returns $null."
       },
       {
         "name": "$msgbuf",
         "detail": "$msgbuf(index)",
-        "doc": ""
+        "doc": "Get or set the character in the message buffer at the position index."
       },
       {
         "name": "$hfitname",
@@ -2704,17 +2704,17 @@
       {
         "name": "$dns",
         "detail": "DNS Query Result",
-        "doc": ""
+        "doc": "This variable stores the DNS result details after a call of dns_query(hostname, pvid) function from ipops module."
       },
       {
         "name": "$HN",
         "detail": "Hostname details",
-        "doc": ""
+        "doc": "Give local hostname details (implemented by ipops module)."
       },
       {
         "name": "$RANDOM",
         "detail": "Random number",
-        "doc": ""
+        "doc": "Returns a random value from the \\[0 - 2^31) range. (Part of the cfgutils module)"
       },
       {
         "name": "$jsonrpl",
@@ -2759,37 +2759,37 @@
       {
         "name": "$sruid",
         "detail": "Unique ID",
-        "doc": ""
+        "doc": "- $sruid - return unique ID generated internally Kamailio"
       },
       {
         "name": "$ltt",
         "detail": "Local To-Tag",
-        "doc": ""
+        "doc": "$ltt(key) - return local generated To-tag when Kamailio sends a reply"
       },
       {
         "name": "$via0",
         "detail": "Via[0] Attributes",
-        "doc": ""
+        "doc": "$via0(attr) - attributes of first Via header."
       },
       {
         "name": "$via1",
         "detail": "Second Via Attributes",
-        "doc": ""
+        "doc": "$via1(attr) - attributes of second Via header. The attr can be the same as for $via0(attr)."
       },
       {
         "name": "$viaZ",
         "detail": "Last Via Attributes",
-        "doc": ""
+        "doc": "$viaZ(attr) - attributes of last Via header. The attr can be the same as for $via0(attr)."
       },
       {
         "name": "$C",
         "detail": "Foreground and background colors",
-        "doc": ""
+        "doc": "$C(xy) - reference to an escape sequence. “x” represents the foreground color and “y” represents the background color."
       },
       {
         "name": "$K",
         "detail": "Kamailio Constants",
-        "doc": ""
+        "doc": "$K(key) - return the numeric values corresponding to Kamailio configuration constants."
       }
     ]
   }
