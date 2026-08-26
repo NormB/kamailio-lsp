@@ -136,6 +136,16 @@ fn core() -> kamailio_lsp::catalog::CoreDocs {
             detail: "Request URI".into(),
             doc: "The full request URI.".into(),
         }],
+        routes: vec![Item {
+            name: "request_route".into(),
+            detail: "routing block".into(),
+            doc: "Executed for each SIP request.".into(),
+        }],
+        statements: vec![Item {
+            name: "if".into(),
+            detail: "control statement".into(),
+            doc: "Chooses between two paths.".into(),
+        }],
         log_levels: vec!["L_INFO".into(), "L_DBG".into()],
     }
 }

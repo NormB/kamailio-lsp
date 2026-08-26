@@ -34,7 +34,7 @@ source tree (result cached per tree):
 | `loadmodule "` | every module in the tree |
 | `modparam("` | module names |
 | `modparam("tm", "` | tm's parameters, each with docs |
-| letters in a route | exported functions of **loaded** modules, core functions, core parameters, route names, keywords |
+| letters in a route | exported functions of **loaded** modules, core functions, core parameters, route names, keywords (documented ones carry their text) |
 | `route(` | route names (this file and its includes) |
 | `$` | pseudo-variables with descriptions (the typed `$word` is replaced, never doubled) |
 | `xlog(` | the log levels, quoted — `"L_INFO"`, because the fixup takes a string there. Type `xlog("` and they come unquoted instead. `xlogl` and `xlogm` too; `xdbg`, `xinfo`, `xerr`, `xnotice` and `xwarn` carry their level in the name and take a format alone. The set is read from the `switch` in your tree's `src/modules/xlog/xlog.c`, so it is the set *your* release accepts — kamailio takes `L_BUG`, and the three-argument `xlog(facility, level, format)` form is not offered at its level position |
@@ -64,7 +64,11 @@ core functions. Commas inside strings don't advance the parameter.
 #### Hover, go to definition, document symbols
 
 Hover any function/parameter/module/`$variable` for its
-documentation; **Ctrl+Click** a `route(NAME)` reference to jump to
+documentation — and any routing block (`request_route`,
+`branch_route`, `event_route` and the rest) or control statement
+(`if`, `switch`, `while`, `else`), which come from the cookbook's
+"Routing Blocks" and "Script Statements" sections; **Ctrl+Click** a
+`route(NAME)` reference to jump to
 its definition — including definitions that live in an included file;
 **Ctrl+Shift+O** lists every route block with its full extent (the
 outline nests, and breadcrumbs know which block you're in).

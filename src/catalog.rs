@@ -865,6 +865,67 @@ pub fn parse_core_cookbook_md(md: &str) -> Result<(Vec<Item>, Vec<Item>), String
     Ok((params, functions))
 }
 
+/// Parse the routing blocks and control statements out of the core
+/// cookbook (`core.md`).
+///
+/// Both live on the page the parameters and functions already come
+/// from, under `## Routing Blocks` and `## Script Statements`, and
+/// the harvester read past both — so hovering `request_route`
+/// answered nothing and `if` completed as the word "keyword".
+///
+/// `### route block` is not an identifier: the name is its first
+/// word and the heading survives in the detail, because "route
+/// block" is what tells a reader which of the eight they are looking
+/// at.
+pub fn parse_core_blocks_md(md: &str) -> Result<(Vec<Item>, Vec<Item>), String> {
+    /// Keywords with no section of their own, explained inside the
+    /// statement they belong to.
+    const EXPLAINED_UNDER: &[(&str, &str)] =
+        &[("else", "if"), ("case", "switch"), ("default", "switch")];
+
+    let mut routes = Vec::new();
+    let mut statements = Vec::new();
+    for (h2, h3, doc) in md_walk(md)? {
+        if h3.is_empty() || doc.trim().is_empty() {
+            continue;
+        }
+        let Some(name) = h3.split_whitespace().next() else {
+            continue;
+        };
+        if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            continue;
+        }
+        let section = h2.to_ascii_lowercase();
+        let (into, detail) = match section.as_str() {
+            "routing blocks" => (&mut routes, "routing block"),
+            "script statements" => (&mut statements, "control statement"),
+            _ => continue,
+        };
+        into.push(Item {
+            name: name.to_string(),
+            // the heading as written when it says more than the name
+            detail: if h3 == name {
+                detail.to_string()
+            } else {
+                format!("{detail} — `{h3}`")
+            },
+            doc,
+        });
+    }
+    for (alias, parent) in EXPLAINED_UNDER {
+        let Some(owner) = statements.iter().find(|s| &s.name == parent) else {
+            continue;
+        };
+        let doc = owner.doc.clone();
+        statements.push(Item {
+            name: (*alias).to_string(),
+            detail: format!("control statement — documented under `{parent}`"),
+            doc,
+        });
+    }
+    Ok((routes, statements))
+}
+
 /// The log levels `xlog` accepts, read from the C `switch` that
 /// parses them.
 ///
@@ -974,6 +1035,14 @@ pub struct CoreDocs {
     pub params: Vec<Item>,
     /// Pseudo-variables (`pseudovariables.md`), names include the `$`.
     pub pvars: Vec<Item>,
+    /// Routing blocks (`core.md`, "Routing Blocks"): the blocks a
+    /// configuration is built out of.
+    #[serde(default)]
+    pub routes: Vec<Item>,
+    /// Control statements (`core.md`, "Script Statements"): `if`,
+    /// `switch`, `while`, plus the keywords those sections explain.
+    #[serde(default)]
+    pub statements: Vec<Item>,
     /// The log levels `xlog`'s level argument accepts, in the order
     /// the C switch lists them. Read from the source, not from prose,
     /// and not from the other server.
@@ -1384,10 +1453,13 @@ pub fn harvest_core(wiki_root: &Path) -> CoreDocs {
     let read = |f: &str| std::fs::read_to_string(dir.join(f)).unwrap_or_default();
     let (params, functions) = parse_core_cookbook_md(&read("core.md")).unwrap_or_default();
     let pvars = parse_pvars_md(&read("pseudovariables.md")).unwrap_or_default();
+    let (routes, statements) = parse_core_blocks_md(&read("core.md")).unwrap_or_default();
     CoreDocs {
         functions,
         params,
         pvars,
+        routes,
+        statements,
         log_levels: Vec::new(),
     }
 }
