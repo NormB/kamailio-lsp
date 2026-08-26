@@ -63,6 +63,12 @@ core functions. Commas inside strings don't advance the parameter.
 
 #### Hover, go to definition, document symbols
 
+Hovering a core parameter shows its description and the cookbook's
+worked example — the example is where the form is. The default is
+already part of the description here, because this cookbook writes it
+into the first paragraph ("Default value is 8." in `children`) rather
+than on a line of its own.
+
 Hover any function/parameter/module/`$variable` for its
 documentation — and any routing block (`request_route`,
 `branch_route`, `event_route` and the rest) or control statement

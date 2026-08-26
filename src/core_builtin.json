@@ -5,7 +5,7 @@
       {
         "name": "add_local_rport",
         "detail": "add_local_rport",
-        "doc": "Add **rport** parameter to local generated Via header -- see RFC3581. In effect for forwarded SIP requests."
+        "doc": "Add **rport** parameter to local generated Via header -- see RFC3581. In effect for forwarded SIP requests.\n\n``` c\nadd_local_rport();\n```"
       },
       {
         "name": "avpflags",
@@ -20,27 +20,27 @@
       {
         "name": "drop",
         "detail": "drop",
-        "doc": "Stop the execution of the configuration script and alter the implicit action which is done afterwards."
+        "doc": "Stop the execution of the configuration script and alter the implicit action which is done afterwards.\n\n``` c\nonreply_route {\n    if(status==\"200\") {\n        drop(); # this works\n    }\n}\n\nonreply_route[FOOBAR] {\n    if(status==\"200\") {\n        drop(); # this is ignored\n    }\n}\n```"
       },
       {
         "name": "exit",
         "detail": "exit",
-        "doc": "Stop the execution of the configuration script -- it has the same behaviour as return(0). It does not affect the implicit action to be taken after script execution."
+        "doc": "Stop the execution of the configuration script -- it has the same behaviour as return(0). It does not affect the implicit action to be taken after script execution.\n\n``` c\nrequest_route {\n    if (route(ABC)) {\n    xlog(\"L_NOTICE\",\"method $rm is INVITE\\n\");\n    } else {\n    xlog(\"L_NOTICE\",\"method is $rm\\n\");\n    }\n}\n\nroute[ABC] {\n    if (is_method(\"INVITE\")) {\n    return(1);\n    } else if (is_method(\"REGISTER\")) {\n    return(-1);\n    } else if (is_method(\"MESSAGE\")) {\n    sl_send_reply(\"403\",\"IM not allowed\");\n    exit;\n    }\n}\n```"
       },
       {
         "name": "error",
         "detail": "error",
-        "doc": "Not properly implemented yet - prints a log messages with the two string parameters."
+        "doc": "Not properly implemented yet - prints a log messages with the two string parameters.\n\n``` c\nerror(\"p1\", \"p2\");\n```"
       },
       {
         "name": "exec",
         "detail": "exec",
-        "doc": "Basic implementation of executing an external application with C `system()` function. Look also at the functions exported by `exec` module."
+        "doc": "Basic implementation of executing an external application with C `system()` function. Look also at the functions exported by `exec` module.\n\n``` c\nexec(\"/path/to/app\");\n```"
       },
       {
         "name": "force_rport",
         "detail": "force_rport()",
-        "doc": "The `force_rport()` adds the rport parameter to the first Via header of the received message. Thus, Kamailio will add the received port to the top most Via header in the SIP message, even if the client does not indicate support for rport. This enables subsequent SIP messages to return to the proper port later on in a SIP transaction."
+        "doc": "The `force_rport()` adds the rport parameter to the first Via header of the received message. Thus, Kamailio will add the received port to the top most Via header in the SIP message, even if the client does not indicate support for rport. This enables subsequent SIP messages to return to the proper port later on in a SIP transaction.\n\n``` c\nforce_rport();\n```"
       },
       {
         "name": "add_rport",
@@ -50,7 +50,7 @@
       {
         "name": "force_send_socket",
         "detail": "force_send_socket",
-        "doc": "Force to send the message from the specified socket (it **must** be one of the sockets specified with the `listen` directive). If the protocol doesn't match (e.g. UDP message \"forced\" to a TCP socket) the closest socket of the same protocol is used."
+        "doc": "Force to send the message from the specified socket (it **must** be one of the sockets specified with the `listen` directive). If the protocol doesn't match (e.g. UDP message \"forced\" to a TCP socket) the closest socket of the same protocol is used.\n\n``` c\nforce_send_socket(10.10.10.10:5060);\nforce_send_socket(udp:10.10.10.10:5060);\n```"
       },
       {
         "name": "force_tcp_alias",
@@ -60,7 +60,7 @@
       {
         "name": "forward",
         "detail": "forward",
-        "doc": "Forward in stateless mode the SIP request to destination address set in `$du` or `$ru`."
+        "doc": "Forward in stateless mode the SIP request to destination address set in `$du` or `$ru`.\n\n``` c\n$du = \"sip:10.0.0.10:5060;transport=tcp\";\nforward();\n```"
       },
       {
         "name": "isavpflagset",
@@ -70,22 +70,22 @@
       {
         "name": "isflagset",
         "detail": "isflagset",
-        "doc": "Test if a flag is set for current processed message (if the flag value is 1). The value of the parameter can be in range of 0..31."
+        "doc": "Test if a flag is set for current processed message (if the flag value is 1). The value of the parameter can be in range of 0..31.\n\n``` c\nif(isflagset(3)) {\n    log(\"flag 3 is set\\n\");\n};\n```"
       },
       {
         "name": "is_int",
         "detail": "is_int",
-        "doc": "Checks if a pseudo variable argument contains integer value."
+        "doc": "Checks if a pseudo variable argument contains integer value.\n\n``` c\nif(is_int(\"$avp(foobar)\")) {\n    log(\"foobar contains an integer\\n\");\n}\n```"
       },
       {
         "name": "log",
         "detail": "log",
-        "doc": "Write text message to standard error terminal or syslog. You can specify the log level (the integer id) as first parameter."
+        "doc": "Write text message to standard error terminal or syslog. You can specify the log level (the integer id) as first parameter.\n\n``` c\nlog(\"just some text message\\n\");\nlog(1, \"another text message\\n\");\n```"
       },
       {
         "name": "prefix",
         "detail": "prefix",
-        "doc": "Add the string parameter in front of username in R-URI."
+        "doc": "Add the string parameter in front of username in R-URI.\n\n``` c\nprefix(\"00\");\n```"
       },
       {
         "name": "resetavpflag",
@@ -100,7 +100,7 @@
       {
         "name": "return",
         "detail": "return",
-        "doc": "The return() function allows you to return any integer value from a called route() block. You can test the value returned by a route using `$retcode` variable (which is same as `$rc` or `$?`)."
+        "doc": "The return() function allows you to return any integer value from a called route() block. You can test the value returned by a route using `$retcode` variable (which is same as `$rc` or `$?`).\n\n``` c\nrequest_route {\n    if (route(RET)) {\n        xlog(\"L_NOTICE\",\"method $rm is INVITE\\n\");\n    } else {\n        xlog(\"L_NOTICE\",\"method $rm is REGISTER\\n\");\n    };\n}\n\nroute[RET] {\n    if (is_method(\"INVITE\")) {\n        return(1);\n    } else if (is_method(\"REGISTER\")) {\n        return(-1);\n    } else {\n        return(0);\n    };\n}\n```"
       },
       {
         "name": "return_mode",
@@ -110,12 +110,12 @@
       {
         "name": "revert_uri",
         "detail": "revert_uri",
-        "doc": "Set the R-URI to the value of the R-URI as it was when the request was received by server (undo all changes of R-URI)."
+        "doc": "Set the R-URI to the value of the R-URI as it was when the request was received by server (undo all changes of R-URI).\n\n``` c\n      revert_uri();\n```"
       },
       {
         "name": "rewritehostport",
         "detail": "rewritehostport",
-        "doc": "**Alias name:** **sethostport, sethp**"
+        "doc": "**Alias name:** **sethostport, sethp**\n\n``` c\n      rewritehostport(\"1.2.3.4:5080\");\n```"
       },
       {
         "name": "rewritehostporttrans",
@@ -155,7 +155,7 @@
       {
         "name": "selval",
         "detail": "selval",
-        "doc": "Select a value based on conditional expression."
+        "doc": "Select a value based on conditional expression.\n\n``` c\nselval(evalexpr, valexp1, valexpr2)\n```"
       },
       {
         "name": "set_advertised_address",
@@ -180,12 +180,12 @@
       {
         "name": "set_reply_no_connect",
         "detail": "set_reply_no_connect",
-        "doc": "Like `set_forward_no_connect()`, but for replies to the current message (local generated replies and replies forwarded by tm). The behavior depends in which route block the function is called:"
+        "doc": "Like `set_forward_no_connect()`, but for replies to the current message (local generated replies and replies forwarded by tm). The behavior depends in which route block the function is called:\n\n``` c\n      route[4] {\n        //requests from local users. There are usually behind NAT so it does not make sense to try\n        //to establish a new TCP connection for the replies\n        set_reply_no_connect();\n        // do authentication and call routing\n        ...\n      }\n```"
       },
       {
         "name": "set_reply_close",
         "detail": "set_reply_close",
-        "doc": "Like `set_reply_no_connect`, but closes the TCP connection after sending. Can be used in same route blocks as `set_reply_no_connect`."
+        "doc": "Like `set_reply_no_connect`, but closes the TCP connection after sending. Can be used in same route blocks as `set_reply_no_connect`.\n\n``` c\n      route {\n        ...\n        if (...caller-is-not-registered...) {\n          // reject unregistered client\n          // if request was received via TCP/TLS close the connection, as\n          // this may trigger re-registration of the client.\n          set_reply_close();\n          sl_send_reply(\"403\",\"REGISTER first\");\n          exit;\n        }\n        ...\n      }\n```"
       },
       {
         "name": "setavpflag",
@@ -222,92 +222,92 @@
       {
         "name": "advertised_address",
         "detail": "Core parameters",
-        "doc": "It can be an IP address or string and represents the address advertised in Via header. If empty or not set (default value) the socket address from where the request will be sent is used."
+        "doc": "It can be an IP address or string and represents the address advertised in Via header. If empty or not set (default value) the socket address from where the request will be sent is used.\n\n``` c\nadvertised_address=\"​1.2.3.4\"​\nadvertised_address=\"kamailio.org\"\n```"
       },
       {
         "name": "advertised_port",
         "detail": "Core parameters",
-        "doc": "The port advertised in Via header. If empty or not set (default value) the port from where the message will be sent is used. Same warnings as for 'advertised_address'."
+        "doc": "The port advertised in Via header. If empty or not set (default value) the port from where the message will be sent is used. Same warnings as for 'advertised_address'.\n\n``` c\nadvertised_port=5080\n```"
       },
       {
         "name": "alias",
         "detail": "Core parameters",
-        "doc": "**Alias name:** **domain**"
+        "doc": "**Alias name:** **domain**\n\n``` c\nalias=other.domain.com:5060\nalias=another.domain.com:5060\n\ndomain=new.domain.com:5060\n```"
       },
       {
         "name": "async_workers",
         "detail": "Core parameters",
-        "doc": "Specify how many child processes (workers) to create for asynchronous execution in the group \"default\". These are processes that can receive tasks from various components (e.g, modules such as async, acc, sqlops) and execute them locally, which is different process than the task sender."
+        "doc": "Specify how many child processes (workers) to create for asynchronous execution in the group \"default\". These are processes that can receive tasks from various components (e.g, modules such as async, acc, sqlops) and execute them locally, which is different process than the task sender.\n\n``` c\nasync_workers=4\n```"
       },
       {
         "name": "async_nonblock",
         "detail": "Core parameters",
-        "doc": "Set the non-block mode for the internal sockets used by default group of async workers."
+        "doc": "Set the non-block mode for the internal sockets used by default group of async workers.\n\n``` c\nasync_nonblock=1\n```"
       },
       {
         "name": "async_usleep",
         "detail": "Core parameters",
-        "doc": "Set the number of microseconds to sleep before trying to receive next task (can be useful when async_nonblock=1)."
+        "doc": "Set the number of microseconds to sleep before trying to receive next task (can be useful when async_nonblock=1).\n\n``` c\nasync_usleep=100\n```"
       },
       {
         "name": "async_workers_group",
         "detail": "Core parameters",
-        "doc": "Define groups of asynchronous worker processes."
+        "doc": "Define groups of asynchronous worker processes.\n\n``` c\nasync_workers_group=\"name=X;workers=N;nonblock=[0|1];usleep=M\"\n```"
       },
       {
         "name": "async_tkv_evcb",
         "detail": "Core parameters",
-        "doc": "Set the name of the event route or KEMI callback for processing tkv."
+        "doc": "Set the name of the event route or KEMI callback for processing tkv.\n\n``` c\nasync_tkv_evcb = \"core:tkv\"\n...\nasync_tkv_evcb = \"ksr_core_tkv\"\n```"
       },
       {
         "name": "async_tkv_gname",
         "detail": "Core parameters",
-        "doc": "Set the name of the async group to be used for processing TKV events. The async group has to be defined."
+        "doc": "Set the name of the async group to be used for processing TKV events. The async group has to be defined.\n\n``` c\nasync_workers_group=\"name=tkv;workers=1;nonblock=0;usleep=0\"\n\nasync_tkv_gname = \"tkv\"\n```"
       },
       {
         "name": "auto_aliases",
         "detail": "Core parameters",
-        "doc": "**Alias name:** **auto_domains**"
+        "doc": "**Alias name:** **auto_domains**\n\n``` c\nauto_aliases=no\n\nauto_domains=no\n```"
       },
       {
         "name": "auto_bind_ipv6",
         "detail": "Core parameters",
-        "doc": "When turned on, Kamailio will automatically bind to all IPv6 addresses (much like the default behaviour for IPv4)."
+        "doc": "When turned on, Kamailio will automatically bind to all IPv6 addresses (much like the default behaviour for IPv4).\n\n``` c\nauto_bind_ipv6=1\n```"
       },
       {
         "name": "bind_ipv6_link_local",
         "detail": "Core parameters",
-        "doc": "If set to `1`, try to bind also IPv6 link local addresses by discovering the scope of the interface. If set to `2`, skip binding link local addresses."
+        "doc": "If set to `1`, try to bind also IPv6 link local addresses by discovering the scope of the interface. If set to `2`, skip binding link local addresses.\n\n``` c\nbind_ipv6_link_local=1\n```"
       },
       {
         "name": "check_via",
         "detail": "Core parameters",
-        "doc": "Check if the address in top most via of replies is local. Default value is 0 (check disabled)."
+        "doc": "Check if the address in top most via of replies is local. Default value is 0 (check disabled).\n\n``` c\ncheck_via=1\n```"
       },
       {
         "name": "children",
         "detail": "Core parameters",
-        "doc": "Number of children to fork for the UDP interfaces (one set for each interface - ip:port). Default value is 8. For example if you configure the proxy to listen on 3 UDP ports, it will create 3xchildren processes which handle the incoming UDP messages."
+        "doc": "Number of children to fork for the UDP interfaces (one set for each interface - ip:port). Default value is 8. For example if you configure the proxy to listen on 3 UDP ports, it will create 3xchildren processes which handle the incoming UDP messages.\n\n``` c\nchildren=16\n```"
       },
       {
         "name": "chroot",
         "detail": "Core parameters",
-        "doc": "The value must be a valid path in the system. If set, Kamailio will chroot (change root directory) to its value."
+        "doc": "The value must be a valid path in the system. If set, Kamailio will chroot (change root directory) to its value.\n\n``` c\nchroot=/other/fakeroot\n```"
       },
       {
         "name": "corelog",
         "detail": "Core parameters",
-        "doc": "Set the debug level used to print some log messages from core, which might become annoying and don't represent critical errors. For example, such case is failure to parse incoming traffic from the network as SIP message, due to someone sending invalid content."
+        "doc": "Set the debug level used to print some log messages from core, which might become annoying and don't represent critical errors. For example, such case is failure to parse incoming traffic from the network as SIP message, due to someone sending invalid content.\n\n``` c\ncorelog=1\n```"
       },
       {
         "name": "coreparam",
         "detail": "Core parameters",
-        "doc": "This parameter offers a generic framework to set new core parameters without the need to write new code in Lex/Yacc, but to add to an internal exports structure in the core. The format is:"
+        "doc": "This parameter offers a generic framework to set new core parameters without the need to write new code in Lex/Yacc, but to add to an internal exports structure in the core. The format is:\n\n``` c\ncoreparam[name] = value\n```"
       },
       {
         "name": "debug",
         "detail": "Core parameters",
-        "doc": "Set the debug level. Higher values make Kamailio to print more debug messages. Log messages are usually sent to syslog, except if logging to stderr was activated (see [#log_stderror](#log_stderror) parameter)."
+        "doc": "Set the debug level. Higher values make Kamailio to print more debug messages. Log messages are usually sent to syslog, except if logging to stderr was activated (see [#log_stderror](#log_stderror) parameter).\n\n``` c\nL_ALERT     -5\nL_BUG       -4\nL_CRIT2     -3\nL_CRIT      -2\nL_ERR       -1\nL_WARN       0\nL_NOTICE     1\nL_INFO       2\nL_DBG        3\n```"
       },
       {
         "name": "description",
@@ -317,32 +317,32 @@
       {
         "name": "disable_core_dump",
         "detail": "Core parameters",
-        "doc": "Can be 'yes' or 'no'. By default core dump limits are set to unlimited or a high enough value. Set this config variable to 'yes' to disable core dump-ing (will set core limits to 0)."
+        "doc": "Can be 'yes' or 'no'. By default core dump limits are set to unlimited or a high enough value. Set this config variable to 'yes' to disable core dump-ing (will set core limits to 0).\n\n``` c\ndisable_core_dump=yes\n```"
       },
       {
         "name": "disable_tls",
         "detail": "Core parameters",
-        "doc": "**Alias name:** **tls_disable**"
+        "doc": "**Alias name:** **tls_disable**\n\n``` c\ndisable_tls=yes\n```"
       },
       {
         "name": "enable_tls",
         "detail": "Core parameters",
-        "doc": "**Alias name:** **tls_enable**"
+        "doc": "**Alias name:** **tls_enable**\n\n``` c\nenable_tls=yes # enable tls support in core\n```"
       },
       {
         "name": "tls_connection_match_domain",
         "detail": "Core parameters",
-        "doc": "Value: `yes`/`no` (default `no`)"
+        "doc": "Value: `yes`/`no` (default `no`)\n\n``` c\ntls_connection_match_domain=yes\n```"
       },
       {
         "name": "exit_timeout",
         "detail": "Core parameters",
-        "doc": "**Alias name:** **ser_kill_timeout**"
+        "doc": "**Alias name:** **ser_kill_timeout**\n\n``` c\nexit_timeout = seconds\n```"
       },
       {
         "name": "flags",
         "detail": "Core parameters",
-        "doc": "SIP message (transaction) flags can have string names. The *name* for flags cannot be used for **branch** or **script flags**(\\*)"
+        "doc": "SIP message (transaction) flags can have string names. The *name* for flags cannot be used for **branch** or **script flags**(\\*)\n\n``` c\n...\nflags\n  FLAG_ONE   : 1,\n  FLAG_TWO   : 2;\n...\n```"
       },
       {
         "name": "force_rport",
@@ -352,82 +352,82 @@
       {
         "name": "fork",
         "detail": "Core parameters",
-        "doc": "If set to 'yes' the proxy will fork and run in daemon mode - one process will be created for each network interface the proxy listens to and for each protocol (TCP/UDP), multiplied with the value of 'children' parameter."
+        "doc": "If set to 'yes' the proxy will fork and run in daemon mode - one process will be created for each network interface the proxy listens to and for each protocol (TCP/UDP), multiplied with the value of 'children' parameter.\n\n``` c\nfork=no\n```"
       },
       {
         "name": "fork_delay",
         "detail": "Core parameters",
-        "doc": "Number of usecs to wait before forking a process."
+        "doc": "Number of usecs to wait before forking a process.\n\n``` c\nfork_delay=5000\n```"
       },
       {
         "name": "group",
         "detail": "Core parameters",
-        "doc": "**Alias name:** **gid**"
+        "doc": "**Alias name:** **gid**\n\n``` c\ngroup=\"kamailio\"\n```"
       },
       {
         "name": "http_reply_parse",
         "detail": "Core parameters",
-        "doc": "Alias: http_reply_hack"
+        "doc": "Alias: http_reply_hack\n\n``` c\nhttp_reply_parse=yes\n```"
       },
       {
         "name": "ip_free_bind",
         "detail": "Core parameters",
-        "doc": "Alias: ipfreebind, ip_nonlocal_bind"
+        "doc": "Alias: ipfreebind, ip_nonlocal_bind\n\n``` c\n  ip_free_bind = 1\n```"
       },
       {
         "name": "ipv6_hex_style",
         "detail": "Core parameters",
-        "doc": "Can be set to `a`, `A` or `c` to specify if locally computed string representation of IPv6 addresses should be expanded lowercase, expanded uppercase or compacted lowercase hexa digits."
+        "doc": "Can be set to `a`, `A` or `c` to specify if locally computed string representation of IPv6 addresses should be expanded lowercase, expanded uppercase or compacted lowercase hexa digits.\n\n``` c\n  ipv6_hex_style = \"a\"\n```"
       },
       {
         "name": "kemi.onsend_route_callback",
         "detail": "Core parameters",
-        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `onsend_route` block (from the native configuration file)."
+        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `onsend_route` block (from the native configuration file).\n\n``` c\nkemi.onsend_route_callback=\"ksr_my_onsend_route\"\n```"
       },
       {
         "name": "kemi.received_route_callback",
         "detail": "Core parameters",
-        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `event_route[core:msg-received]` block (from the native configuration file). For execution, it also require to have the received_route_mode global parameter set to 1."
+        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `event_route[core:msg-received]` block (from the native configuration file). For execution, it also require to have the received_route_mode global parameter set to 1.\n\n``` c\nkemi.received_route_callback=\"ksr_my_receieved_route\"\n```"
       },
       {
         "name": "kemi.reply_route_callback",
         "detail": "Core parameters",
-        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `reply_route` block (from the native configuration file)."
+        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `reply_route` block (from the native configuration file).\n\n``` c\nkemi.reply_route_callback=\"ksr_my_reply_route\"\n```"
       },
       {
         "name": "kemi.pre_routing_callback",
         "detail": "Core parameters",
-        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `event_route[core:pre-routing]` block (from the native configuration file)."
+        "doc": "Set the name of callback function in the KEMI script to be executed as the equivalent of `event_route[core:pre-routing]` block (from the native configuration file).\n\n``` c\nkemi.pre_routing_callback=\"ksr_pre_routing\"\n```"
       },
       {
         "name": "latency_cfg_log",
         "detail": "Core parameters",
-        "doc": "If set to a log level less or equal than debug parameter, a log message with the duration in microseconds of executing request route or reply route is printed to syslog."
+        "doc": "If set to a log level less or equal than debug parameter, a log message with the duration in microseconds of executing request route or reply route is printed to syslog.\n\n``` c\nlatency_cfg_log=2\n```"
       },
       {
         "name": "latency_limit_action",
         "detail": "Core parameters",
-        "doc": "Limit of latency in us (micro-seconds) for config actions. If a config action executed by cfg interpreter takes longer than its value, a message is printed in the logs, showing config path, line and action name when it is a module function, as well as internal action id."
+        "doc": "Limit of latency in us (micro-seconds) for config actions. If a config action executed by cfg interpreter takes longer than its value, a message is printed in the logs, showing config path, line and action name when it is a module function, as well as internal action id.\n\n``` c\nlatency_limit_action=`500`\n```"
       },
       {
         "name": "latency_limit_db",
         "detail": "Core parameters",
-        "doc": "Limit of latency in us (micro-seconds) for db operations. If a db operation executed via DB API v1 takes longer that its value, a message is printed in the logs, showing the first 50 characters of the db query."
+        "doc": "Limit of latency in us (micro-seconds) for db operations. If a db operation executed via DB API v1 takes longer that its value, a message is printed in the logs, showing the first 50 characters of the db query.\n\n``` c\nlatency_limit_db=`500`\n```"
       },
       {
         "name": "latency_log",
         "detail": "Core parameters",
-        "doc": "Log level to print the messages related to latency."
+        "doc": "Log level to print the messages related to latency.\n\n``` c\nlatency_log=3\n```"
       },
       {
         "name": "listen",
         "detail": "Core parameters",
-        "doc": "Set the network addresses the SIP server should listen to. It can be an `IP address`, `hostname` or `network interface id` or combination of `protocol:address:port` (e.g., `udp:10.10.10.10:5060`). This parameter can be set multiple times in same configuration file, the server is listening on all addresses specified."
+        "doc": "Set the network addresses the SIP server should listen to. It can be an `IP address`, `hostname` or `network interface id` or combination of `protocol:address:port` (e.g., `udp:10.10.10.10:5060`). This parameter can be set multiple times in same configuration file, the server is listening on all addresses specified.\n\n``` c\n    listen=10.10.10.10\n    listen=eth1:5062\n    listen=udp:10.10.10.10:5064\n```"
       },
       {
         "name": "loadmodule",
         "detail": "Core parameters",
-        "doc": "Loads a module for later usage in the configuration script. The module is searched in the path specified by `loadpath` (or `mpath`)."
+        "doc": "Loads a module for later usage in the configuration script. The module is searched in the path specified by `loadpath` (or `mpath`).\n\n``` c\n    loadpath \"/usr/local/lib/kamailio/:usr/local/lib/kamailio/modules/\"\n\n    loadmodule \"/usr/local/lib/kamailio/modules/db_mysql.so\"\n    loadmodule \"modules/usrloc.so\"\n    loadmodule \"tm\"\n    loadmodule \"dialplan.so\"\n    loadmodule(\"app_lua.so\", \"g\")\n```"
       },
       {
         "name": "loadmodulex",
@@ -437,147 +437,147 @@
       {
         "name": "loadpath",
         "detail": "Core parameters",
-        "doc": "**Alias name:** `mpath`"
+        "doc": "**Alias name:** `mpath`\n\n``` c\n    loadpath \"/usr/local/lib/kamailio/modules:/usr/local/lib/kamailio/mymodules\"\n\n    loadmodule \"mysql\"\n    loadmodule \"uri\"\n    loadmodule \"uri_db\"\n    loadmodule \"sl\"\n    loadmodule \"tm\"\n```"
       },
       {
         "name": "local_rport",
         "detail": "Core parameters",
-        "doc": "Similar to **add_local_rport()** function, but done in a global scope, so the function does not have to be executed for each request."
+        "doc": "Similar to **add_local_rport()** function, but done in a global scope, so the function does not have to be executed for each request.\n\n``` c\nlocal_rport = on\n```"
       },
       {
         "name": "log_engine_data",
         "detail": "Core parameters",
-        "doc": "Set specific data required by the log engine. See also the **log_engine_type**."
+        "doc": "Set specific data required by the log engine. See also the **log_engine_type**.\n\n``` c\nlog_engine_type=\"udp\"\nlog_engine_data=\"127.0.0.1:9\"\n```"
       },
       {
         "name": "log_engine_type",
         "detail": "Core parameters",
-        "doc": "Specify what logging engine to be used and its initialization data. A logging engine is implemented as a module. Supported values are a matter of the module."
+        "doc": "Specify what logging engine to be used and its initialization data. A logging engine is implemented as a module. Supported values are a matter of the module.\n\n``` c\nlog_engine_type=\"udp\"\nlog_engine_data=\"127.0.0.1:9\"\n```"
       },
       {
         "name": "log_facility",
         "detail": "Core parameters",
-        "doc": "If Kamailio logs to syslog, you can control the facility for logging. Very useful when you want to divert all Kamailio logs to a different log file. See the man page syslog(3) for more details."
+        "doc": "If Kamailio logs to syslog, you can control the facility for logging. Very useful when you want to divert all Kamailio logs to a different log file. See the man page syslog(3) for more details.\n\n``` c\nlog_facility=LOG_LOCAL0\n```"
       },
       {
         "name": "log_name",
         "detail": "Core parameters",
-        "doc": "Allows to configure a log_name prefix which will be used when printing to syslog -- it is also known as syslog tag, and the default value is the application name or full path that printed the log message. This is useful to filter log messages when running many instances of Kamailio on same server."
+        "doc": "Allows to configure a log_name prefix which will be used when printing to syslog -- it is also known as syslog tag, and the default value is the application name or full path that printed the log message. This is useful to filter log messages when running many instances of Kamailio on same server.\n\n``` c\nlog_name=\"kamailio-proxy-5080\"\n```"
       },
       {
         "name": "log_prefix",
         "detail": "Core parameters",
-        "doc": "Specify the text to be prefixed to the log messages printed by Kamailio while processing a SIP message (that is, when executing route blocks). It can contain script variables that are evaluated at runtime. See [#log_prefix_mode](#log_prefix_mode) about when/how evaluation is done."
+        "doc": "Specify the text to be prefixed to the log messages printed by Kamailio while processing a SIP message (that is, when executing route blocks). It can contain script variables that are evaluated at runtime. See [#log_prefix_mode](#log_prefix_mode) about when/how evaluation is done.\n\n``` c\nlog_prefix=\"{$mt $hdr(CSeq) $ci} \"\n```"
       },
       {
         "name": "log_prefix_mode",
         "detail": "Core parameters",
-        "doc": "Control if [log prefix](#log_prefix) is re-evaluated."
+        "doc": "Control if [log prefix](#log_prefix) is re-evaluated.\n\n``` c\nlog_prefix_mode=1\n```"
       },
       {
         "name": "log_stderror",
         "detail": "Core parameters",
-        "doc": "With this parameter you can make Kamailio to write log and debug messages to standard error. Possible values are:"
+        "doc": "With this parameter you can make Kamailio to write log and debug messages to standard error. Possible values are:\n\n``` c\nlog_stderror=yes\n```"
       },
       {
         "name": "cfgengine",
         "detail": "Core parameters",
-        "doc": "Set the config interpreter engine for execution of the routing logic inside the configuration file. Default is the native interpreter."
+        "doc": "Set the config interpreter engine for execution of the routing logic inside the configuration file. Default is the native interpreter.\n\n``` c\ncfgengine=\"name\"\ncfgengine \"name\"\n```"
       },
       {
         "name": "maxbuffer",
         "detail": "Core parameters",
-        "doc": "The size in bytes multiplied by 2 not to be exceeded during the auto-probing procedure of discovering and increasing the maximum OS buffer size for receiving UDP messages (socket option SO_RCVBUF). Default value is 262144."
+        "doc": "The size in bytes multiplied by 2 not to be exceeded during the auto-probing procedure of discovering and increasing the maximum OS buffer size for receiving UDP messages (socket option SO_RCVBUF). Default value is 262144.\n\n``` c\nmaxbuffer=65536\n```"
       },
       {
         "name": "maxsndbuffer",
         "detail": "Core parameters",
-        "doc": "The size in bytes multiplied by 2 not to be exceeded during the auto-probing procedure of discovering and increasing the maximum OS buffer size for sending UDP messages (socket option SO_SNDBUF). Default value is 262144."
+        "doc": "The size in bytes multiplied by 2 not to be exceeded during the auto-probing procedure of discovering and increasing the maximum OS buffer size for sending UDP messages (socket option SO_SNDBUF). Default value is 262144.\n\n``` c\nmaxsndbuffer=65536\n```"
       },
       {
         "name": "max_branches",
         "detail": "Core parameters",
-        "doc": "The maximum number of outgoing branches for each SIP request. It has impact on the size of destination set created in core (e.g., via append_branch()) as well as the serial and parallel forking done via tm module. It replaces the old defined constant MAX_BRANCHES."
+        "doc": "The maximum number of outgoing branches for each SIP request. It has impact on the size of destination set created in core (e.g., via append_branch()) as well as the serial and parallel forking done via tm module. It replaces the old defined constant MAX_BRANCHES.\n\n``` c\nmax_branches=16\n```"
       },
       {
         "name": "max_recursive_level",
         "detail": "Core parameters",
-        "doc": "The parameters set the value of maximum recursive calls to blocks of actions, such as sub-routes or chained IF-ELSE (for the ELSE branches). Default is 256."
+        "doc": "The parameters set the value of maximum recursive calls to blocks of actions, such as sub-routes or chained IF-ELSE (for the ELSE branches). Default is 256.\n\n``` c\nmax_recursive_level=500\n```"
       },
       {
         "name": "max_while_loops",
         "detail": "Core parameters",
-        "doc": "The parameters set the value of maximum loops that can be done within a \"while\". Comes as a protection to avoid infinite loops in config file execution. Default is 100. Setting to 0 disables the protection (you will still get a warning when you start Kamailio if you do something like while(1) {...})."
+        "doc": "The parameters set the value of maximum loops that can be done within a \"while\". Comes as a protection to avoid infinite loops in config file execution. Default is 100. Setting to 0 disables the protection (you will still get a warning when you start Kamailio if you do something like while(1) {...}).\n\n``` c\nmax_while_loops=200\n```"
       },
       {
         "name": "mcast",
         "detail": "Core parameters",
-        "doc": "This parameter can be used to set the interface that should join the multicast group. This is useful if you want to **listen** on a multicast address and don't want to depend on the kernel routing table for choosing an interface."
+        "doc": "This parameter can be used to set the interface that should join the multicast group. This is useful if you want to **listen** on a multicast address and don't want to depend on the kernel routing table for choosing an interface.\n\n``` c\nmcast=\"eth1\"\nlisten=udp:224.0.1.75:5060\n```"
       },
       {
         "name": "mcast_loopback",
         "detail": "Core parameters",
-        "doc": "It can be 'yes' or 'no'. If set to 'yes', multicast datagram are sent over loopback. Default value is 'no'."
+        "doc": "It can be 'yes' or 'no'. If set to 'yes', multicast datagram are sent over loopback. Default value is 'no'.\n\n``` c\nmcast_loopback=yes\n```"
       },
       {
         "name": "mcast_ttl",
         "detail": "Core parameters",
-        "doc": "Set the value for multicast ttl. Default value is OS specific (usually 1)."
+        "doc": "Set the value for multicast ttl. Default value is OS specific (usually 1).\n\n``` c\nmcast_ttl=32\n```"
       },
       {
         "name": "memdbg",
         "detail": "Core parameters",
-        "doc": "**Alias name:** `mem_dbg`"
+        "doc": "**Alias name:** `mem_dbg`\n\n``` c\ndebug=3    # no memory debugging as debug level\nmemdbg=4   # is lower than memdbg\n\ndebug=3    # memory debugging is active as the debug level\nmemdbg=2   # is higher or equal memdbg\n```"
       },
       {
         "name": "memlog",
         "detail": "Core parameters",
-        "doc": "**Alias name:** `mem_log`"
+        "doc": "**Alias name:** `mem_log`\n\n``` c\ndebug=3    # no memory statistics as debug level\nmemlog=4   # is lower than memlog\n\ndebug=3    # dumping of memory statistics is active as the\nmemlog=2   # debug level is higher or equal memlog\n```"
       },
       {
         "name": "mem_add_size",
         "detail": "Core parameters",
-        "doc": "Size in bytes to be added for each chunk allocated by the internal `qm` (quick malloc) memory manager. It could be useful in cases when external libraries initialized to use `qm` expose issues of buffer overflow."
+        "doc": "Size in bytes to be added for each chunk allocated by the internal `qm` (quick malloc) memory manager. It could be useful in cases when external libraries initialized to use `qm` expose issues of buffer overflow.\n\n``` c\nmem_add_size=4\n```"
       },
       {
         "name": "mem_join",
         "detail": "Core parameters",
-        "doc": "If set to 1, memory manager (e.g., q_malloc) does join of free fragments. It is effective if MEM_JOIN_FREE compile option is defined."
+        "doc": "If set to 1, memory manager (e.g., q_malloc) does join of free fragments. It is effective if MEM_JOIN_FREE compile option is defined.\n\n``` c\nmem_join=1\n```"
       },
       {
         "name": "mem_safety",
         "detail": "Core parameters",
-        "doc": "If set to `1`, memory free operation does not call `abort()` for double freeing a pointer or freeing an invalid address. The server still prints the alerting log messages. If set to 0, the SIP server stops by calling `abort()` to generate a core file."
+        "doc": "If set to `1`, memory free operation does not call `abort()` for double freeing a pointer or freeing an invalid address. The server still prints the alerting log messages. If set to 0, the SIP server stops by calling `abort()` to generate a core file.\n\n``` c\nmem_safety=0\n```"
       },
       {
         "name": "mem_status_mode",
         "detail": "Core parameters",
-        "doc": "If set to `1`, memory status dump for `qm` allocator will print details about used fragments. If set to `0`, the dump contains only free fragments. It can be set at runtime via cfg param framework (e.g., via `kamcmd`)."
+        "doc": "If set to `1`, memory status dump for `qm` allocator will print details about used fragments. If set to `0`, the dump contains only free fragments. It can be set at runtime via cfg param framework (e.g., via `kamcmd`).\n\n``` c\nmem_status_mode=1\n```"
       },
       {
         "name": "mem_summary",
         "detail": "Core parameters",
-        "doc": "Parameter to control printing of memory debugging information displayed on `exit` or `SIGUSR1`. The value can be composed by following flags:"
+        "doc": "Parameter to control printing of memory debugging information displayed on `exit` or `SIGUSR1`. The value can be composed by following flags:\n\n``` c\nmem_summary=15\n```"
       },
       {
         "name": "mhomed",
         "detail": "Core parameters",
-        "doc": "Set the server to try to locate outbound interface on multihomed host. This parameter affects the selection of the outgoing socket for forwarding requests. By default is off (0) - it is rather time consuming. When deactivated, the incoming socket will be used or the first one for a different protocol, disregarding the destination location. When activated, Kamailio will select a socket that can reach the destination (to be able to connect to the remote address). (Kamailio opens a UDP socket to the destination, then it retrieves the local IP which was assigned by the operating system to the new UDP socket. Then this socket will be closed and the retrieved IP address will be used as IP address in the Via/Record-Route headers)"
+        "doc": "Set the server to try to locate outbound interface on multihomed host. This parameter affects the selection of the outgoing socket for forwarding requests. By default is off (0) - it is rather time consuming. When deactivated, the incoming socket will be used or the first one for a different protocol, disregarding the destination location. When activated, Kamailio will select a socket that can reach the destination (to be able to connect to the remote address). (Kamailio opens a UDP socket to the destination, then it retrieves the local IP which was assigned by the operating system to the new UDP socket. Then this socket will be closed and the retrieved IP address will be used as IP address in the Via/Record-Route headers)\n\n``` c\nmhomed=1\n```"
       },
       {
         "name": "mlock_pages",
         "detail": "Core parameters",
-        "doc": "Locks all Kamailio pages into memory making it unswappable (in general one doesn't want his SIP proxy swapped out :-))"
+        "doc": "Locks all Kamailio pages into memory making it unswappable (in general one doesn't want his SIP proxy swapped out :-))\n\n``` c\nmlock_pages = yes |no (default no)\n```"
       },
       {
         "name": "modinit_delay",
         "detail": "Core parameters",
-        "doc": "Number of microseconds to wait after initializing a module - useful to cope with systems where are rate limits on new connections to database or other systems."
+        "doc": "Number of microseconds to wait after initializing a module - useful to cope with systems where are rate limits on new connections to database or other systems.\n\n``` c\nmodinit_delay=100000\n```"
       },
       {
         "name": "modparam",
         "detail": "Core parameters",
-        "doc": "The modparam command will be used to set the options (parameters) for the loaded modules."
+        "doc": "The modparam command will be used to set the options (parameters) for the loaded modules.\n\n``` c\nmodparam(\"modname\", \"paramname\", intval)\nmodparam(\"modname\", \"paramname\", \"strval\")\n```"
       },
       {
         "name": "modparamx",
@@ -587,57 +587,57 @@
       {
         "name": "msg_recv_max_size",
         "detail": "Core parameters",
-        "doc": "Set the maximum size in bytes of a SIP message to be accepted by Kamailio."
+        "doc": "Set the maximum size in bytes of a SIP message to be accepted by Kamailio.\n\n``` c\nmsg_recv_max_size = 10000\n```"
       },
       {
         "name": "msg_apply_changes_mode",
         "detail": "Core parameters",
-        "doc": "If set to `1`, the `msg_apply_changes()` is executed before the transaction for the SIP request is created. It can enable the use of `t_msg_apply_changes()` inside a `branch_route` block."
+        "doc": "If set to `1`, the `msg_apply_changes()` is executed before the transaction for the SIP request is created. It can enable the use of `t_msg_apply_changes()` inside a `branch_route` block.\n\n``` c\nmsg_apply_changes_mode = 1\n```"
       },
       {
         "name": "msg_clone_extra_size",
         "detail": "Core parameters",
-        "doc": "Size to be allocated extra when cloning the SIP request buffer to transaction. Useful when intending to do raw operations over the content of the buffer (e.g., SIP message body). The value is in bytes."
+        "doc": "Size to be allocated extra when cloning the SIP request buffer to transaction. Useful when intending to do raw operations over the content of the buffer (e.g., SIP message body). The value is in bytes.\n\n``` c\nmsg_clone_extra_size = 256\n```"
       },
       {
         "name": "onsend_route_reply",
         "detail": "Core parameters",
-        "doc": "If set to 1 (yes, on), onsend_route block is executed for received replies that are sent out. Default is 0."
+        "doc": "If set to 1 (yes, on), onsend_route block is executed for received replies that are sent out. Default is 0.\n\n``` c\nonsend_route_reply=yes\n```"
       },
       {
         "name": "open_files_limit",
         "detail": "Core parameters",
-        "doc": "If set and bigger than the current open file limit, Kamailio will try to increase its open file limit to this number. Note: Kamailio must be started as root to be able to increase a limit past the hard limit (which, for open files, is `1024` on most systems). \"Files\" include network sockets, so you need one for every concurrent session (especially if you use connection-oriented transports, like TCP/TLS)."
+        "doc": "If set and bigger than the current open file limit, Kamailio will try to increase its open file limit to this number. Note: Kamailio must be started as root to be able to increase a limit past the hard limit (which, for open files, is `1024` on most systems). \"Files\" include network sockets, so you need one for every concurrent session (especially if you use connection-oriented transports, like TCP/TLS).\n\n``` c\nopen_files_limit=2048\n```"
       },
       {
         "name": "phone2tel",
         "detail": "Core parameters",
-        "doc": "By enabling this feature, Kamailio internally treats SIP URIs with user=phone parameter as TEL URIs. If you do not want this behavior, you have to turn it off."
+        "doc": "By enabling this feature, Kamailio internally treats SIP URIs with user=phone parameter as TEL URIs. If you do not want this behavior, you have to turn it off.\n\n``` c\nphone2tel = 0\n```"
       },
       {
         "name": "pmtu_discovery",
         "detail": "Core parameters",
-        "doc": "If set to 1, the don't-fragment (DF) bit will be set in outbound IP packets, but no fragmentation from the kernel will be done for IPv4 and IPv6. This means that packets might be dropped and it is up to the user to reduce the packet size and try again."
+        "doc": "If set to 1, the don't-fragment (DF) bit will be set in outbound IP packets, but no fragmentation from the kernel will be done for IPv4 and IPv6. This means that packets might be dropped and it is up to the user to reduce the packet size and try again.\n\n``` c\npmtu_discovery = 0 | 1 | 2 (default 0)\n```"
       },
       {
         "name": "port",
         "detail": "Core parameters",
-        "doc": "The port the SIP server listens to. The default value for it is 5060."
+        "doc": "The port the SIP server listens to. The default value for it is 5060.\n\n``` c\nport=5080\n```"
       },
       {
         "name": "pv_buffer_size",
         "detail": "Core parameters",
-        "doc": "The size in bytes of internal buffer to print dynamic strings with pseudo-variables inside. The default value is 8192 (8kB). Please keep in mind that for xlog messages, there is a dedicated module parameter to set the internal buffer size."
+        "doc": "The size in bytes of internal buffer to print dynamic strings with pseudo-variables inside. The default value is 8192 (8kB). Please keep in mind that for xlog messages, there is a dedicated module parameter to set the internal buffer size.\n\n``` c\npv_buffer_size=2048\n```"
       },
       {
         "name": "pv_buffer_slots",
         "detail": "Core parameters",
-        "doc": "The number of internal buffer slots to print dynamic strings with pseudo-variables inside. The default value is 10."
+        "doc": "The number of internal buffer slots to print dynamic strings with pseudo-variables inside. The default value is 10.\n\n``` c\npv_buffer_slots=12\n```"
       },
       {
         "name": "pv_cache_limit",
         "detail": "Core parameters",
-        "doc": "The limit how many pv declarations in the cache after which an action is taken. Default value is 2048."
+        "doc": "The limit how many pv declarations in the cache after which an action is taken. Default value is 2048.\n\n``` c\npv_cache_limit=1024\n```"
       },
       {
         "name": "pv_cache_action",
@@ -647,172 +647,172 @@
       {
         "name": "rpc_exec_delta",
         "detail": "Core parameters",
-        "doc": "Specify the time interval (in seconds) required to wait before executing again an RPC command exported with the flag `RPC_EXEC_DELTA`. Practically it enables an execution rate limit for such command. The rate limiting is per RPC command."
+        "doc": "Specify the time interval (in seconds) required to wait before executing again an RPC command exported with the flag `RPC_EXEC_DELTA`. Practically it enables an execution rate limit for such command. The rate limiting is per RPC command.\n\n``` c\nrpc_exec_delta=5\n```"
       },
       {
         "name": "rundir",
         "detail": "Core parameters",
-        "doc": "Alias: run_dir"
+        "doc": "Alias: run_dir\n\n``` c\nrundir=\"/tmp\"\n```"
       },
       {
         "name": "received_route_mode",
         "detail": "Core parameters",
-        "doc": "Enable or disable the execution of `event_route[core:msg-received]` routing block or its corresponding Kemi callback."
+        "doc": "Enable or disable the execution of `event_route[core:msg-received]` routing block or its corresponding Kemi callback.\n\n``` c\nreceived_route_mode=1\n```"
       },
       {
         "name": "reply_to_via",
         "detail": "Core parameters",
-        "doc": "If it is set to 1, any local reply is sent to the IP address advertised in top most Via of the request instead of the IP address from which the request was received. Default value is 0 (off)."
+        "doc": "If it is set to 1, any local reply is sent to the IP address advertised in top most Via of the request instead of the IP address from which the request was received. Default value is 0 (off).\n\n``` c\nreply_to_via=0\n```"
       },
       {
         "name": "route_locks_size",
         "detail": "Core parameters",
-        "doc": "Set the number of mutex locks to be used for synchronizing the execution of config script for messages sharing the same `Call-Id`. In other words, enables Kamailio to execute the config script sequentially for the requests and replies received within the same dialog -- a new message received within the same dialog waits until the previous one is routed out."
+        "doc": "Set the number of mutex locks to be used for synchronizing the execution of config script for messages sharing the same `Call-Id`. In other words, enables Kamailio to execute the config script sequentially for the requests and replies received within the same dialog -- a new message received within the same dialog waits until the previous one is routed out.\n\n``` c\nroute_locks_size = 256\n```"
       },
       {
         "name": "server_id",
         "detail": "Core parameters",
-        "doc": "A configurable unique server id that can be used to discriminate server instances within a cluster of servers when all other information, such as IP addresses are the same."
+        "doc": "A configurable unique server id that can be used to discriminate server instances within a cluster of servers when all other information, such as IP addresses are the same.\n\n``` c\n  server_id = number\n```"
       },
       {
         "name": "server_header",
         "detail": "Core parameters",
-        "doc": "Set the value of Server header for replies generated by Kamailio. It must contain the header name, but not the ending `CRLF`."
+        "doc": "Set the value of Server header for replies generated by Kamailio. It must contain the header name, but not the ending `CRLF`.\n\n``` c\nserver_header=\"Server: My Super SIP Server\"\n```"
       },
       {
         "name": "server_signature",
         "detail": "Core parameters",
-        "doc": "This parameter controls the \"Server\" header in any locally generated message."
+        "doc": "This parameter controls the \"Server\" header in any locally generated message.\n\n``` c\nserver_signature=no\n```"
       },
       {
         "name": "shm_force_alloc",
         "detail": "Core parameters",
-        "doc": "Tries to pre-fault all the shared memory, before starting. When \"on\", start time will increase, but combined with mlock_pages will guarantee Kamailio will get all its memory from the beginning (no more kswapd slow downs)"
+        "doc": "Tries to pre-fault all the shared memory, before starting. When \"on\", start time will increase, but combined with mlock_pages will guarantee Kamailio will get all its memory from the beginning (no more kswapd slow downs)\n\n``` c\nshm_force_alloc = yes | no (default no)\n```"
       },
       {
         "name": "shm_mem_size",
         "detail": "Core parameters",
-        "doc": "Set shared memory size (in Mb)."
+        "doc": "Set shared memory size (in Mb).\n\n``` c\nshm_mem_size = 64 (default 64)\n```"
       },
       {
         "name": "sip_parser_log",
         "detail": "Core parameters",
-        "doc": "Log level for printing debug messages for some of the SIP parsing errors."
+        "doc": "Log level for printing debug messages for some of the SIP parsing errors.\n\n``` c\nsip_parser_log = 1\n```"
       },
       {
         "name": "sip_parser_mode",
         "detail": "Core parameters",
-        "doc": "Control sip parser behaviour."
+        "doc": "Control sip parser behaviour.\n\n``` c\nsip_parser_mode = 0\n```"
       },
       {
         "name": "sip_warning",
         "detail": "Core parameters",
-        "doc": "Can be `0` or `1`. If set to `1` (default value is `0`) a 'Warning' header is added to each reply generated by Kamailio. The header contains several details that help troubleshooting using the network traffic dumps, but might reveal details of your network infrastructure and internal SIP routing."
+        "doc": "Can be `0` or `1`. If set to `1` (default value is `0`) a 'Warning' header is added to each reply generated by Kamailio. The header contains several details that help troubleshooting using the network traffic dumps, but might reveal details of your network infrastructure and internal SIP routing.\n\n``` c\nsip_warning=0\n```"
       },
       {
         "name": "socket",
         "detail": "Core parameters",
-        "doc": "Specify an address to listen (bind) to, a simplified alternative to `listen` paramter that allows specifying the attributes using a structure style."
+        "doc": "Specify an address to listen (bind) to, a simplified alternative to `listen` paramter that allows specifying the attributes using a structure style.\n\n``` c\nsocket = {\n    attr1 = value1;\n    ...\n    attrN = valueN;\n}\n```"
       },
       {
         "name": "socket_workers",
         "detail": "Core parameters",
-        "doc": "Number of workers to process SIP traffic per listen socket - typical use is before a **listen** global parameter."
+        "doc": "Number of workers to process SIP traffic per listen socket - typical use is before a **listen** global parameter.\n\n``` c\nchildren=4\nsocket_workers=2\nlisten=udp:127.0.0.1:5080\nlisten=udp:127.0.0.1:5070\nlisten=udp:127.0.0.1:5060\n```"
       },
       {
         "name": "sql_buffer_size",
         "detail": "Core parameters",
-        "doc": "The size in bytes of the SQL buffer created for data base queries. For database drivers that use the core db_query library, this will be maximum size object that can be written or read from a database. Default value is 65535."
+        "doc": "The size in bytes of the SQL buffer created for data base queries. For database drivers that use the core db_query library, this will be maximum size object that can be written or read from a database. Default value is 65535.\n\n``` c\nsql_buffer_size=131070\n```"
       },
       {
         "name": "statistics",
         "detail": "Core parameters",
-        "doc": "Kamailio has built-in support for statistics counter. This means, these counters can be increased, decreased, read and cleared. The statistics counter are defined either by the core (e.g. tcp counters), by modules (e.g. 2xx_transactions by \"tmx\" module) or by the script writer using the \"statistics\" module."
+        "doc": "Kamailio has built-in support for statistics counter. This means, these counters can be increased, decreased, read and cleared. The statistics counter are defined either by the core (e.g. tcp counters), by modules (e.g. 2xx_transactions by \"tmx\" module) or by the script writer using the \"statistics\" module.\n\n``` c\nmodparam(\"statistics\", \"variable\", \"NOTIFY\")\n\n(if method == \"NOTIFY\") {\n    update_stat(\"NOTIFY\", \"+1\");\n}\n\nxlog(\"Number of received NOTIFYs: $stat(NOTIFY)\");\n```"
       },
       {
         "name": "stats_name_separator",
         "detail": "Core parameters",
-        "doc": "Specify the character used as a separator for the internal statistics' names. Default value is `_`."
+        "doc": "Specify the character used as a separator for the internal statistics' names. Default value is `_`.\n\n``` c\nstats_name_separator = \"-\"\n```"
       },
       {
         "name": "tos",
         "detail": "Core parameters",
-        "doc": "The TOS (Type Of Service) to be used for the sent IP packages (both TCP and UDP)."
+        "doc": "The TOS (Type Of Service) to be used for the sent IP packages (both TCP and UDP).\n\n``` c\ntos=IPTOS_LOWDELAY\ntos=0x10\ntos=IPTOS_RELIABILITY\n```"
       },
       {
         "name": "udp_mtu",
         "detail": "Core parameters",
-        "doc": "Fallback to another protocol (`udp_mtu_try_proto` must be set also either globally or per packet) if the constructed request size is greater than udp_mtu."
+        "doc": "Fallback to another protocol (`udp_mtu_try_proto` must be set also either globally or per packet) if the constructed request size is greater than udp_mtu.\n\n``` c\nudp_mtu = number\n```"
       },
       {
         "name": "udp_mtu_try_proto",
         "detail": "Core parameters",
-        "doc": "If `udp_mtu != 0` and udp forwarded request size (after adding all the \"local\" headers) `> udp_mtu`, use this protocol instead of udp. Only the Via header will be updated (e.g. The Record-Route will be the one built for udp)."
+        "doc": "If `udp_mtu != 0` and udp forwarded request size (after adding all the \"local\" headers) `> udp_mtu`, use this protocol instead of udp. Only the Via header will be updated (e.g. The Record-Route will be the one built for udp).\n\n``` c\nudp_mtu_try_proto = TCP|TLS|SCTP|UDP\n```"
       },
       {
         "name": "udp_receiver_mode",
         "detail": "Core parameters",
-        "doc": "Specify how UDP traffic is received, either via a pool of processes per UDP socket or a single multi-threaded process with a thread per socket."
+        "doc": "Specify how UDP traffic is received, either via a pool of processes per UDP socket or a single multi-threaded process with a thread per socket.\n\n``` c\nasync_workers_group=\"name=udp;workers=8\"\nudp_receiver_mode = 1\n```"
       },
       {
         "name": "uri_host_extra_chars",
         "detail": "Core parameters",
-        "doc": "Specify additional chars that should be allowed in the host part of URI."
+        "doc": "Specify additional chars that should be allowed in the host part of URI.\n\n``` c\nuri_host_extra_chars = \"_\"\n```"
       },
       {
         "name": "user",
         "detail": "Core parameters",
-        "doc": "**Alias name:** **uid**"
+        "doc": "**Alias name:** **uid**\n\n``` c\n    user=\"kamailio\"\n```"
       },
       {
         "name": "user_agent_header",
         "detail": "Core parameters",
-        "doc": "Set the value of User-Agent header for requests generated by Kamailio. It must contain header name as well, but not the ending CRLF."
+        "doc": "Set the value of User-Agent header for requests generated by Kamailio. It must contain header name as well, but not the ending CRLF.\n\n``` c\nuser_agent_header=\"User-Agent: My Super SIP Server\"\n```"
       },
       {
         "name": "verbose_startup",
         "detail": "Core parameters",
-        "doc": "Control if printing routing tree and udp probing buffer debug messages should be printed at startup."
+        "doc": "Control if printing routing tree and udp probing buffer debug messages should be printed at startup.\n\n``` c\n   verbose_startup=1\n```"
       },
       {
         "name": "version_table",
         "detail": "Core parameters",
-        "doc": "Set the name of the table holding the table version. Useful if the proxy is sharing a database within a project and during upgrades. Default value is \"version\"."
+        "doc": "Set the name of the table holding the table version. Useful if the proxy is sharing a database within a project and during upgrades. Default value is \"version\".\n\n``` c\n   version_table=\"version44\"\n```"
       },
       {
         "name": "wait_worker1_mode",
         "detail": "Core parameters",
-        "doc": "Enable waiting for child SIP worker one to complete initialization, then create the other child worker processes."
+        "doc": "Enable waiting for child SIP worker one to complete initialization, then create the other child worker processes.\n\n``` c\nwait_worker1_mode = 1\n```"
       },
       {
         "name": "wait_worker1_time",
         "detail": "Core parameters",
-        "doc": "How long to wait for child worker one to complete the initialization. In micro-seconds."
+        "doc": "How long to wait for child worker one to complete the initialization. In micro-seconds.\n\n``` c\nwait_worker1_time = 1000000\n```"
       },
       {
         "name": "wait_worker1_usleep",
         "detail": "Core parameters",
-        "doc": "Waiting for child worker one to complete the initialization is done in a loop, which loop waits until wait_worker1_time passes. This parameter specifies how long after each iteration of that loop to wait in micro-seconds."
+        "doc": "Waiting for child worker one to complete the initialization is done in a loop, which loop waits until wait_worker1_time passes. This parameter specifies how long after each iteration of that loop to wait in micro-seconds.\n\n``` c\nwait_worker1_usleep = 50000\n```"
       },
       {
         "name": "workdir",
         "detail": "Core parameters",
-        "doc": "**Alias name:** **wdir**"
+        "doc": "**Alias name:** **wdir**\n\n``` c\nwdir=\"/usr/local/kamailio\"\n# or\nwdir=/usr/kamwd\n```"
       },
       {
         "name": "xavp_via_params",
         "detail": "Core parameters",
-        "doc": "Set the name of the XAVP of which subfields will be added as local `Via` -header parameters."
+        "doc": "Set the name of the XAVP of which subfields will be added as local `Via` -header parameters.\n\n``` c\nxavp_via_params=\"via\"\n```"
       },
       {
         "name": "xavp_via_fields",
         "detail": "Core parameters",
-        "doc": "Set the name of xavp from where to take Via header field: address and port. Use them to build local Via header."
+        "doc": "Set the name of xavp from where to take Via header field: address and port. Use them to build local Via header.\n\n``` c\nxavp_via_fields=\"customvia\"\n\nrequest_route {\n  ...\n  $xavp(customvia=>address) = \"1.2.3.4\";\n  $xavp(customvia[0]=>port) = \"5080\";  # must be string\n  via_use_xavp_fields(\"1\");\n  t_relay();\n}\n```"
       },
       {
         "name": "xavp_via_reply_params",
         "detail": "Core parameters",
-        "doc": "Set the name of the XAVP of which subfields will be added as header parameters to the top `Via` of the replies sent out."
+        "doc": "Set the name of the XAVP of which subfields will be added as header parameters to the top `Via` of the replies sent out.\n\n``` c\nxavp_via_reply_params=\"viarpl\"\n```"
       },
       {
         "name": "dns",
@@ -827,42 +827,42 @@
       {
         "name": "dns_cache_del_nonexp",
         "detail": "DNS Parameters",
-        "doc": "**Alias name:** **dns_cache_delete_nonexpired**"
+        "doc": "**Alias name:** **dns_cache_delete_nonexpired**\n\n``` c\ndns_cache_del_nonexp = yes | no (default: no)\n```"
       },
       {
         "name": "dns_cache_rec_pref",
         "detail": "DNS Parameters",
-        "doc": "dns cache record preference, determines how new DNS records are stored internally in relation to existing entries. Possible values: 0 - do not check duplicates 1 - prefer old records 2 - prefer new records 3 - prefer records with longer lifetime"
+        "doc": "dns cache record preference, determines how new DNS records are stored internally in relation to existing entries. Possible values: 0 - do not check duplicates 1 - prefer old records 2 - prefer new records 3 - prefer records with longer lifetime\n\n``` c\ndns_cache_rec_pref = number (default 0)\n```"
       },
       {
         "name": "dns_cache_flags",
         "detail": "DNS Parameters",
-        "doc": "dns cache specific resolver flags, used for overriding the default behaviour (low level). Possible values: 1 - ipv4 only: only DNS A requests are performed, even if Kamailio also listens on ipv6 addresses. 2 - ipv6 only: only DNS AAAA requests are performed. Ignored if dns_try_ipv6 is off or Kamailio doesn't listen on any ipv6 address. 4 - prefer ipv6: try first to resolve a host name to an ipv6 address (DNS AAAA request) and only if this fails try an ipv4 address (DNS A request). By default the ipv4 addresses are preferred."
+        "doc": "dns cache specific resolver flags, used for overriding the default behaviour (low level). Possible values: 1 - ipv4 only: only DNS A requests are performed, even if Kamailio also listens on ipv6 addresses. 2 - ipv6 only: only DNS AAAA requests are performed. Ignored if dns_try_ipv6 is off or Kamailio doesn't listen on any ipv6 address. 4 - prefer ipv6: try first to resolve a host name to an ipv6 address (DNS AAAA request) and only if this fails try an ipv4 address (DNS A request). By default the ipv4 addresses are preferred.\n\n``` c\ndns_cache_flags = number (default 0)\n```"
       },
       {
         "name": "dns_cache_gc_interval",
         "detail": "DNS Parameters",
-        "doc": "Interval in seconds after which the dns cache is garbage collected (default: 120 s)"
+        "doc": "Interval in seconds after which the dns cache is garbage collected (default: 120 s)\n\n``` c\ndns_cache_gc_interval = number\n```"
       },
       {
         "name": "dns_cache_init",
         "detail": "DNS Parameters",
-        "doc": "If off, the dns cache is not initialized at startup and cannot be enabled at runtime, this saves some memory."
+        "doc": "If off, the dns cache is not initialized at startup and cannot be enabled at runtime, this saves some memory.\n\n``` c\ndns_cache_init = on | off (default on)\n```"
       },
       {
         "name": "dns_cache_max_ttl",
         "detail": "DNS Parameters",
-        "doc": ""
+        "doc": "``` c\ndns_cache_max_ttl = time in seconds (default MAXINT)\n```"
       },
       {
         "name": "dns_cache_mem",
         "detail": "DNS Parameters",
-        "doc": "Maximum memory used for the dns cache in KB (default 500 K)"
+        "doc": "Maximum memory used for the dns cache in KB (default 500 K)\n\n``` c\ndns_cache_mem = number\n```"
       },
       {
         "name": "dns_cache_min_ttl",
         "detail": "DNS Parameters",
-        "doc": ""
+        "doc": "``` c\ndns_cache_min_ttl = time in seconds (default 0)\n```"
       },
       {
         "name": "dns_cache_negative_ttl",
@@ -872,52 +872,52 @@
       {
         "name": "dns_naptr_ignore_rfc",
         "detail": "DNS Parameters",
-        "doc": "If the DNS lookup should ignore the remote side's protocol preferences, as indicated by the Order field in the NAPTR records and mandated by RFC 2915."
+        "doc": "If the DNS lookup should ignore the remote side's protocol preferences, as indicated by the Order field in the NAPTR records and mandated by RFC 2915.\n\n``` c\ndns_naptr_ignore_rfc = yes | no (default yes)\n```"
       },
       {
         "name": "dns_retr_no",
         "detail": "DNS Parameters",
-        "doc": "Number of dns retransmissions before giving up. Default value is system specific, depends also on the '/etc/resolv.conf' content (usually 4)."
+        "doc": "Number of dns retransmissions before giving up. Default value is system specific, depends also on the '/etc/resolv.conf' content (usually 4).\n\n``` c\ndns_retr_no=3\n```"
       },
       {
         "name": "dns_retr_time",
         "detail": "DNS Parameters",
-        "doc": "Time in seconds before retrying a dns request. Default value is system specific, depends also on the '/etc/resolv.conf' content (usually 5s)."
+        "doc": "Time in seconds before retrying a dns request. Default value is system specific, depends also on the '/etc/resolv.conf' content (usually 5s).\n\n``` c\ndns_retr_time=3\n```"
       },
       {
         "name": "dns_search_full_match",
         "detail": "DNS Parameters",
-        "doc": "When name was resolved using dns search list, check the domain added in the answer matches with one from the search list (small performance hit, but more safe)"
+        "doc": "When name was resolved using dns search list, check the domain added in the answer matches with one from the search list (small performance hit, but more safe)\n\n``` c\ndns_search_full_match = yes | no (default yes)\n```"
       },
       {
         "name": "dns_servers_no",
         "detail": "DNS Parameters",
-        "doc": "How many dns servers from the ones defined in '/etc/resolv.conf' will be used. Default value is to use all of them."
+        "doc": "How many dns servers from the ones defined in '/etc/resolv.conf' will be used. Default value is to use all of them.\n\n``` c\ndns_servers_no=2\n```"
       },
       {
         "name": "dns_srv_lb",
         "detail": "DNS Parameters",
-        "doc": "**Alias name:** **dns_srv_loadbalancing**"
+        "doc": "**Alias name:** **dns_srv_loadbalancing**\n\n``` c\ndns_srv_lb = yes | no (default no)\n```"
       },
       {
         "name": "dns_try_ipv6",
         "detail": "DNS Parameters",
-        "doc": "Can be 'yes' or 'no'. If it is set to 'yes' and a DNS lookup fails, it will retry it for ipv6 (AAAA record). Default value is 'no'."
+        "doc": "Can be 'yes' or 'no'. If it is set to 'yes' and a DNS lookup fails, it will retry it for ipv6 (AAAA record). Default value is 'no'.\n\n``` c\ndns_try_ipv6=yes\n```"
       },
       {
         "name": "dns_try_naptr",
         "detail": "DNS Parameters",
-        "doc": "Enable NAPTR support according to RFC 3263 (see doc/tutorials/dns.txt for more info)"
+        "doc": "Enable NAPTR support according to RFC 3263 (see doc/tutorials/dns.txt for more info)\n\n``` c\ndns_try_naptr = yes | no (default no)\n```"
       },
       {
         "name": "dns_sctp_pref,",
         "detail": "DNS Parameters",
-        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**"
+        "doc": "**Alias name:** **dns_sctp_preference, dns_tcp_preference, dns_tls_preference, dns_udp_preference**\n\n``` c\ndns_{udp,tcp,tls,sctp}_pref = number\n```"
       },
       {
         "name": "dns_use_search_list",
         "detail": "DNS Parameters",
-        "doc": "Can be 'yes' or 'no'. If set to 'no', the search list in '/etc/resolv.conf' will be ignored (=> fewer lookups => gives up faster). Default value is 'yes'."
+        "doc": "Can be 'yes' or 'no'. If set to 'no', the search list in '/etc/resolv.conf' will be ignored (=> fewer lookups => gives up faster). Default value is 'yes'.\n\n``` c\ndns_use_search_list=no\n```"
       },
       {
         "name": "use_dns_cache",
@@ -927,152 +927,152 @@
       {
         "name": "use_dns_failover",
         "detail": "DNS Parameters",
-        "doc": "**Alias name:** **dns_use_failover**"
+        "doc": "**Alias name:** **dns_use_failover**\n\n``` c\nuse_dns_failover = on | off (default off)\n```"
       },
       {
         "name": "disable_tcp",
         "detail": "TCP Parameters",
-        "doc": "Global parameter to disable TCP support in the SIP server. Default value is `no`."
+        "doc": "Global parameter to disable TCP support in the SIP server. Default value is `no`.\n\n``` c\ndisable_tcp=yes\n```"
       },
       {
         "name": "tcp_accept_aliases",
         "detail": "TCP Parameters",
-        "doc": "If a message received over a tcp connection has \"alias\" in its via a new tcp alias port will be created for the connection the message came from (the alias port will be set to the via one)."
+        "doc": "If a message received over a tcp connection has \"alias\" in its via a new tcp alias port will be created for the connection the message came from (the alias port will be set to the via one).\n\n``` c\ntcp_accept_aliases= yes|no\n```"
       },
       {
         "name": "tcp_accept_haproxy",
         "detail": "TCP Parameters",
-        "doc": "Enable the internal TCP stack to expect a PROXY-protocol-formatted header as the first message of the connection. Both the human-readable (v1) and binary-encoded (v2) variants of the protocol are supported. This option is typically useful if you are behind a TCP load-balancer, such as HAProxy or an AWS' ELB, and allows the load-balancer to provide connection information regarding the upstream client. This enables the use of IP-based ACLs, even behind a load-balancer."
+        "doc": "Enable the internal TCP stack to expect a PROXY-protocol-formatted header as the first message of the connection. Both the human-readable (v1) and binary-encoded (v2) variants of the protocol are supported. This option is typically useful if you are behind a TCP load-balancer, such as HAProxy or an AWS' ELB, and allows the load-balancer to provide connection information regarding the upstream client. This enables the use of IP-based ACLs, even behind a load-balancer.\n\n``` c\ntcp_accept_haproxy=yes\n```"
       },
       {
         "name": "tcp_accept_hep3",
         "detail": "TCP Parameters",
-        "doc": "Enable internal TCP receiving stack to accept HEP3 packets. This option has to be set to **yes** on a Kamailio instance acting as Homer SIPCapture server that is supposed to receive HEP3 packets over TCP/TLS."
+        "doc": "Enable internal TCP receiving stack to accept HEP3 packets. This option has to be set to **yes** on a Kamailio instance acting as Homer SIPCapture server that is supposed to receive HEP3 packets over TCP/TLS.\n\n``` c\ntcp_accept_hep3=yes\n```"
       },
       {
         "name": "tcp_accept_iplimit",
         "detail": "TCP Parameters",
-        "doc": "Set limit for accepted connections from the same IP address."
+        "doc": "Set limit for accepted connections from the same IP address.\n\n``` c\ntcp_accept_iplimit=32\n```"
       },
       {
         "name": "tcp_accept_no_cl",
         "detail": "TCP Parameters",
-        "doc": "Control whether to throw or not error when there is no Content-Length header for requests received over TCP. It is required to be set to **yes** for XCAP traffic sent over HTTP/1.1 which does not use Content-Length header, but splits large bodies in many chunks. The module **sanity** can be used then to restrict this permission to HTTP traffic only, testing in route block in order to stay RFC3261 compliant about this mandatory header for SIP requests over TCP."
+        "doc": "Control whether to throw or not error when there is no Content-Length header for requests received over TCP. It is required to be set to **yes** for XCAP traffic sent over HTTP/1.1 which does not use Content-Length header, but splits large bodies in many chunks. The module **sanity** can be used then to restrict this permission to HTTP traffic only, testing in route block in order to stay RFC3261 compliant about this mandatory header for SIP requests over TCP.\n\n``` c\ntcp_accept_no_cl=yes\n```"
       },
       {
         "name": "tcp_accept_unique",
         "detail": "TCP Parameters",
-        "doc": "If set to `1`, reject duplicate connections coming from same source IP and port."
+        "doc": "If set to `1`, reject duplicate connections coming from same source IP and port.\n\n``` c\ntcp_accept_unique = 1\n```"
       },
       {
         "name": "tcp_async",
         "detail": "TCP Parameters",
-        "doc": "**Alias name:** **tcp_buf_write**"
+        "doc": "**Alias name:** **tcp_buf_write**\n\n``` c\ntcp_async = yes | no (default yes)\n```"
       },
       {
         "name": "tcp_check_timer",
         "detail": "TCP Parameters",
-        "doc": "Set the check interval (in seconds) for tcp connections. It is used to check if there was any data received on new connections or if the receiving of SIP messages takes too long. See also `tcp_msg_data_timeout` and `tcp_msg_read_timeout`."
+        "doc": "Set the check interval (in seconds) for tcp connections. It is used to check if there was any data received on new connections or if the receiving of SIP messages takes too long. See also `tcp_msg_data_timeout` and `tcp_msg_read_timeout`.\n\n``` c\ntcp_check_timer=5\n```"
       },
       {
         "name": "tcp_children",
         "detail": "TCP Parameters",
-        "doc": "Number of children processes to be created for reading from TCP connections. If no value is explicitly set, the same number of TCP children as UDP children (see \"children\" parameter) will be used."
+        "doc": "Number of children processes to be created for reading from TCP connections. If no value is explicitly set, the same number of TCP children as UDP children (see \"children\" parameter) will be used.\n\n``` c\ntcp_children=4\n```"
       },
       {
         "name": "tcp_clone_rcvbuf",
         "detail": "TCP Parameters",
-        "doc": "Control if the received buffer should be cloned from the TCP stream, needed by functions working inside the SIP message buffer (such as msg_apply_changes())."
+        "doc": "Control if the received buffer should be cloned from the TCP stream, needed by functions working inside the SIP message buffer (such as msg_apply_changes()).\n\n``` c\ntcp_clone_rcvbuf=1\n```"
       },
       {
         "name": "tcp_connection_lifetime",
         "detail": "TCP Parameters",
-        "doc": "Lifetime in seconds for TCP sessions. TCP sessions which are inactive for longer than **tcp_connection_lifetime** will be closed by Kamailio. Default value is defined is `120`. Setting this value to 0 will close the TCP connection pretty quick."
+        "doc": "Lifetime in seconds for TCP sessions. TCP sessions which are inactive for longer than **tcp_connection_lifetime** will be closed by Kamailio. Default value is defined is `120`. Setting this value to 0 will close the TCP connection pretty quick.\n\n``` c\ntcp_connection_lifetime=3605\n```"
       },
       {
         "name": "tcp_connection_match",
         "detail": "TCP Parameters",
-        "doc": "If set to `1`, try to be more strict in matching outbound TCP connections, attempting to lookup first the connection using also local port, not only the local IP and remote IP+port."
+        "doc": "If set to `1`, try to be more strict in matching outbound TCP connections, attempting to lookup first the connection using also local port, not only the local IP and remote IP+port.\n\n``` c\ntcp_connection_match=1\n```"
       },
       {
         "name": "tcp_connect_timeout",
         "detail": "TCP Parameters",
-        "doc": "Time in seconds before an ongoing attempt to establish a new TCP connection will be aborted. Lower this value for faster detection of TCP connection problems. The default value is 10s."
+        "doc": "Time in seconds before an ongoing attempt to establish a new TCP connection will be aborted. Lower this value for faster detection of TCP connection problems. The default value is 10s.\n\n``` c\ntcp_connect_timeout=5\n```"
       },
       {
         "name": "tcp_conn_wq_max",
         "detail": "TCP Parameters",
-        "doc": "Maximum bytes queued for write allowed per connection. Attempting to queue more bytes would result in an error and in the connection being closed (too slow). If tcp_buf_write is not enabled, it has no effect."
+        "doc": "Maximum bytes queued for write allowed per connection. Attempting to queue more bytes would result in an error and in the connection being closed (too slow). If tcp_buf_write is not enabled, it has no effect.\n\n``` c\ntcp_conn_wq_max = bytes (default 32 K)\n```"
       },
       {
         "name": "tcp_crlf_ping",
         "detail": "TCP Parameters",
-        "doc": "Enable SIP outbound TCP keep-alive using PING-PONG (CRLFCRLF - CRLF)."
+        "doc": "Enable SIP outbound TCP keep-alive using PING-PONG (CRLFCRLF - CRLF).\n\n``` c\ntcp_crlf_ping = yes | no default: yes\n```"
       },
       {
         "name": "tcp_defer_accept",
         "detail": "TCP Parameters",
-        "doc": "Tcp accepts will be delayed until some data is received (improves performance on proxies with lots of opened tcp connections). See linux `tcp(7)` `TCP_DEFER_ACCEPT` or freebsd `ACCF_DATA(0)`. For now linux and freebsd only."
+        "doc": "Tcp accepts will be delayed until some data is received (improves performance on proxies with lots of opened tcp connections). See linux `tcp(7)` `TCP_DEFER_ACCEPT` or freebsd `ACCF_DATA(0)`. For now linux and freebsd only.\n\n``` c\ntcp_defer_accept =  yes | no (default no)\n```"
       },
       {
         "name": "tcp_delayed_ack",
         "detail": "TCP Parameters",
-        "doc": "Initial ACK for opened connections will be delayed and sent with the first data segment (see linux tcp(7) TCP_QUICKACK). For now linux only."
+        "doc": "Initial ACK for opened connections will be delayed and sent with the first data segment (see linux tcp(7) TCP_QUICKACK). For now linux only.\n\n``` c\ntcp_delayed_ack  = yes | no (default yes when supported)\n```"
       },
       {
         "name": "tcp_fd_cache",
         "detail": "TCP Parameters",
-        "doc": "If enabled FDs used for sending will be cached inside the process calling tcp_send (performance increase for sending over tcp at the cost of slightly slower connection closing and extra FDs kept open)"
+        "doc": "If enabled FDs used for sending will be cached inside the process calling tcp_send (performance increase for sending over tcp at the cost of slightly slower connection closing and extra FDs kept open)\n\n``` c\ntcp_fd_cache = yes | no (default yes)\n```"
       },
       {
         "name": "tcp_keepalive",
         "detail": "TCP Parameters",
-        "doc": "Enables keepalive for tcp (sets SO_KEEPALIVE socket option)"
+        "doc": "Enables keepalive for tcp (sets SO_KEEPALIVE socket option)\n\n``` c\ntcp_keepalive = yes | no (default yes)\n```"
       },
       {
         "name": "tcp_keepcnt",
         "detail": "TCP Parameters",
-        "doc": "Number of keepalives sent before dropping the connection (TCP_KEEPCNT socket option). Linux only."
+        "doc": "Number of keepalives sent before dropping the connection (TCP_KEEPCNT socket option). Linux only.\n\n``` c\ntcp_keepcnt = number (not set by default)\n```"
       },
       {
         "name": "tcp_keepidle",
         "detail": "TCP Parameters",
-        "doc": "Time before starting to send keepalives, if the connection is idle (TCP_KEEPIDLE socket option). Linux only."
+        "doc": "Time before starting to send keepalives, if the connection is idle (TCP_KEEPIDLE socket option). Linux only.\n\n``` c\ntcp_keepidle  = seconds (not set by default)\n```"
       },
       {
         "name": "tcp_keepintvl",
         "detail": "TCP Parameters",
-        "doc": "Time interval between keepalive probes, when the previous probe failed (TCP_KEEPINTVL socket option). Linux only."
+        "doc": "Time interval between keepalive probes, when the previous probe failed (TCP_KEEPINTVL socket option). Linux only.\n\n``` c\ntcp_keepintvl = seconds (not set by default)\n```"
       },
       {
         "name": "tcp_linger2",
         "detail": "TCP Parameters",
-        "doc": "Lifetime of orphaned sockets in FIN_WAIT2 state (overrides tcp_fin_timeout on, see linux tcp(7) TCP_LINGER2). Linux only."
+        "doc": "Lifetime of orphaned sockets in FIN_WAIT2 state (overrides tcp_fin_timeout on, see linux tcp(7) TCP_LINGER2). Linux only.\n\n``` c\ntcp_linger2 = seconds (not set by default)\n```"
       },
       {
         "name": "tcp_listen_backlog",
         "detail": "TCP Parameters",
-        "doc": "The value for listen backlog parameter for TCP/TLS sockets."
+        "doc": "The value for listen backlog parameter for TCP/TLS sockets.\n\n``` c\ntcp_listen_backlog = 2048\n```"
       },
       {
         "name": "tcp_main_threads",
         "detail": "TCP Parameters",
-        "doc": "If set to 1, the TLS read and encode (for sending) operations are done by threads created by the main TCP process. If set to 0, the operations are done in the old-style, mostly by the SIP worker processes."
+        "doc": "If set to 1, the TLS read and encode (for sending) operations are done by threads created by the main TCP process. If set to 0, the operations are done in the old-style, mostly by the SIP worker processes.\n\n``` c\ntcp_main_threads = 1\n```"
       },
       {
         "name": "tcp_max_connections",
         "detail": "TCP Parameters",
-        "doc": "Maximum number of tcp connections (if the number is exceeded no new tcp connections will be accepted). Default is defined in tcp_init.h: #define DEFAULT_TCP_MAX_CONNECTIONS 2048"
+        "doc": "Maximum number of tcp connections (if the number is exceeded no new tcp connections will be accepted). Default is defined in tcp_init.h: #define DEFAULT_TCP_MAX_CONNECTIONS 2048\n\n``` c\ntcp_max_connections=4096\n```"
       },
       {
         "name": "tcp_msg_data_timeout",
         "detail": "TCP Parameters",
-        "doc": "Duration in seconds for how long to wait till data is received on a new tcp connection. Default 20."
+        "doc": "Duration in seconds for how long to wait till data is received on a new tcp connection. Default 20.\n\n``` c\ntcp_msg_data_timeout=10\n```"
       },
       {
         "name": "tcp_msg_read_timeout",
         "detail": "TCP Parameters",
-        "doc": "Duration in seconds for how long to wait till a SIP message is read on a new tcp connection. Default 20."
+        "doc": "Duration in seconds for how long to wait till a SIP message is read on a new tcp connection. Default 20.\n\n``` c\ntcp_msg_read_timeout=10\n```"
       },
       {
         "name": "tcp_no_connect",
@@ -1082,42 +1082,42 @@
       {
         "name": "tcp_poll_method",
         "detail": "TCP Parameters",
-        "doc": "Poll method used (by default the best one for the current OS is selected). For available types see io_wait.c and poll_types.h: none, poll, epoll_lt, epoll_et, sigio_rt, select, kqueue, /dev/poll"
+        "doc": "Poll method used (by default the best one for the current OS is selected). For available types see io_wait.c and poll_types.h: none, poll, epoll_lt, epoll_et, sigio_rt, select, kqueue, /dev/poll\n\n``` c\ntcp_poll_method=select\n```"
       },
       {
         "name": "tcp_rd_buf_size",
         "detail": "TCP Parameters",
-        "doc": "Buffer size used for tcp reads. A high buffer size increases performance on server with few connections and lot of traffic on them, but also increases memory consumption (so for lots of connection is better to use a low value). Note also that this value limits the maximum message size (SIP, HTTP) that can be received over tcp."
+        "doc": "Buffer size used for tcp reads. A high buffer size increases performance on server with few connections and lot of traffic on them, but also increases memory consumption (so for lots of connection is better to use a low value). Note also that this value limits the maximum message size (SIP, HTTP) that can be received over tcp.\n\n``` c\ntcp_rd_buf_size=65536\n```"
       },
       {
         "name": "tcp_reuse_port",
         "detail": "TCP Parameters",
-        "doc": "Allows reuse of TCP ports. This means, for example, that the same TCP ports on which Kamailio is listening on, can be used as source ports of new TCP connections when acting as an UAC. Kamailio must have been compiled in a system implementing SO_REUSEPORT (Linux \\> 3.9.0, FreeBSD, OpenBSD, NetBSD, MacOSX). This parameter takes effect only if also the system on which Kamailio is running on supports SO_REUSEPORT."
+        "doc": "Allows reuse of TCP ports. This means, for example, that the same TCP ports on which Kamailio is listening on, can be used as source ports of new TCP connections when acting as an UAC. Kamailio must have been compiled in a system implementing SO_REUSEPORT (Linux \\> 3.9.0, FreeBSD, OpenBSD, NetBSD, MacOSX). This parameter takes effect only if also the system on which Kamailio is running on supports SO_REUSEPORT.\n\n``` c\ntcp_reuse_port = yes (default no)\n```"
       },
       {
         "name": "tcp_script_mode",
         "detail": "TCP Parameters",
-        "doc": "Specify if connection should be closed (set to CONN_ERROR) if processing the received message results in error (that can also be due to negative return code from a configuration script main route block). If set to 1, the processing continues with the connection open."
+        "doc": "Specify if connection should be closed (set to CONN_ERROR) if processing the received message results in error (that can also be due to negative return code from a configuration script main route block). If set to 1, the processing continues with the connection open.\n\n``` c\ntcp_script_mode = 1\n```"
       },
       {
         "name": "tcp_send_timeout",
         "detail": "TCP Parameters",
-        "doc": "Time in seconds after a TCP connection will be closed if it is not available for writing in this interval (and Kamailio wants to send something on it). Lower this value for faster detection of broken TCP connections. The default value is 10s."
+        "doc": "Time in seconds after a TCP connection will be closed if it is not available for writing in this interval (and Kamailio wants to send something on it). Lower this value for faster detection of broken TCP connections. The default value is 10s.\n\n``` c\ntcp_send_timeout=3\n```"
       },
       {
         "name": "tcp_source_ipv4,",
         "detail": "TCP Parameters",
-        "doc": "Set the source IP for all outbound TCP connections. If setting of the IP fails, the TCP connection will use the default IP address."
+        "doc": "Set the source IP for all outbound TCP connections. If setting of the IP fails, the TCP connection will use the default IP address.\n\n``` c\ntcp_source_ipv4 = IPv4 address\ntcp_source_ipv6 = IPv6 address\n```"
       },
       {
         "name": "tcp_syncnt",
         "detail": "TCP Parameters",
-        "doc": "Number of SYN retransmissions before aborting a connect attempt (see linux tcp(7) TCP_SYNCNT). Linux only."
+        "doc": "Number of SYN retransmissions before aborting a connect attempt (see linux tcp(7) TCP_SYNCNT). Linux only.\n\n``` c\ntcp_syncnt = number of syn retr. (default not set)\n```"
       },
       {
         "name": "tcp_wait_data",
         "detail": "TCP Parameters",
-        "doc": "Specify how long to wait (in milliseconds) to wait for data on tcp connections in certain cases. Now applies when reading on tcp connection for haproxy protocol."
+        "doc": "Specify how long to wait (in milliseconds) to wait for data on tcp connections in certain cases. Now applies when reading on tcp connection for haproxy protocol.\n\n``` c\ntcp_wait_data = 10000\n```"
       },
       {
         "name": "tcp_wq_blk_size",
@@ -1127,137 +1127,137 @@
       {
         "name": "tcp_wq_max",
         "detail": "TCP Parameters",
-        "doc": "Maximum bytes queued for write allowed globally. It has no effect if tcp_buf_write is not enabled."
+        "doc": "Maximum bytes queued for write allowed globally. It has no effect if tcp_buf_write is not enabled.\n\n``` c\ntcp_wq_max = bytes (default 10 Mb)\n```"
       },
       {
         "name": "tls_port_no",
         "detail": "TLS Parameters",
-        "doc": "The port the SIP server listens to for TLS connections."
+        "doc": "The port the SIP server listens to for TLS connections.\n\n``` c\ntls_port_no=6061\n```"
       },
       {
         "name": "tls_max_connections",
         "detail": "TLS Parameters",
-        "doc": "Maximum number of TLS connections (if the number is exceeded no new TLS connections will be accepted). It cannot exceed tcp_max_connections."
+        "doc": "Maximum number of TLS connections (if the number is exceeded no new TLS connections will be accepted). It cannot exceed tcp_max_connections.\n\n``` c\ntls_max_connections=4096\n```"
       },
       {
         "name": "tls_threads_mode",
         "detail": "TLS Parameters",
-        "doc": "Control how to initialize the internal multi-threading system that impacts libssl 3.x."
+        "doc": "Control how to initialize the internal multi-threading system that impacts libssl 3.x.\n\n``` c\ntls_threads_mode = 2\n```"
       },
       {
         "name": "disable_sctp",
         "detail": "SCTP Parameters",
-        "doc": "Global parameter to disable SCTP support in the SIP server. See also `enable_sctp`."
+        "doc": "Global parameter to disable SCTP support in the SIP server. See also `enable_sctp`.\n\n``` c\ndisable_sctp=yes\n```"
       },
       {
         "name": "enable_sctp",
         "detail": "SCTP Parameters",
-        "doc": ""
+        "doc": "``` c\nenable_sctp = 0/1/2  - SCTP disabled (0)/ SCTP enabled (1)/auto (2),\n                        default auto (2)\n```"
       },
       {
         "name": "sctp_children",
         "detail": "SCTP Parameters",
-        "doc": "sctp children no (similar to udp children)"
+        "doc": "sctp children no (similar to udp children)\n\n``` c\nsctp_children = number\n```"
       },
       {
         "name": "sctp_socket_rcvbuf",
         "detail": "SCTP Parameters",
-        "doc": "Size for the sctp socket receive buffer"
+        "doc": "Size for the sctp socket receive buffer\n\n``` c\nsctp_socket_rcvbuf = number\n```"
       },
       {
         "name": "sctp_socket_sndbuf",
         "detail": "SCTP Parameters",
-        "doc": "Size for the sctp socket send buffer"
+        "doc": "Size for the sctp socket send buffer\n\n``` c\nsctp_socket_sndbuf = number\n```"
       },
       {
         "name": "sctp_autoclose",
         "detail": "SCTP Parameters",
-        "doc": "Number of seconds before autoclosing an idle association (default: `180` s). Can be changed at runtime, but it will affect only new associations. E.g.:"
+        "doc": "Number of seconds before autoclosing an idle association (default: `180` s). Can be changed at runtime, but it will affect only new associations. E.g.:\n\n``` c\nkamcmd cfg.seti sctp autoclose 120\n```"
       },
       {
         "name": "sctp_send_ttl",
         "detail": "SCTP Parameters",
-        "doc": "Number of milliseconds before an unsent message/chunk is dropped (default: `32000` ms or `32` s). Can be changed at runtime, e.g.:"
+        "doc": "Number of milliseconds before an unsent message/chunk is dropped (default: `32000` ms or `32` s). Can be changed at runtime, e.g.:\n\n``` c\nkamcmd cfg.seti sctp send_ttl 180000\n```"
       },
       {
         "name": "sctp_send_retries",
         "detail": "SCTP Parameters",
-        "doc": "How many times to attempt re-sending a message on a re-opened association, if the sctp stack did give up sending it (it's not related to sctp protocol level retransmission). Useful to improve reliability with peers that reboot/restart or fail over to another machine."
+        "doc": "How many times to attempt re-sending a message on a re-opened association, if the sctp stack did give up sending it (it's not related to sctp protocol level retransmission). Useful to improve reliability with peers that reboot/restart or fail over to another machine.\n\n``` c\nsctp_send_retries = 1\n```"
       },
       {
         "name": "sctp_assoc_tracking",
         "detail": "SCTP Parameters",
-        "doc": "Controls whether or not sctp associations are tracked inside Kamailio. Turning it off would result in less memory being used and slightly better performance, but it will also disable some other features that depend on it (e.g. `sctp_assoc_reuse`). Default: yes."
+        "doc": "Controls whether or not sctp associations are tracked inside Kamailio. Turning it off would result in less memory being used and slightly better performance, but it will also disable some other features that depend on it (e.g. `sctp_assoc_reuse`). Default: yes.\n\n``` c\nsctp_assoc_tracking = yes/no\n```"
       },
       {
         "name": "sctp_assoc_reuse",
         "detail": "SCTP Parameters",
-        "doc": "Controls sctp association reuse. For now only association reuse for replies is affected by it. Default: `yes`. Depends on `sctp_assoc_tracking` being on."
+        "doc": "Controls sctp association reuse. For now only association reuse for replies is affected by it. Default: `yes`. Depends on `sctp_assoc_tracking` being on.\n\n``` c\nsctp_assoc_reuse = yes/no\n```"
       },
       {
         "name": "sctp_max_assocs",
         "detail": "SCTP Parameters",
-        "doc": "Maximum number of allowed open sctp associations. -1 means maximum allowed by the OS. Default: -1. Can be changed at runtime (e.g.: `kamcmd cfg.seti sctp max_assocs 10`). When the maximum associations number is exceeded and a new associations is opened by a remote host, the association will be immediately closed. However it is possible that some SIP packets get through (especially if they are sent early, as part of the 4-way handshake)."
+        "doc": "Maximum number of allowed open sctp associations. -1 means maximum allowed by the OS. Default: -1. Can be changed at runtime (e.g.: `kamcmd cfg.seti sctp max_assocs 10`). When the maximum associations number is exceeded and a new associations is opened by a remote host, the association will be immediately closed. However it is possible that some SIP packets get through (especially if they are sent early, as part of the 4-way handshake).\n\n``` c\nsctp_max_assocs = number\n```"
       },
       {
         "name": "sctp_srto_initial",
         "detail": "SCTP Parameters",
-        "doc": "Initial value of the retr. timeout, used in RTO calculations (default: OS specific)."
+        "doc": "Initial value of the retr. timeout, used in RTO calculations (default: OS specific).\n\n``` c\nsctp_srto_initial = milliseconds\n```"
       },
       {
         "name": "sctp_srto_max",
         "detail": "SCTP Parameters",
-        "doc": "Maximum value of the retransmission timeout (RTO) (default: OS specific)."
+        "doc": "Maximum value of the retransmission timeout (RTO) (default: OS specific).\n\n``` c\nsctp_srto_max = milliseconds\n```"
       },
       {
         "name": "sctp_srto_min",
         "detail": "SCTP Parameters",
-        "doc": "Minimum value of the retransmission timeout (RTO) (default: OS specific)."
+        "doc": "Minimum value of the retransmission timeout (RTO) (default: OS specific).\n\n``` c\nsctp_srto_min = milliseconds\n```"
       },
       {
         "name": "sctp_asocmaxrxt",
         "detail": "SCTP Parameters",
-        "doc": "Maximum retransmissions attempts per association (default: OS specific). It should be set to `sctp_pathmaxrxt` `*` no. of expected paths."
+        "doc": "Maximum retransmissions attempts per association (default: OS specific). It should be set to `sctp_pathmaxrxt` `*` no. of expected paths.\n\n``` c\nsctp_asocmaxrxt   = number\n```"
       },
       {
         "name": "sctp_init_max_attempts",
         "detail": "SCTP Parameters",
-        "doc": "Maximum INIT retransmission attempts (default: OS specific)."
+        "doc": "Maximum INIT retransmission attempts (default: OS specific).\n\n``` c\nsctp_init_max_attempts = number\n```"
       },
       {
         "name": "sctp_init_max_timeo",
         "detail": "SCTP Parameters",
-        "doc": "Maximum INIT retransmission timeout (RTO max for INIT). Default: OS specific."
+        "doc": "Maximum INIT retransmission timeout (RTO max for INIT). Default: OS specific.\n\n``` c\nsctp_init_max_timeo = milliseconds\n```"
       },
       {
         "name": "sctp_hbinterval",
         "detail": "SCTP Parameters",
-        "doc": "sctp heartbeat interval. Setting it to -1 will disable the heartbeats. Default: OS specific."
+        "doc": "sctp heartbeat interval. Setting it to -1 will disable the heartbeats. Default: OS specific.\n\n``` c\nsctp_hbinterval = milliseconds\n```"
       },
       {
         "name": "sctp_pathmaxrxt",
         "detail": "SCTP Parameters",
-        "doc": "Maximum retransmission attempts per path (see also sctp_asocmaxrxt). Default: OS specific."
+        "doc": "Maximum retransmission attempts per path (see also sctp_asocmaxrxt). Default: OS specific.\n\n``` c\nsctp_pathmaxrxt = number\n```"
       },
       {
         "name": "sctp_sack_delay",
         "detail": "SCTP Parameters",
-        "doc": "Delay until an ACK is generated after receiving a packet. Default: OS specific."
+        "doc": "Delay until an ACK is generated after receiving a packet. Default: OS specific.\n\n``` c\nsctp_sack_delay = milliseconds\n```"
       },
       {
         "name": "sctp_sack_freq",
         "detail": "SCTP Parameters",
-        "doc": "Number of packets received before an ACK is sent (without waiting for the `sack_delay` to expire). Default: OS specific."
+        "doc": "Number of packets received before an ACK is sent (without waiting for the `sack_delay` to expire). Default: OS specific.\n\n``` c\nsctp_sack_freq = number\n```"
       },
       {
         "name": "sctp_max_burst",
         "detail": "SCTP Parameters",
-        "doc": "Maximum burst of packets that can be emitted by an association. Default: OS specific."
+        "doc": "Maximum burst of packets that can be emitted by an association. Default: OS specific.\n\n``` c\nsctp_max_burst = number\n```"
       },
       {
         "name": "udp4_raw",
         "detail": "UDP Parameters",
-        "doc": "Enables raw socket support for sending UDP IPv4 datagrams (40-50% performance increase on linux multi-cpu)."
+        "doc": "Enables raw socket support for sending UDP IPv4 datagrams (40-50% performance increase on linux multi-cpu).\n\n``` c\nudp4_raw = on\n```"
       },
       {
         "name": "udp4_raw_mtu",
@@ -1272,62 +1272,62 @@
       {
         "name": "dst_blocklist_expire",
         "detail": "Blocklist Parameters",
-        "doc": "**Alias name:** **dst_blocklist_ttl**"
+        "doc": "**Alias name:** **dst_blocklist_ttl**\n\n``` c\ndst_blocklist_expire = time in s (default 60 s)\n```"
       },
       {
         "name": "dst_blocklist_gc_interval",
         "detail": "Blocklist Parameters",
-        "doc": "How often the garbage collection will run (eliminating old, expired entries)."
+        "doc": "How often the garbage collection will run (eliminating old, expired entries).\n\n``` c\ndst_blocklist_gc_interval = time in s (default 60 s)\n```"
       },
       {
         "name": "dst_blocklist_init",
         "detail": "Blocklist Parameters",
-        "doc": "If off, the blocklist is not initialized at startup and cannot be enabled at runtime, this saves some memory."
+        "doc": "If off, the blocklist is not initialized at startup and cannot be enabled at runtime, this saves some memory.\n\n``` c\ndst_blocklist_init = on | off (default on)\n```"
       },
       {
         "name": "dst_blocklist_mem",
         "detail": "Blocklist Parameters",
-        "doc": "Maximum shared memory amount used for keeping the blocklisted destinations."
+        "doc": "Maximum shared memory amount used for keeping the blocklisted destinations.\n\n``` c\ndst_blocklist_mem = size in Kb (default 250 Kb)\n```"
       },
       {
         "name": "use_dst_blocklist",
         "detail": "Blocklist Parameters",
-        "doc": "Enable the destination blocklist: Each failed send attempt will cause the destination to be added to the blocklist. Before any send, this blocklist will be checked and if a match is found, the send is no longer attempted (an error is returned immediately)."
+        "doc": "Enable the destination blocklist: Each failed send attempt will cause the destination to be added to the blocklist. Before any send, this blocklist will be checked and if a match is found, the send is no longer attempted (an error is returned immediately).\n\n``` c\nuse_dst_blocklist = on | off (default off)\n```"
       },
       {
         "name": "real_time",
         "detail": "Real-Time Parameters",
-        "doc": "Sets real time priority for all the Kamailio processes, or the timers (bitmask)."
+        "doc": "Sets real time priority for all the Kamailio processes, or the timers (bitmask).\n\n``` c\nreal_time = <int> (flags) (default off)\n```"
       },
       {
         "name": "rt_policy",
         "detail": "Real-Time Parameters",
-        "doc": "Real time scheduling policy, `0 = SCHED_OTHER`, `1= SCHED_RR` and `2=SCHED_FIFO`"
+        "doc": "Real time scheduling policy, `0 = SCHED_OTHER`, `1= SCHED_RR` and `2=SCHED_FIFO`\n\n``` c\nrt_policy= <0..3> (default 0)\n```"
       },
       {
         "name": "rt_prio",
         "detail": "Real-Time Parameters",
-        "doc": "Real time priority used for everything except the timers, if `real_time` is enabled."
+        "doc": "Real time priority used for everything except the timers, if `real_time` is enabled.\n\n``` c\nrt_prio = <int> (default 0)\n```"
       },
       {
         "name": "rt_timer1_policy",
         "detail": "Real-Time Parameters",
-        "doc": "**Alias name:** **rt_ftimer_policy**"
+        "doc": "**Alias name:** **rt_ftimer_policy**\n\n``` c\nrt_timer1_policy=<0..3> (default 0)\n```"
       },
       {
         "name": "rt_timer1_prio",
         "detail": "Real-Time Parameters",
-        "doc": "**Alias name:** **rt_fast_timer_prio, rt_ftimer_prio**"
+        "doc": "**Alias name:** **rt_fast_timer_prio, rt_ftimer_prio**\n\n``` c\nrt_timer1_prio=<int> (default 0)\n```"
       },
       {
         "name": "rt_timer2_policy",
         "detail": "Real-Time Parameters",
-        "doc": "**Alias name:** **rt_stimer_policy**"
+        "doc": "**Alias name:** **rt_stimer_policy**\n\n``` c\nrt_timer2_policy=<0..3> (default 0)\n```"
       },
       {
         "name": "rt_timer2_prio",
         "detail": "Real-Time Parameters",
-        "doc": "**Alias name:** **rt_stimer_prio**"
+        "doc": "**Alias name:** **rt_stimer_prio**\n\n``` c\nrt_timer2_prio=<int> (default 0)\n```"
       }
     ],
     "pvars": [
@@ -1384,7 +1384,7 @@
       {
         "name": "$branch",
         "detail": "Branch attributes",
-        "doc": "**$branch(name)** - reference to attribute 'name' of a branch"
+        "doc": "**$branch(name)** - reference to attribute 'name' of a branch\n\n``` c\n$var(i)=0;\nwhile($var(i)<$branch(count))\n{\n   xlog(\"$(branch(uri)[$var(i)])\\n\");\n   $var(i) = $var(i) + 1;\n}\n```"
       },
       {
         "name": "$br",
@@ -1424,7 +1424,7 @@
       {
         "name": "$cnt",
         "detail": "Count number of pvs",
-        "doc": "**$cnt(avp)** - return the number of avps"
+        "doc": "**$cnt(avp)** - return the number of avps\n\n``` c\nxlog(\"$$avp(x) found $cnt($avp(x)) times\\n\");\n```"
       },
       {
         "name": "$conid",
@@ -1469,22 +1469,22 @@
       {
         "name": "$def",
         "detail": "Defined Value",
-        "doc": "**$def(name)** - return a defined value."
+        "doc": "**$def(name)** - return a defined value.\n\n``` c\n#!define ABC xyz\n\nxlog(\"ABC: $def(ABC)\\n\");\n```"
       },
       {
         "name": "$defn",
         "detail": "Defined Value As Number",
-        "doc": "**$defn(name)** - return a defined value as a signed integer."
+        "doc": "**$defn(name)** - return a defined value as a signed integer.\n\n``` c\n#!define FLT_ACC 1\n\nxlog(\"FLT_ACC: $defn(FLT_ACC)\\n\");\n```"
       },
       {
         "name": "$defs",
         "detail": "String Quoted Defined Value",
-        "doc": "**$defs(name)** - return string quoted defined value. If the defined value is enclosed between single or double quotes, then the value is returned as it is."
+        "doc": "**$defs(name)** - return string quoted defined value. If the defined value is enclosed between single or double quotes, then the value is returned as it is.\n\n``` c\n#!define ABC xyz\n\nxlog(\"ABC: $defs(ABC)\\n\");\n```"
       },
       {
         "name": "$defv",
         "detail": "Unquoted Defined Value",
-        "doc": "**$defv(name)** - return unquoted defined value. Works for both single and double quotes. If the defined value is not enclosed between quotes, then the value is returned as it is."
+        "doc": "**$defv(name)** - return unquoted defined value. Works for both single and double quotes. If the defined value is not enclosed between quotes, then the value is returned as it is.\n\n``` c\n#!define ABC \"xyz\"\n\nxlog(\"ABC: $defv(ABC)\\n\");\n```"
       },
       {
         "name": "$di",
@@ -1584,17 +1584,17 @@
       {
         "name": "$fn",
         "detail": "From display name",
-        "doc": "**$fn** - reference to display name of 'From' header"
+        "doc": "**$fn** - reference to display name of 'From' header\n\n``` c\nloadmodule \"textopsx.so\"\n...\n$fu = \"sip:new_user@example.com\"\nmsg_apply_changes()\n$fn = \"New Display Name\"\nmsg_apply_changes()\n...\n```"
       },
       {
         "name": "$fs",
         "detail": "Forced Send Socket",
-        "doc": "**$fs** - reference to the forced send socket for the SIP message (if any) in the form \"proto:ip:port\". It is the socket from where Kamailio is going to send out the message."
+        "doc": "**$fs** - reference to the forced send socket for the SIP message (if any) in the form \"proto:ip:port\". It is the socket from where Kamailio is going to send out the message.\n\n``` c\nlisten=udp:1.2.3.4:5060\n...\n$fs = \"udp:1.2.3.4:5060\";\n```"
       },
       {
         "name": "$fsn",
         "detail": "Forced Send Socket Name",
-        "doc": "**$fsn** - reference to the name of the forced send socket for the SIP message. The name can be assigned to this variable to select a send socket via its name."
+        "doc": "**$fsn** - reference to the name of the forced send socket for the SIP message. The name can be assigned to this variable to select a send socket via its name.\n\n``` c\nlisten=udp:1.2.3.4:5060 name \"s1\"\n...\n$fsn = \"s1\";\n...\n$fs = \"udp:1.2.3.4:5060\";\nxdbg(\"name for forced send socket: $fsn\\n\");\n```"
       },
       {
         "name": "$ft",
@@ -1609,7 +1609,7 @@
       {
         "name": "$fu",
         "detail": "From URI",
-        "doc": "**$fu** - reference to URI of 'From' header"
+        "doc": "**$fu** - reference to URI of 'From' header\n\n``` c\nloadmodule \"textopsx.so\"\n...\n$fu = \"sip:new_user@example.com\"\nmsg_apply_changes()\n$fn = \"New Display Name\"\nmsg_apply_changes()\n...\n```"
       },
       {
         "name": "$fU",
@@ -1729,7 +1729,7 @@
       {
         "name": "$rc",
         "detail": "Returned code",
-        "doc": "**$rc** - reference to returned code by last invoked function"
+        "doc": "**$rc** - reference to returned code by last invoked function\n\n``` c\n    lookup(\"location\");\n    $var(rc) = $rc;\n    if ($var(rc) < 0) {\n        t_newtran();\n        switch ($var(rc)) {\n            case -1:\n            case -3:\n                send_reply(\"404\", \"Not Found\");\n                exit;\n            case -2:\n                send_reply(\"405\", \"Method Not Allowed\");\n                exit;\n        }\n    }\n```"
       },
       {
         "name": "$rd",
@@ -1739,7 +1739,7 @@
       {
         "name": "$rdir",
         "detail": "Request Direction",
-        "doc": "**$rdir(key)** - get the direction of the request within dialog."
+        "doc": "**$rdir(key)** - get the direction of the request within dialog.\n\n``` c\nif($rdir(name)==\"upstream\") {\n  xlog(\"request was sent by callee\\n\");\n}\n```"
       },
       {
         "name": "$re",
@@ -1869,7 +1869,7 @@
       {
         "name": "$sbranch",
         "detail": "Static Branch",
-        "doc": "**$sbranch(attr)** - class of variables allowing to manage the values of attributes for static branch. The static branch is internal structure that is used by the functions sbranch_push_ruri() and sbranch_append() from **pv** module, enabling more flexibility in updating the R-URI (first) branch attributes as well as extra branches (e.g., for parallel forking)."
+        "doc": "**$sbranch(attr)** - class of variables allowing to manage the values of attributes for static branch. The static branch is internal structure that is used by the functions sbranch_push_ruri() and sbranch_append() from **pv** module, enabling more flexibility in updating the R-URI (first) branch attributes as well as extra branches (e.g., for parallel forking).\n\n``` c\nsbranch_reset();\n$sbranch(uri) = \"sip:127.0.0.1:5080\";\n$sbranch(dst_uri) =  \"sip:127.0.0.1:5090\";\n$sbranch(path) =  \"sip:127.0.0.1:5090, sip:127.0.0.1:5094\";\n$sbranch(send_socket) =  \"udp:127.0.0.1:5060\";\nsbranch_set_ruri();\n```"
       },
       {
         "name": "$sf",
@@ -1924,7 +1924,7 @@
       {
         "name": "$tn",
         "detail": "To display name",
-        "doc": "**$tn** - reference to display name of 'To' header"
+        "doc": "**$tn** - reference to display name of 'To' header\n\n``` c\nloadmodule \"textopsx.so\"\n...\n$tu = \"sip:new_user@example.com\"\nmsg_apply_changes()\n$tn = \"New Display Name\"\nmsg_apply_changes()\n...\n```"
       },
       {
         "name": "$tt",
@@ -1944,7 +1944,7 @@
       {
         "name": "$tu",
         "detail": "To URI",
-        "doc": "**$tu** - reference to URI of 'To' header"
+        "doc": "**$tu** - reference to URI of 'To' header\n\n``` c\nloadmodule \"textopsx.so\"\n...\n$fu = \"sip:new_user@example.com\"\nmsg_apply_changes()\n$fn = \"New Display Name\"\nmsg_apply_changes()\n...\n```"
       },
       {
         "name": "$tU",
@@ -2109,7 +2109,7 @@
       {
         "name": "$rcv",
         "detail": "$rcv(key)",
-        "doc": "Attributes of received data. The variables must be used inside **event_route\\[core:msg-received\\]** routing block."
+        "doc": "Attributes of received data. The variables must be used inside **event_route\\[core:msg-received\\]** routing block.\n\n``` c\nevent_route[core:msg-received] {\n  xlog(\"rcv on $rcv(af)/$rcv(proto): ($rcv(len)) [$rcv(buf)] from [$rcv(srcip):$rcv(srcport)] to [$rcv(rcvip):$rcv(rcvport)]\\n\");\n}\n```"
       },
       {
         "name": "$rpl",
@@ -2124,17 +2124,17 @@
       {
         "name": "$hfitname",
         "detail": "$hfitname(iname)",
-        "doc": "The header name of the header field iterator."
+        "doc": "The header name of the header field iterator.\n\n``` c\n    hf_iterator_start(\"i1\");\n    while(hf_iterator_next(\"i1\")) {\n        xlog(\"hdr[$hfitname(i1)] is: $hfitbody(i1)\\n\");\n    }\n    hf_iterator_end(\"i1\");\n```"
       },
       {
         "name": "$hfitbody",
         "detail": "$hfitbody(iname)",
-        "doc": "The header body of the header field iterator."
+        "doc": "The header body of the header field iterator.\n\n``` c\n    hf_iterator_start(\"i1\");\n    while(hf_iterator_next(\"i1\")) {\n        xlog(\"hdr[$hfitname(i1)] is: $hfitbody(i1)\\n\");\n    }\n    hf_iterator_end(\"i1\");\n```"
       },
       {
         "name": "$blitval",
         "detail": "$blitval(iname)",
-        "doc": "The value of the body line iterator."
+        "doc": "The value of the body line iterator.\n\n``` c\n    bl_iterator_start(\"b1\");\n    while(bl_iterator_next(\"b1\")) {\n        xlog(\"body line: $blitval(b1)\");\n    }\n    bl_iterator_end(\"b1\");\n```"
       },
       {
         "name": "$sndfrom",
@@ -2144,17 +2144,17 @@
       {
         "name": "$sndto",
         "detail": "$sndto(name)",
-        "doc": "**$sndto(name)** - return attributes of the address to where the request is going to be sent (remote socket)."
+        "doc": "**$sndto(name)** - return attributes of the address to where the request is going to be sent (remote socket).\n\n``` c\nonsend_route {\n  if($snd(ip)==\"10.10.10.10\")\n  {\n    ...\n  }\n}\n```"
       },
       {
         "name": "$sipdump",
         "detail": "$sipdump(name)",
-        "doc": "**$sipdump(name)** - return attributes of the message handled in the event_route\\[sipdump:msg\\]."
+        "doc": "**$sipdump(name)** - return attributes of the message handled in the event_route\\[sipdump:msg\\].\n\n``` c\nevent_route[sipdump:msg] {\n  if($sipdump(len) > 1024) {\n    ...\n  }\n}\n```"
       },
       {
         "name": "$siptrace",
         "detail": "$siptrace(name)",
-        "doc": "**$siptrace(name)** - return attributes of the message handled in the event_route\\[siptrace:msg\\]."
+        "doc": "**$siptrace(name)** - return attributes of the message handled in the event_route\\[siptrace:msg\\].\n\n``` c\nevent_route[siptrace:msg]\n{\n    if (allow_address(\"1\", \"$siptrace(src_hostip)\", \"0\")) {\n        return;\n\n    }\n    if (compare_ips($siptrace(src_host), \"[2001:DB8::1]\")) {\n        return;\n    }\n}\n```"
       },
       {
         "name": "$BM_time_diff",
@@ -2179,17 +2179,17 @@
       {
         "name": "$erl_atom",
         "detail": "$erl_atom(name)",
-        "doc": "_$erl_atom(name)_ pseudo variable allows create analog to Erlang atom data type. Erlang atom is a literal, a constant with name. Formatted output pseudo variable atom could be enclosed in single quotes (') if it does not begin with a lower-case letter or if it contains other characters than alphanumeric characters, underscore (\\_), or @."
+        "doc": "_$erl_atom(name)_ pseudo variable allows create analog to Erlang atom data type. Erlang atom is a literal, a constant with name. Formatted output pseudo variable atom could be enclosed in single quotes (') if it does not begin with a lower-case letter or if it contains other characters than alphanumeric characters, underscore (\\_), or @.\n\n``` c\n$erl_atom(A) = \"node@host.tld\";\n\nxlogl(\"L_DEBUG\",\"$$erl_atom(A): $erl_atom(A=>format)\\n\");\n```"
       },
       {
         "name": "$erl_list",
         "detail": "$erl_list(name)",
-        "doc": "Compound data type with a variable number of terms. Formally, a list is either the empty list \\[\\] or consists of one or more elements."
+        "doc": "Compound data type with a variable number of terms. Formally, a list is either the empty list \\[\\] or consists of one or more elements.\n\n``` c\n$erl_atom(E) = \"example\";\n$erl_list(L) = \"list\";\n$erl_list(L) = \"of\";\n$erl_list(L) = $erl_atom(E);\n\nxlogl(\"L_DEBUG\",\"length(L): $erl_list(L=>length), format(L): $erl_list(L=>format)\\n\");\n\n# empty list\n$erl_tuple(E[*]) = $null;\n```"
       },
       {
         "name": "$erl_tuple",
         "detail": "$erl_tuple(name)",
-        "doc": "From the Erlang point of view the tuple compound data type with a fixed number of terms. The module implementation of tuple has the same behavior as the list."
+        "doc": "From the Erlang point of view the tuple compound data type with a fixed number of terms. The module implementation of tuple has the same behavior as the list.\n\n``` c\n$erl_atom(e) = \"error\";\n\n$erl_tuple(T) = \"badrpc\";\n$erl_tuple(T) = $erl_atom(e);\n\nxlogl(\"L_DEBUG\",\"length(T): $erl_tuple(T=>length), format(T): $erl_tuple(T=>format)\\n\");\n```"
       },
       {
         "name": "$erl_pid",
@@ -2249,12 +2249,12 @@
       {
         "name": "$shtitval",
         "detail": "$shtitval(iname)",
-        "doc": "The value at the current position in the iterator."
+        "doc": "The value at the current position in the iterator.\n\n``` c\n    sht_iterator_start(\"i1\", \"h1\");\n    while(sht_iterator_next(\"i1\")) {\n        xlog(\"h1[$shtitkey(i1)] is: $shtitval(i1)\\n\");\n    }\n    sht_iterator_end(\"i1\");\n```"
       },
       {
         "name": "$shtrecord",
         "detail": "$shtrecord(id)",
-        "doc": "Get the key or the value of expired item inside the event_route\\[htable:expired:\\_table_name\\_\\]."
+        "doc": "Get the key or the value of expired item inside the event_route\\[htable:expired:\\_table_name\\_\\].\n\n``` c\nevent_route[htable:expired:h1] {\n  xlog(\"expired item ($shtrecord(key),$shtrecord(value))\\n\");\n}\n```"
       },
       {
         "name": "$mct",
@@ -2329,7 +2329,7 @@
       {
         "name": "$uac_req",
         "detail": "$uac_req(key)",
-        "doc": "- used to build the input for uac_send_req() function of UAC module"
+        "doc": "- used to build the input for uac_send_req() function of UAC module\n\n``` c\n$uac_req(method)=\"OPTIONS\";\n$uac_req(ruri)=\"sip:kamailio.org\";\n$uac_req(furi)=\"sip:kamailio.org\";\n$uac_req(turi)=\"sip:kamailio.org\";\n$uac_req(evroute) = 1;\nuac_req_send();\n...\nevent_route[uac:reply] {\n  xlog(\"request sent to $uac_req(ruri) completed with code: $uac_req(evcode)\\n\");\n}\n```"
       },
       {
         "name": "$rr_count",
@@ -2349,7 +2349,7 @@
       {
         "name": "$mqv",
         "detail": "$mqv(q)",
-        "doc": "- return the value of fetched item from queue q"
+        "doc": "- return the value of fetched item from queue q\n\n``` c\n...\nmq_add(\"myq\", \"$rU\", \"call from $fU at $Tf\");\n...\nwhile(mq_fetch(\"myq\"))\n{\n   xlog(\"$mqk(myq) - $mqv(myq)\\n\");\n}\n...\n```"
       },
       {
         "name": "$TV",
@@ -2374,17 +2374,17 @@
       {
         "name": "$gip",
         "detail": "$gip(pvc=>key)",
-        "doc": "Variables exported by GeoIP module, returning geo-location attributes. The attributes are populated upon calling function **geoip_match(ipaddr, pvc)**."
+        "doc": "Variables exported by GeoIP module, returning geo-location attributes. The attributes are populated upon calling function **geoip_match(ipaddr, pvc)**.\n\n``` c\ngeoip_match(\"$si\", \"src\");\ngeoip_match(\"$nh(d)\", \"dst\");\n\nif($gip(src=>cc)==$gip(dst=>cc))\n{\n    # source and destination from same country\n}\n```"
       },
       {
         "name": "$gip2",
         "detail": "$gip2(pvc=>key)",
-        "doc": "Variables exported by GeoIP2 module, returning geo-location attributes. The attributes are populated upon calling function **geoip_match2(ipaddr, pvc)**."
+        "doc": "Variables exported by GeoIP2 module, returning geo-location attributes. The attributes are populated upon calling function **geoip_match2(ipaddr, pvc)**.\n\n``` c\ngeoip_match2(\"$si\", \"src\");\ngeoip_match2(\"$nh(d)\", \"dst\");\n\nif($gip2(src=>cc)==$gip2(dst=>cc))\n{\n    # source and destination from same country\n}\n```"
       },
       {
         "name": "$tls",
         "detail": "$tls(key)",
-        "doc": "Variables related to TLS communication and certificates."
+        "doc": "Variables related to TLS communication and certificates.\n\n``` c\nif(proto==TLS) {\n    xinfo(\"local certificate subject: $tls(m_subject_line)\\n\");\n}\n```"
       },
       {
         "name": "$tls_version",
@@ -2699,7 +2699,7 @@
       {
         "name": "$sipt",
         "detail": "$sipt(calling_party_number.presentation) / $sipt_presentation",
-        "doc": "Returns the value of the Address presentation restricted indicator contained in the Calling Party Number header of the IAM message if it exists. Returns -1 if there isn't a Calling Party Number header."
+        "doc": "Returns the value of the Address presentation restricted indicator contained in the Calling Party Number header of the IAM message if it exists. Returns -1 if there isn't a Calling Party Number header.\n\n``` c\nif($sipt(calling_party_number.presentation) == 1)\n{\n        append_hf(\"Privacy: id\\r\\n\");\n        $fn = \"Anonymous\";\n}\n```"
       },
       {
         "name": "$dns",
@@ -2724,17 +2724,17 @@
       {
         "name": "$cfg",
         "detail": "Config File Attributes",
-        "doc": "Attributes related to configuration file."
+        "doc": "Attributes related to configuration file.\n\n``` c\nsend_reply(\"404\", \"Not found at line $cfg(line)\");\n```"
       },
       {
         "name": "$lsock",
         "detail": "Listen Socket Attributes",
-        "doc": "Get attributes for listen sockets."
+        "doc": "Get attributes for listen sockets.\n\n``` c\n    listen=udp:127.0.0.1:5060 advertise 127.0.0.1:5090 name \"s0\"\n    ...\n    xinfo(\"$lsock(n/s0/listen)\\n\");\n    xinfo(\"$lsock(l/udp:127.0.0.1:5060/name)\\n\");\n    $var(s0) = \"n/s0/listen\";\n    xinfo(\"$lsock($var(s0))\\n\");\n```"
       },
       {
         "name": "$atkv",
         "detail": "Async Type-Key-Value Event Attributes",
-        "doc": "Attributes for Async Type-Key-Value events."
+        "doc": "Attributes for Async Type-Key-Value events.\n\n``` c\nevent_route[core:tkv] {\n    xlog(\"$atkv(type) / $atkv(key) / $atkv(val)\\n\");\n}\n```"
       },
       {
         "name": "$evr",
@@ -2796,37 +2796,37 @@
       {
         "name": "request_route",
         "detail": "routing block",
-        "doc": "Request routing block - is executed for each SIP request."
+        "doc": "Request routing block - is executed for each SIP request.\n\n``` c\n    request_route {\n         if(is_method(\"OPTIONS\")) {\n            # send reply for each options request\n            sl_send_reply(\"200\", \"ok\");\n            exit();\n         }\n         route(FWD);\n    }\n    route[FWD] {\n         # forward according to uri\n         forward();\n    }\n```"
       },
       {
         "name": "route",
         "detail": "routing block — `route block`",
-        "doc": "This block is used to define 'sub-routes' - group of actions that can be executed from another routing block. Originally targeted as being executed from 'request_route', it can be executed now from all the other blocks. Be sure you put there the actions valid for the root routing block executing the sub-route."
+        "doc": "This block is used to define 'sub-routes' - group of actions that can be executed from another routing block. Originally targeted as being executed from 'request_route', it can be executed now from all the other blocks. Be sure you put there the actions valid for the root routing block executing the sub-route.\n\n``` c\nrequest_route {\n  if(route(POSITIVE)) {\n    xlog(\"return number is positive\\n\");\n  }\n  if( ! route(NEGATIVE)) {\n    xlog(\"return number is negative\\n\");\n  }\n  if( route(ZERO)) {\n    xlog(\"this log message does not appear\\n\");\n  }\n}\n\nroute[POSITIVE] {\n  return 10;\n}\n\nroute[NEGATIVE] {\n  return -8;\n}\n\nroute[ZERO] {\n  return 0;\n}\n```"
       },
       {
         "name": "branch_route",
         "detail": "routing block",
-        "doc": "Request's branch routing block. It contains a set of actions to be taken for each branch of a SIP request. It is executed only by TM module after it was armed via `t_on_branch(\"branch_route_index\")`."
+        "doc": "Request's branch routing block. It contains a set of actions to be taken for each branch of a SIP request. It is executed only by TM module after it was armed via `t_on_branch(\"branch_route_index\")`.\n\n``` c\n    request_route {\n        lookup(\"location\");\n        t_on_branch(\"OUT\");\n        if(!t_relay()) {\n            sl_send_reply(\"500\", \"relaying failed\");\n        }\n    }\n    branch_route[OUT] {\n        if(uri=~\"10\\.10\\.10\\.10\") {\n            # discard branches that go to 10.10.10.10\n            drop();\n        }\n    }\n```"
       },
       {
         "name": "failure_route",
         "detail": "routing block",
-        "doc": "Failed transaction routing block. It contains a set of actions to be taken each transaction that received only negative replies (`>=300`) for all branches. The `failure_route` is executed only by TM module after it was armed via `t_on_failure(\"failure_route_index\")`."
+        "doc": "Failed transaction routing block. It contains a set of actions to be taken each transaction that received only negative replies (`>=300`) for all branches. The `failure_route` is executed only by TM module after it was armed via `t_on_failure(\"failure_route_index\")`.\n\n``` c\n    request_route {\n        lookup(\"location\");\n        t_on_failure(\"TOVOICEMAIL\");\n        if(!t_relay()) {\n            sl_send_reply(\"500\", \"relaying failed\");\n        }\n    }\n    failure_route[TOVOICEMAIL] {\n        if(is_method(\"INVITE\")) {\n             # call failed - relay to voice mail\n             t_relay_to_udp(\"voicemail.server.com\",\"5060\");\n        }\n    }\n```"
       },
       {
         "name": "reply_route",
         "detail": "routing block",
-        "doc": "Main SIP response (reply) handling block - it contains a set of actions to be executed for SIP replies. It is executed for all replies received from the network."
+        "doc": "Main SIP response (reply) handling block - it contains a set of actions to be executed for SIP replies. It is executed for all replies received from the network.\n\n``` c\nreply_route {\n  if(status==\"128\") {\n    drop;\n  }\n}\n```"
       },
       {
         "name": "onreply_route",
         "detail": "routing block",
-        "doc": "SIP reply routing block executed by **tm** module. It contains a set of actions to be taken for SIP replies in the context of an active transaction."
+        "doc": "SIP reply routing block executed by **tm** module. It contains a set of actions to be taken for SIP replies in the context of an active transaction.\n\n``` c\n  request_route {\n      lookup(\"location\");\n      t_on_reply(\"LOGRPL\");\n      if(!t_relay()) {\n          sl_send_reply(\"500\", \"relaying failed\");\n      }\n  }\n\n  reply_route {\n      if(!t_check_trans()) {\n          drop;\n      }\n  }\n\n  onreply_route[LOGRPL] {\n      if(status=~\"1[0-9][0-9]\") {\n           log(\"provisional response\\n\");\n      }\n  }\n```"
       },
       {
         "name": "onsend_route",
         "detail": "routing block",
-        "doc": "The route is executed in when a SIP request is sent out. Only a limited number of commands are allowed (`drop`, `if` + all the checks, msg flag manipulations, `send()`, `log()`, `textops::search()`)."
+        "doc": "The route is executed in when a SIP request is sent out. Only a limited number of commands are allowed (`drop`, `if` + all the checks, msg flag manipulations, `send()`, `log()`, `textops::search()`).\n\n``` c\n  onsend_route {\n    if(to_ip==1.2.3.4 && !isflagset(12)){\n      log(1, \"message blocked\\n\");\n      drop;\n    }\n  }\n```"
       },
       {
         "name": "event_route",
@@ -2838,32 +2838,32 @@
       {
         "name": "if",
         "detail": "control statement",
-        "doc": "IF-ELSE statement"
+        "doc": "IF-ELSE statement\n\n``` c\n    if(expr) {\n       actions;\n    } else {\n       actions;\n    }\n```"
       },
       {
         "name": "switch",
         "detail": "control statement",
-        "doc": "SWITCH statement - it can be used to test the value of a pseudo-variable."
+        "doc": "SWITCH statement - it can be used to test the value of a pseudo-variable.\n\n``` c\n    request_route {\n        route(1);\n        switch($retcode)\n        {\n            case -1:\n                log(\"process INVITE requests here\\n\");\n            break;\n            case 1:\n                log(\"process REGISTER requests here\\n\");\n            break;\n            case 2:\n            case 3:\n                log(\"process SUBSCRIBE and NOTIFY requests here\\n\");\n            break;\n            default:\n                log(\"process other requests here\\n\");\n        }\n\n        # switch of R-URI username\n        switch($rU)\n        {\n            case \"101\":\n                log(\"destination number is 101\\n\");\n            break;\n            case \"102\":\n                log(\"destination number is 102\\n\");\n            break;\n            case \"103\":\n            case \"104\":\n                log(\"destination number is 103 or 104\\n\");\n            break;\n            # cases with starting slash are regular expressions\n            case /\"\\+49.*\":\n                log(\"destination number is germany\\n\");\n            break;\n            case /\"\\+33.*\":\n                log(\"destination number is france\\n\");\n            break;\n            default:\n                log(\"unknown destination number\\n\");\n        }\n    }\n\n    route[1] {\n        if(is_method(\"INVITE\"))\n        {\n            return(-1);\n        };\n        if(is_method(\"REGISTER\"))\n            return(1);\n        }\n        if(is_method(\"SUBSCRIBE\"))\n            return(2);\n        }\n        if(is_method(\"NOTIFY\"))\n            return(3);\n        }\n        return(-2);\n    }\n```"
       },
       {
         "name": "while",
         "detail": "control statement",
-        "doc": "while statement - conditional loop"
+        "doc": "while statement - conditional loop\n\n``` c\n    $var(i) = 0;\n    while($var(i) < 10)\n    {\n        xlog(\"counter: $var(i)\\n\");\n        $var(i) = $var(i) + 1;\n    }\n```"
       },
       {
         "name": "else",
         "detail": "control statement — documented under `if`",
-        "doc": "IF-ELSE statement"
+        "doc": "IF-ELSE statement\n\n``` c\n    if(expr) {\n       actions;\n    } else {\n       actions;\n    }\n```"
       },
       {
         "name": "case",
         "detail": "control statement — documented under `switch`",
-        "doc": "SWITCH statement - it can be used to test the value of a pseudo-variable."
+        "doc": "SWITCH statement - it can be used to test the value of a pseudo-variable.\n\n``` c\n    request_route {\n        route(1);\n        switch($retcode)\n        {\n            case -1:\n                log(\"process INVITE requests here\\n\");\n            break;\n            case 1:\n                log(\"process REGISTER requests here\\n\");\n            break;\n            case 2:\n            case 3:\n                log(\"process SUBSCRIBE and NOTIFY requests here\\n\");\n            break;\n            default:\n                log(\"process other requests here\\n\");\n        }\n\n        # switch of R-URI username\n        switch($rU)\n        {\n            case \"101\":\n                log(\"destination number is 101\\n\");\n            break;\n            case \"102\":\n                log(\"destination number is 102\\n\");\n            break;\n            case \"103\":\n            case \"104\":\n                log(\"destination number is 103 or 104\\n\");\n            break;\n            # cases with starting slash are regular expressions\n            case /\"\\+49.*\":\n                log(\"destination number is germany\\n\");\n            break;\n            case /\"\\+33.*\":\n                log(\"destination number is france\\n\");\n            break;\n            default:\n                log(\"unknown destination number\\n\");\n        }\n    }\n\n    route[1] {\n        if(is_method(\"INVITE\"))\n        {\n            return(-1);\n        };\n        if(is_method(\"REGISTER\"))\n            return(1);\n        }\n        if(is_method(\"SUBSCRIBE\"))\n            return(2);\n        }\n        if(is_method(\"NOTIFY\"))\n            return(3);\n        }\n        return(-2);\n    }\n```"
       },
       {
         "name": "default",
         "detail": "control statement — documented under `switch`",
-        "doc": "SWITCH statement - it can be used to test the value of a pseudo-variable."
+        "doc": "SWITCH statement - it can be used to test the value of a pseudo-variable.\n\n``` c\n    request_route {\n        route(1);\n        switch($retcode)\n        {\n            case -1:\n                log(\"process INVITE requests here\\n\");\n            break;\n            case 1:\n                log(\"process REGISTER requests here\\n\");\n            break;\n            case 2:\n            case 3:\n                log(\"process SUBSCRIBE and NOTIFY requests here\\n\");\n            break;\n            default:\n                log(\"process other requests here\\n\");\n        }\n\n        # switch of R-URI username\n        switch($rU)\n        {\n            case \"101\":\n                log(\"destination number is 101\\n\");\n            break;\n            case \"102\":\n                log(\"destination number is 102\\n\");\n            break;\n            case \"103\":\n            case \"104\":\n                log(\"destination number is 103 or 104\\n\");\n            break;\n            # cases with starting slash are regular expressions\n            case /\"\\+49.*\":\n                log(\"destination number is germany\\n\");\n            break;\n            case /\"\\+33.*\":\n                log(\"destination number is france\\n\");\n            break;\n            default:\n                log(\"unknown destination number\\n\");\n        }\n    }\n\n    route[1] {\n        if(is_method(\"INVITE\"))\n        {\n            return(-1);\n        };\n        if(is_method(\"REGISTER\"))\n            return(1);\n        }\n        if(is_method(\"SUBSCRIBE\"))\n            return(2);\n        }\n        if(is_method(\"NOTIFY\"))\n            return(3);\n        }\n        return(-2);\n    }\n```"
       }
     ],
     "log_levels": [

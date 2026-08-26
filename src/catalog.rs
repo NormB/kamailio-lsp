@@ -733,6 +733,12 @@ fn md_walk(md: &str) -> Result<Vec<(String, String, String)>, String> {
     let mut out: Vec<(String, String, String)> = Vec::new();
     let mut h2 = String::new();
     let mut cur: Option<(String, Vec<String>, bool)> = None;
+    // the first fenced block of the current section. The cookbook
+    // documents 285 of its 330 sections with one, and it is where the
+    // FORM is: a description of what a setting means does not say
+    // what to type.
+    let mut example: Vec<String> = Vec::new();
+    let mut example_done = false;
     // an H2 that is itself an item is emitted the moment its heading
     // is read, so that it keeps its place in document order — its
     // body arrives afterwards and is written back by index
@@ -750,30 +756,54 @@ fn md_walk(md: &str) -> Result<Vec<(String, String, String)>, String> {
             );
         }
     };
-    let flush = |h2: &str,
-                 cur: &mut Option<(String, Vec<String>, bool)>,
-                 out: &mut Vec<(String, String, String)>| {
-        if let Some((name, lines, _)) = cur.take() {
-            let doc = sanitize_doc(
-                &lines
-                    .join(" ")
-                    .split_whitespace()
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            );
-            out.push((h2.to_string(), name, doc));
+    /// Close a section: its first paragraph, then its example.
+    fn close(
+        h2: &str,
+        cur: &mut Option<(String, Vec<String>, bool)>,
+        example: &mut Vec<String>,
+        example_done: &mut bool,
+        out: &mut Vec<(String, String, String)>,
+    ) {
+        let taken = cur.take();
+        let ex: Vec<String> = std::mem::take(example);
+        *example_done = false;
+        let Some((name, lines, _)) = taken else {
+            return;
+        };
+        let mut doc = sanitize_doc(
+            &lines
+                .join(" ")
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
+        let ex: Vec<&String> = ex.iter().skip_while(|l| l.trim().is_empty()).collect();
+        let body = ex.iter().map(|l| l.as_str()).collect::<Vec<_>>().join("\n");
+        if !body.trim().is_empty() {
+            if !doc.is_empty() {
+                doc.push_str("\n\n");
+            }
+            doc.push_str(&format!("``` c\n{}\n```", body.trim_end()));
         }
-    };
+        out.push((h2.to_string(), name, doc));
+    }
+
     for line in md.lines() {
         if line.trim_start().starts_with("```") {
+            if in_fence {
+                example_done = true;
+            }
             in_fence = !in_fence;
             continue;
         }
         if in_fence {
+            if !example_done {
+                example.push(line.trim_end().to_string());
+            }
             continue;
         }
         if let Some(h) = line.strip_prefix("## ") {
-            flush(&h2, &mut cur, &mut out);
+            close(&h2, &mut cur, &mut example, &mut example_done, &mut out);
             finish_h2(&mut h2_body, &mut out);
             h2 = h.trim().to_string();
             // an H2 that is itself an item (pseudovariables.md mixes
@@ -783,13 +813,13 @@ fn md_walk(md: &str) -> Result<Vec<(String, String, String)>, String> {
             continue;
         }
         if let Some(h) = line.strip_prefix("### ") {
-            flush(&h2, &mut cur, &mut out);
+            close(&h2, &mut cur, &mut example, &mut example_done, &mut out);
             finish_h2(&mut h2_body, &mut out);
             cur = Some((h.trim().to_string(), Vec::new(), false));
             continue;
         }
         if line.starts_with('#') {
-            flush(&h2, &mut cur, &mut out);
+            close(&h2, &mut cur, &mut example, &mut example_done, &mut out);
             finish_h2(&mut h2_body, &mut out);
             continue;
         }
@@ -811,7 +841,7 @@ fn md_walk(md: &str) -> Result<Vec<(String, String, String)>, String> {
             }
         }
     }
-    flush(&h2, &mut cur, &mut out);
+    close(&h2, &mut cur, &mut example, &mut example_done, &mut out);
     finish_h2(&mut h2_body, &mut out);
     Ok(out)
 }
