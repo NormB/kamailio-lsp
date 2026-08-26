@@ -23,6 +23,7 @@ const calls = { setLanguage: [], requests: [] };
 let onOpen = null;
 let settingOn = true;
 let openDocs = [];
+let registeredCommands = {};
 
 /** A document as VS Code would hand it over. */
 const doc = (fileName, languageId) => ({
@@ -66,6 +67,16 @@ const vscodeStub = {
             dispose() {},
         }),
     },
+    // The extension registers the assistance toggle as a command; a
+    // stub without `commands` makes `activate` throw before anything
+    // else this file asserts can run.
+    commands: {
+        registerCommand: (id, cb) => {
+            registeredCommands[id] = cb;
+            return { dispose() {} };
+        },
+    },
+    ConfigurationTarget: { Global: 1, Workspace: 2 },
     StatusBarAlignment: { Left: 1, Right: 2 },
 
 };
