@@ -354,3 +354,55 @@ fn the_namespaced_payload_shape_toggles_too() {
     assert!(off, "the nested shape must reach the same switch");
     let _ = child.kill();
 }
+
+/// Every toggle the client pushes live must also be sent at startup.
+///
+/// A setting pushed live and absent from `initializationOptions` is
+/// forgotten every time the editor restarts: the setting says off and
+/// the server has never been told. The sibling server shipped exactly
+/// that, and nothing here stood between the two payloads either.
+#[test]
+fn every_live_toggle_is_also_sent_at_startup() {
+    let ext = extension_ts();
+    let init_start = ext.find("initializationOptions: {").expect("init options");
+    let init_end = ext[init_start..].find("\n        },").expect("init ends") + init_start;
+    let init = &ext[init_start..init_end];
+
+    let live_start = ext
+        .find("DidChangeConfigurationNotification.type")
+        .expect("live push");
+    let live_end = ext[live_start..]
+        .find("\n            );")
+        .expect("live ends")
+        + live_start;
+    let live = &ext[live_start..live_end];
+
+    let keys = |block: &str| -> Vec<String> {
+        let mut out = Vec::new();
+        for (i, _) in block.match_indices(": cfg.get") {
+            let head = &block[..i];
+            if let Some(k) = head.rsplit(|c: char| c.is_whitespace()).next()
+                && !k.is_empty()
+                && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            {
+                out.push(k.to_string());
+            }
+        }
+        out
+    };
+    let (init_keys, live_keys) = (keys(init), keys(live));
+
+    // POSITIVE CONTROL: both blocks parsed, so a missing key below is
+    // a real absence and not an empty scan
+    assert!(init_keys.len() > 4, "init options read as {init_keys:?}");
+    assert!(live_keys.len() > 4, "live payload read as {live_keys:?}");
+    assert!(live_keys.iter().any(|k| k == "assistance"), "{live_keys:?}");
+
+    for k in &live_keys {
+        assert!(
+            init_keys.contains(k),
+            "`{k}` is pushed live but not sent at startup, so it is forgotten \
+             every time the editor restarts: init {init_keys:?}"
+        );
+    }
+}
