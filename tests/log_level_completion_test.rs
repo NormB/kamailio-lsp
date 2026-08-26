@@ -191,3 +191,33 @@ fn outside_any_call_no_levels_are_offered() {
         "a level is only ever an argument"
     );
 }
+
+/// The xlog module has exactly one enumerated string argument.
+///
+/// "The same pattern across all the appropriate calls" is only
+/// finished if the set of appropriate calls is known. Here the
+/// `cmd_export_t` table names the calls and the fixup names the
+/// values, and the module parses a level string in exactly one place.
+///
+/// If upstream adds a second, this fails and the offer gets extended
+/// — rather than the new one quietly offering nothing, which is the
+/// state `xlog` itself was in.
+#[test]
+fn the_xlog_module_has_exactly_one_enumerated_string_argument() {
+    let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let src = std::fs::read_to_string(std::path::Path::new(&tree).join("src/modules/xlog/xlog.c"))
+        .expect("the xlog module in the pinned tree");
+    let parsers = src.matches("unknown log level").count();
+    assert_eq!(
+        parsers, 1,
+        "the module parses a level string {parsers} times; each one is an \
+         argument with a fixed set of values, and each needs an entry in \
+         LEVEL_ARGUMENTS"
+    );
+    // POSITIVE CONTROL: the export table is there too, so the file is
+    // the one this reasoning was done against
+    assert!(
+        src.contains("static cmd_export_t cmds[]"),
+        "the export table moved — the level-taking calls are read from it"
+    );
+}
