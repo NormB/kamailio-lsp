@@ -37,6 +37,8 @@ source tree (result cached per tree):
 | letters in a route | exported functions of **loaded** modules, core functions, core parameters, route names, keywords (documented ones carry their text) |
 | `route(` | route names (this file and its includes) |
 | `$` | pseudo-variables with descriptions (the typed `$word` is replaced, never doubled) |
+| `listen=udp:… ` | the three modifiers a `listen` line takes — `advertise`, `name`, `virtual` |
+| inside `socket = { ` | the seven attributes the brace form takes — `bind`, `advertise`, `name`, `agname`, `workers`, `virtual`, `vrf`. Membership comes from the grammar, so `workers` is offered even though the cookbook's attribute list omits it, and says so |
 | `xlog(` | the log levels, quoted — `"L_INFO"`, because the fixup takes a string there. Type `xlog("` and they come unquoted instead. `xlogl` and `xlogm` too; `xdbg`, `xinfo`, `xerr`, `xnotice` and `xwarn` carry their level in the name and take a format alone. The set is read from the `switch` in your tree's `src/modules/xlog/xlog.c`, so it is the set *your* release accepts — kamailio takes `L_BUG`, and the three-argument `xlog(facility, level, format)` form is not offered at its level position |
 
 Function completions insert **snippets** — the cursor lands between
@@ -68,6 +70,11 @@ worked example — the example is where the form is. The default is
 already part of the description here, because this cookbook writes it
 into the first paragraph ("Default value is 8." in `children`) rather
 than on a line of its own.
+
+On a `listen =` line the modifiers after the address hover, and
+inside a `socket = { ... }` block its attributes do. The two are
+different syntaxes with different sets, so each answers only where it
+applies — `name` and `virtual` are ordinary words elsewhere.
 
 Hover any function/parameter/module/`$variable` for its
 documentation — and any routing block (`request_route`,

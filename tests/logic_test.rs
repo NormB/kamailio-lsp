@@ -146,6 +146,16 @@ fn core() -> kamailio_lsp::catalog::CoreDocs {
             detail: "control statement".into(),
             doc: "Chooses between two paths.".into(),
         }],
+        socket_attrs: vec![Item {
+            name: "bind".into(),
+            detail: "socket attribute".into(),
+            doc: "The address to listen on.".into(),
+        }],
+        listen_modifiers: vec![Item {
+            name: "advertise".into(),
+            detail: "listen modifier".into(),
+            doc: "The address to advertise.".into(),
+        }],
         log_levels: vec!["L_INFO".into(), "L_DBG".into()],
     }
 }

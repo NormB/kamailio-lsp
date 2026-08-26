@@ -120,6 +120,19 @@ fn complete_files(
             .collect();
     }
     // modparam second argument → params of the named module
+    // the tail of a `listen =` line takes three bare modifiers
+    if opens_a_listen_statement(line_prefix) && !core.listen_modifiers.is_empty() {
+        return core
+            .listen_modifiers
+            .iter()
+            .map(|m| Comp {
+                label: m.name.clone(),
+                detail: m.detail.clone(),
+                doc: m.doc.clone(),
+                kind: CompKind::Keyword,
+            })
+            .collect();
+    }
     // an argument whose value is one of a fixed set the C fixup knows.
     // After the `$` branch on purpose: that same fixup takes a
     // pseudo-variable as the level (`s.s[0]==PV_MARKER`), so both are
@@ -1757,6 +1770,39 @@ fn dedup_completions(items: Vec<Comp>) -> Vec<Comp> {
     out.into_iter().flatten().collect()
 }
 
+/// Whether `text` opens a `listen =` statement — the space-separated
+/// form, which takes `advertise`, `name` and `virtual`.
+fn opens_a_listen_statement(text: &str) -> bool {
+    let t = text.trim_start();
+    t.strip_prefix("listen")
+        .is_some_and(|r| r.trim_start().starts_with('='))
+}
+
+/// Whether line `line` of `doc` sits inside a `socket = { ... }`
+/// block — the structured form, a different set of names in
+/// `attr = value;` shape.
+fn inside_a_socket_block(doc: &str, line: u32) -> bool {
+    let mut depth = 0usize;
+    for (n, l) in doc.lines().enumerate() {
+        if n as u32 == line {
+            return depth > 0;
+        }
+        let t = l.trim_start();
+        if depth == 0 {
+            if t.strip_prefix("socket")
+                .is_some_and(|r| r.trim_start().starts_with('='))
+                && l.contains('{')
+            {
+                depth = 1;
+            }
+            continue;
+        }
+        depth += l.matches('{').count();
+        depth = depth.saturating_sub(l.matches('}').count());
+    }
+    false
+}
+
 /// The call the cursor sits in: the function named before the open
 /// parenthesis, which argument the cursor is in, and whether it is
 /// inside a string literal.
@@ -2041,6 +2087,23 @@ pub fn hover_markdown_at(
     line: u32,
     col: u32,
 ) -> Option<String> {
+    // A socket attribute or a listen modifier. Both are scoped to
+    // where their syntax applies: `name`, `virtual` and `advertise`
+    // are ordinary words, and answering for every `name` in a
+    // configuration is worse than answering for none.
+    if inside_a_socket_block(doc, line)
+        && let Some(a) = core.socket_attrs.iter().find(|a| a.name == word)
+    {
+        return Some(format!("**{}** — {}\n\n{}", a.name, a.detail, a.doc));
+    }
+    if doc
+        .lines()
+        .nth(line as usize)
+        .is_some_and(opens_a_listen_statement)
+        && let Some(m) = core.listen_modifiers.iter().find(|m| m.name == word)
+    {
+        return Some(format!("**{}** — {}\n\n{}", m.name, m.detail, m.doc));
+    }
     // A control statement. These are keywords rather than calls, so
     // nothing else in the lookup below would ever answer for them:
     // they completed with `detail: "keyword"` and no text at all, and

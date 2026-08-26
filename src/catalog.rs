@@ -956,6 +956,183 @@ pub fn parse_core_blocks_md(md: &str) -> Result<(Vec<Item>, Vec<Item>), String> 
     Ok((routes, statements))
 }
 
+/// How this lexer spells a token.
+///
+/// This dialect writes its alternatives UNQUOTED — `advertise|ADVERTISE`,
+/// `name|NAME` — where the sibling server's lexer quotes them. A
+/// reader written for quoted alternatives finds nothing here.
+fn lexer_spelling(cfg_lex: &str, token: &str) -> Option<String> {
+    for line in cfg_lex.split("\n%%").next().unwrap_or(cfg_lex).lines() {
+        let mut it = line.splitn(2, [' ', '\t']);
+        let (Some(tok), Some(pat)) = (it.next(), it.next()) else {
+            continue;
+        };
+        if tok != token {
+            continue;
+        }
+        let pat = pat.trim();
+        let quoted = pat
+            .split('"')
+            .find(|w| !w.is_empty() && w.chars().all(|c| c.is_ascii_lowercase() || c == '_'));
+        if let Some(w) = quoted {
+            return Some(w.to_string());
+        }
+        return pat
+            .split('|')
+            .map(str::trim)
+            .find(|w| !w.is_empty() && w.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
+            .map(str::to_string);
+    }
+    None
+}
+
+/// The attributes a `socket = { ... }` block accepts, from the
+/// grammar production that parses them.
+///
+/// Membership is the grammar's, not the cookbook's — the rule that
+/// makes `param_export_t` the authority for module parameters. The
+/// two disagree here: `workers` is accepted and the cookbook's
+/// attribute list does not mention it.
+pub fn parse_socket_attrs_c(cfg_y: &str, cfg_lex: &str) -> Vec<String> {
+    let Some(body) = cfg_y
+        .split_once("socket_lattr:")
+        .and_then(|(_, r)| r.split_once("socket_lattrs:"))
+        .map(|(b, _)| b)
+    else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = Vec::new();
+    for alt in body.split('|') {
+        let mut words = alt.split_whitespace();
+        let (Some(tok), Some("EQUAL")) = (words.next(), words.next()) else {
+            continue;
+        };
+        if !tok.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
+            continue;
+        }
+        if let Some(w) = lexer_spelling(cfg_lex, tok)
+            && !out.contains(&w)
+        {
+            out.push(w);
+        }
+    }
+    out
+}
+
+/// The modifiers a `listen = <address>` line accepts after its
+/// address, from the `LISTEN EQUAL id_lst ...` productions.
+///
+/// A different syntax from the brace form and a different set: three
+/// bare words, in the order the grammar allows them.
+pub fn parse_listen_modifiers_c(cfg_y: &str, cfg_lex: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for line in cfg_y.lines() {
+        let Some((_, tail)) = line.split_once("LISTEN EQUAL id_lst") else {
+            continue;
+        };
+        for tok in tail.split_whitespace() {
+            if !tok.chars().all(|c| c.is_ascii_uppercase() || c == '_') || tok.is_empty() {
+                continue;
+            }
+            if let Some(w) = lexer_spelling(cfg_lex, tok)
+                && !out.contains(&w)
+            {
+                out.push(w);
+            }
+        }
+    }
+    out
+}
+
+/// The cookbook's descriptions of the socket attributes: the
+/// `- \`name\` - description` list in the `socket` section.
+///
+/// The separator is ` - `, not the `: ` the sibling server's manual
+/// uses, and the list marker is `-` rather than `*`.
+pub fn parse_socket_attrs_md(md: &str) -> Vec<Item> {
+    let mut out = Vec::new();
+    let mut in_socket = false;
+    for line in md.lines() {
+        if let Some(h) = line.strip_prefix("### ") {
+            in_socket = h.trim() == "socket";
+            continue;
+        }
+        if line.starts_with("## ") {
+            in_socket = false;
+            continue;
+        }
+        if !in_socket {
+            continue;
+        }
+        let t = line.trim();
+        let Some(rest) = t.strip_prefix("- `").or_else(|| t.strip_prefix("* `")) else {
+            continue;
+        };
+        let Some((name, desc)) = rest.split_once('`') else {
+            continue;
+        };
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            continue;
+        }
+        let desc = desc.trim_start().trim_start_matches('-').trim();
+        out.push(Item {
+            name: name.to_string(),
+            detail: "socket attribute".into(),
+            doc: sanitize_doc(desc),
+        });
+    }
+    out
+}
+
+/// The cookbook's `core.md` for a wiki checkout.
+pub fn cookbook_core_md(wiki_root: &Path) -> Option<String> {
+    std::fs::read_to_string(cookbook_dir(wiki_root)?.join("core.md")).ok()
+}
+
+/// Reconcile one set of names against the cookbook's descriptions.
+fn describe(accepted: Vec<String>, documented: &[Item], detail: &str) -> Vec<Item> {
+    accepted
+        .into_iter()
+        .map(|name| match documented.iter().find(|d| d.name == name) {
+            Some(d) => Item {
+                name,
+                detail: detail.to_string(),
+                doc: d.doc.clone(),
+            },
+            None => Item {
+                doc: format!(
+                    "The grammar accepts `{name}` here. The cookbook does not \
+                     describe it."
+                ),
+                name,
+                detail: detail.to_string(),
+            },
+        })
+        .collect()
+}
+
+/// Both socket syntaxes a source tree accepts, described by the wiki.
+pub fn harvest_socket_syntax(src_root: &Path, wiki_root: &Path) -> (Vec<Item>, Vec<Item>) {
+    let read = |p: &str| std::fs::read_to_string(src_root.join(p)).unwrap_or_default();
+    let y = read("src/core/cfg.y");
+    let lex = read("src/core/cfg.lex");
+    let documented = cookbook_core_md(wiki_root)
+        .map(|md| parse_socket_attrs_md(&md))
+        .unwrap_or_default();
+    (
+        describe(
+            parse_socket_attrs_c(&y, &lex),
+            &documented,
+            "socket attribute",
+        ),
+        describe(
+            parse_listen_modifiers_c(&y, &lex),
+            &documented,
+            "listen modifier",
+        ),
+    )
+}
+
 /// The log levels `xlog` accepts, read from the C `switch` that
 /// parses them.
 ///
@@ -1073,6 +1250,13 @@ pub struct CoreDocs {
     /// `switch`, `while`, plus the keywords those sections explain.
     #[serde(default)]
     pub statements: Vec<Item>,
+    /// Attributes a `socket = { ... }` block accepts.
+    #[serde(default)]
+    pub socket_attrs: Vec<Item>,
+    /// Modifiers a `listen = <address>` line accepts after its
+    /// address — a different syntax and a different set.
+    #[serde(default)]
+    pub listen_modifiers: Vec<Item>,
     /// The log levels `xlog`'s level argument accepts, in the order
     /// the C switch lists them. Read from the source, not from prose,
     /// and not from the other server.
@@ -1490,6 +1674,8 @@ pub fn harvest_core(wiki_root: &Path) -> CoreDocs {
         pvars,
         routes,
         statements,
+        socket_attrs: Vec::new(),
+        listen_modifiers: Vec::new(),
         log_levels: Vec::new(),
     }
 }

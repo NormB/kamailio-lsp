@@ -2866,6 +2866,60 @@
         "doc": "SWITCH statement - it can be used to test the value of a pseudo-variable.\n\n``` c\n    request_route {\n        route(1);\n        switch($retcode)\n        {\n            case -1:\n                log(\"process INVITE requests here\\n\");\n            break;\n            case 1:\n                log(\"process REGISTER requests here\\n\");\n            break;\n            case 2:\n            case 3:\n                log(\"process SUBSCRIBE and NOTIFY requests here\\n\");\n            break;\n            default:\n                log(\"process other requests here\\n\");\n        }\n\n        # switch of R-URI username\n        switch($rU)\n        {\n            case \"101\":\n                log(\"destination number is 101\\n\");\n            break;\n            case \"102\":\n                log(\"destination number is 102\\n\");\n            break;\n            case \"103\":\n            case \"104\":\n                log(\"destination number is 103 or 104\\n\");\n            break;\n            # cases with starting slash are regular expressions\n            case /\"\\+49.*\":\n                log(\"destination number is germany\\n\");\n            break;\n            case /\"\\+33.*\":\n                log(\"destination number is france\\n\");\n            break;\n            default:\n                log(\"unknown destination number\\n\");\n        }\n    }\n\n    route[1] {\n        if(is_method(\"INVITE\"))\n        {\n            return(-1);\n        };\n        if(is_method(\"REGISTER\"))\n            return(1);\n        }\n        if(is_method(\"SUBSCRIBE\"))\n            return(2);\n        }\n        if(is_method(\"NOTIFY\"))\n            return(3);\n        }\n        return(-2);\n    }\n```"
       }
     ],
+    "socket_attrs": [
+      {
+        "name": "bind",
+        "detail": "socket attribute",
+        "doc": "the address to listen on in format `[proto:]address[:port]` or"
+      },
+      {
+        "name": "name",
+        "detail": "socket attribute",
+        "doc": "name of the socket to be referenced in configuration file"
+      },
+      {
+        "name": "advertise",
+        "detail": "socket attribute",
+        "doc": "the address to advertise in SIP headers in format `address[:port]`"
+      },
+      {
+        "name": "agname",
+        "detail": "socket attribute",
+        "doc": "async (action) group name where to push SIP messages received using"
+      },
+      {
+        "name": "workers",
+        "detail": "socket attribute",
+        "doc": "The grammar accepts `workers` here. The cookbook does not describe it."
+      },
+      {
+        "name": "virtual",
+        "detail": "socket attribute",
+        "doc": "set to `yes/no` to indicate if the IP has to be considered virtual or not"
+      },
+      {
+        "name": "vrf",
+        "detail": "socket attribute",
+        "doc": "name of the VRF device associated with this socket. See"
+      }
+    ],
+    "listen_modifiers": [
+      {
+        "name": "virtual",
+        "detail": "listen modifier",
+        "doc": "set to `yes/no` to indicate if the IP has to be considered virtual or not"
+      },
+      {
+        "name": "name",
+        "detail": "listen modifier",
+        "doc": "name of the socket to be referenced in configuration file"
+      },
+      {
+        "name": "advertise",
+        "detail": "listen modifier",
+        "doc": "the address to advertise in SIP headers in format `address[:port]`"
+      }
+    ],
     "log_levels": [
       "L_ALERT",
       "L_BUG",

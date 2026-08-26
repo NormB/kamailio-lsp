@@ -41,7 +41,7 @@ children=16
 The chroot directory.
 
 ``` c
-chroot=/home/kamailio
+chroot=/var/lib/kamailio
 ```
 
 ### no_example
@@ -69,7 +69,7 @@ many_examples=2
 Forwards the request.
 
 ``` c
-forward("10.0.0.1");
+forward("192.0.2.1");
 ```
 "#;
 
@@ -129,7 +129,7 @@ fn no_default_line_is_synthesised() {
 fn an_example_with_no_lead_in_sentence_is_still_taken() {
     let (params, _) = parse_core_cookbook_md(PAGE).expect("parses");
     let ch = param(&params, "chroot");
-    assert!(ch.doc.contains("chroot=/home/kamailio"), "{:?}", ch.doc);
+    assert!(ch.doc.contains("chroot=/var/lib/kamailio"), "{:?}", ch.doc);
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn one_section_does_not_borrow_the_next_ones_example() {
 fn core_functions_get_their_example_too() {
     let (_, functions) = parse_core_cookbook_md(PAGE).expect("parses");
     let f = param(&functions, "forward");
-    assert!(f.doc.contains("forward(\"10.0.0.1\")"), "{:?}", f.doc);
+    assert!(f.doc.contains("forward(\"192.0.2.1\")"), "{:?}", f.doc);
 }
 
 /// The real cookbook, not a fixture.
@@ -187,5 +187,52 @@ fn only_the_first_example_of_a_section_is_taken() {
         !m.doc.contains("many_examples=2"),
         "the second block is a variation, not part of the first: {:?}",
         m.doc
+    );
+}
+
+/// Owed, first. The example is shown verbatim.
+///
+/// The description is sanitised — HTML stripped, non-web links
+/// flattened — because it is rendered as prose. An example is CODE:
+/// a `<` or a bracketed word in it is what the reader must type, and
+/// running the sanitiser over it would quietly edit the answer.
+#[test]
+fn the_example_is_not_sanitised_like_prose() {
+    const MD: &str = concat!(
+        "## Core parameters\n\n### tagged\n\nA setting.\n\n",
+        "``` c\ntagged = \"<sip:user@example.com>\"\n```\n"
+    );
+    let (params, _) = parse_core_cookbook_md(MD).expect("parses");
+    let it = param(&params, "tagged");
+    assert!(
+        it.doc.contains("<sip:user@example.com>"),
+        "the angle brackets are part of what to type, not markup to strip: {:?}",
+        it.doc
+    );
+}
+
+/// Owed, second. A `#` at column zero inside an example is a
+/// CONFIGURATION COMMENT, and markdown reads it as a heading. Ending
+/// the section there drops the rest of the example and can start a
+/// section named after a line of sample configuration.
+#[test]
+fn a_comment_at_column_zero_inside_an_example_does_not_end_the_section() {
+    const MD: &str = concat!(
+        "## Core parameters\n\n### commented\n\nA setting.\n\n",
+        "``` c\n# how to set it\ncommented = 1\n```\n"
+    );
+    let (params, _) = parse_core_cookbook_md(MD).expect("parses");
+    let names: Vec<&str> = params.iter().map(|i| i.name.as_str()).collect();
+    assert_eq!(names, vec!["commented"], "{names:?}");
+    let it = param(&params, "commented");
+    assert!(
+        it.doc.contains("# how to set it"),
+        "the comment belongs to the example: {:?}",
+        it.doc
+    );
+    assert!(
+        it.doc.contains("commented = 1"),
+        "and so does the line after it: {:?}",
+        it.doc
     );
 }

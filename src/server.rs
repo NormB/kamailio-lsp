@@ -670,6 +670,13 @@ impl Backend {
                 // the wiki documents the language; the levels `xlog`
                 // takes are a switch in the module source beside it
                 core.log_levels = catalog::harvest_log_levels(p);
+                // both socket syntaxes: membership from this tree's
+                // grammar, descriptions from the wiki beside it
+                if let Some(w) = wiki_path {
+                    let (attrs, mods) = catalog::harvest_socket_syntax(p, w);
+                    core.socket_attrs = attrs;
+                    core.listen_modifiers = mods;
+                }
                 let out = (catalog::harvest_tree(p), core);
                 if let Some(dir) = &cache_dir {
                     let _ = catalog::save_cache(p, wiki_path, dir, &out.0, &out.1);
