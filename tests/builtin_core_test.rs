@@ -111,3 +111,92 @@ fn the_vendored_catalogue_matches_a_fresh_harvest_of_the_pinned_tree() {
         "vendored core pvars differ from the pinned tree — regenerate"
     );
 }
+
+/// Owed 1/2: the vendored catalogue must match in its TEXT, not just
+/// its names.
+///
+/// The drift gate above compares names. The regression that dropped
+/// every worked example from every hover — 285 documented, none
+/// arriving — changed no name at all, so that gate would have passed
+/// it without a murmur. Names are the cheap half of a catalogue; the
+/// text is what a reader is actually shown.
+#[test]
+fn the_vendored_catalogue_matches_a_fresh_harvest_in_its_text_too() {
+    let wiki = common::required_env("KAMAILIO_LSP_TEST_WIKI");
+    let src = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let mut fresh = catalog::harvest_core(std::path::Path::new(&wiki));
+    let (attrs, mods) =
+        catalog::harvest_socket_syntax(std::path::Path::new(&src), std::path::Path::new(&wiki));
+    fresh.socket_attrs = attrs;
+    fresh.listen_modifiers = mods;
+    catalog::reconcile_with_tree(&mut fresh, std::path::Path::new(&src));
+    let b = catalog::builtin_core();
+
+    let mut differ: Vec<String> = Vec::new();
+    let mut compared = 0usize;
+    for (what, shipped, harvested) in [
+        ("params", &b.core.params, &fresh.params),
+        ("functions", &b.core.functions, &fresh.functions),
+        ("pvars", &b.core.pvars, &fresh.pvars),
+    ] {
+        for (s, h) in shipped.iter().zip(harvested.iter()) {
+            compared += 1;
+            if s.doc != h.doc || s.detail != h.detail {
+                differ.push(format!("{what}/{}", s.name));
+            }
+        }
+    }
+    // POSITIVE CONTROL: both sides were read.
+    assert!(compared > 400, "only {compared} entries compared");
+    assert!(
+        differ.is_empty(),
+        "vendored text differs from the pinned inputs — regenerate. This is the \
+         half the name comparison cannot see: {differ:?}"
+    );
+}
+
+/// Owed 2/2: the gate must cover every field it ships.
+///
+/// It compared three of the eight. Routes, statements, the two socket
+/// syntaxes and the log levels were vendored and never held against
+/// anything, so any of them could go stale — or empty — and no test
+/// in the suite would notice.
+#[test]
+fn the_drift_gate_covers_every_field_of_the_catalogue() {
+    let wiki = common::required_env("KAMAILIO_LSP_TEST_WIKI");
+    let src = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let mut fresh = catalog::harvest_core(std::path::Path::new(&wiki));
+    let (attrs, mods) =
+        catalog::harvest_socket_syntax(std::path::Path::new(&src), std::path::Path::new(&wiki));
+    fresh.socket_attrs = attrs;
+    fresh.listen_modifiers = mods;
+    fresh.log_levels = catalog::harvest_log_levels(std::path::Path::new(&src));
+    catalog::reconcile_with_tree(&mut fresh, std::path::Path::new(&src));
+    let b = catalog::builtin_core();
+
+    let names = |v: &[catalog::Item]| -> Vec<String> { v.iter().map(|i| i.name.clone()).collect() };
+    for (what, shipped, harvested) in [
+        ("routes", &b.core.routes, &fresh.routes),
+        ("statements", &b.core.statements, &fresh.statements),
+        ("socket_attrs", &b.core.socket_attrs, &fresh.socket_attrs),
+        (
+            "listen_modifiers",
+            &b.core.listen_modifiers,
+            &fresh.listen_modifiers,
+        ),
+    ] {
+        // POSITIVE CONTROL: a field that harvests empty would make
+        // the comparison below trivially true.
+        assert!(!harvested.is_empty(), "{what} harvested empty");
+        assert_eq!(
+            names(shipped),
+            names(harvested),
+            "vendored {what} differ from the pinned inputs — regenerate"
+        );
+    }
+    assert!(!fresh.log_levels.is_empty(), "log_levels harvested empty");
+    assert_eq!(
+        b.core.log_levels, fresh.log_levels,
+        "vendored log levels differ from the pinned tree — regenerate"
+    );
+}
