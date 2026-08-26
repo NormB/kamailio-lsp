@@ -963,15 +963,16 @@ pub fn parse_core_blocks_md(md: &str) -> Result<(Vec<Item>, Vec<Item>), String> 
     Ok((routes, statements))
 }
 
-/// A grammar token name: upper-case, and it may contain DIGITS —
-/// `TCP_SOURCE_IPV4`. The same omission as `is_spelling` had, one
-/// level up: a token filter that rejects digits drops the token
-/// before its spelling is ever looked at.
+/// A grammar token name. It starts upper-case, and after that it may
+/// hold anything identifier-shaped: `TCP_SOURCE_IPV4` carries digits,
+/// and `SSLv23` carries a lower-case letter. Each narrowing of this
+/// filter dropped tokens before their spelling was ever looked at,
+/// and dropped them in silence — the same failure as `is_spelling`
+/// had, one level up.
 fn is_token(t: &str) -> bool {
     !t.is_empty()
         && t.starts_with(|c: char| c.is_ascii_uppercase())
-        && t.chars()
-            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+        && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// A config-file spelling: lower-case, and it may contain DIGITS —
@@ -982,7 +983,7 @@ fn is_spelling(w: &str) -> bool {
     !w.is_empty()
         && w.starts_with(|c: char| c.is_ascii_lowercase())
         && w.chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
 }
 
 /// Every way this lexer lets you spell one token.
@@ -1217,18 +1218,7 @@ fn lexer_spelling(cfg_lex: &str, token: &str) -> Option<String> {
         if tok != token {
             continue;
         }
-        let pat = pat.trim();
-        let quoted = pat
-            .split('"')
-            .find(|w| !w.is_empty() && w.chars().all(|c| c.is_ascii_lowercase() || c == '_'));
-        if let Some(w) = quoted {
-            return Some(w.to_string());
-        }
-        return pat
-            .split('|')
-            .map(str::trim)
-            .find(|w| !w.is_empty() && w.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
-            .map(str::to_string);
+        return lexer_spellings(pat).into_iter().next();
     }
     None
 }
@@ -1257,6 +1247,8 @@ pub fn parse_socket_attrs_c(cfg_y: &str, cfg_lex: &str) -> Vec<String> {
         if !is_token(tok) {
             continue;
         }
+        // the SHARED reader: a private copy drifted once already,
+        // rejecting digits after the shared one was widened
         if let Some(w) = lexer_spelling(cfg_lex, tok)
             && !out.contains(&w)
         {
