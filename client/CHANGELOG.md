@@ -2,6 +2,52 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.19.0] — 2026-08-26
+
+**Core hovers carry the cookbook's worked example, and both socket
+syntaxes stop being invisible.**
+
+- **A hover now shows the example, which is where the form is.** The
+  cookbook documents 285 of its 330 core sections with an example of
+  usage and not one of them reached a hover. 209 parameters, 18
+  functions and 36 pseudo-variables now carry theirs. The default
+  already arrived: this cookbook writes it into the first paragraph
+  ("Default value is 8." in `children`), which is why nothing
+  synthesises a separate `Default:` line here.
+- **`listen=` modifiers and `socket = { }` attributes hover and
+  complete.** `advertise`, `name` and `virtual` on a `listen` line;
+  `bind`, `advertise`, `name`, `agname`, `workers`, `virtual` and
+  `vrf` inside the brace form. Two different syntaxes with two
+  different sets, each answering only where it applies. Membership is
+  read from Kamailio's own grammar — `workers` is offered even though
+  the cookbook's attribute list omits it, and says so.
+- **Spellings the cookbook skips now hover as the thing they are.**
+  Thirty-five of them: `wdir` for `workdir`, `seturi` for
+  `rewriteuri`, `dns_use_cache` for `use_dns_cache` and the rest. An
+  alias of a call is a call, not a parameter.
+- **Names no page describes are offered anyway, and say so.**
+  Twenty-nine globals the grammar accepts and the cookbook never
+  mentions.
+
+### Fixed
+
+- **A heading naming several parameters yields all of them.** The
+  cookbook documents families together —
+  `### tcp_source_ipv4, tcp_source_ipv6` and
+  `### dns_sctp_pref, dns_tcp_pref, dns_tls_pref, dns_udp_pref` — and
+  taking the first word produced a parameter literally named
+  `tcp_source_ipv4,`, comma included and impossible to hover, while
+  its siblings vanished entirely.
+- **A `socket = { ... }` written on one line closes on that line.**
+  The opener never counted its own braces, so a single-line block
+  stayed open for the rest of the file and `name`, `virtual`,
+  `workers` and `advertise` hovered as socket syntax in the middle of
+  a route body. An attribute on the opener's own line now hovers too,
+  which it never did.
+- A `#` at column zero inside an example is a configuration comment,
+  not a heading, and a section ending at one lost the rest of its
+  example.
+
 ## [0.18.0] — 2026-08-26
 
 **Routing blocks and control statements hover, thirty-five variables

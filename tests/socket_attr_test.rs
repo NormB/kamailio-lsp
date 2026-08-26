@@ -340,3 +340,43 @@ fn an_ordinary_line_offers_neither_set() {
     assert!(!labels.contains(&"vrf"), "{} labels", labels.len());
     assert!(!labels.contains(&"advertise"), "{} labels", labels.len());
 }
+
+/// A `socket = { ... }` written on ONE line closes on that line.
+///
+/// The opener set the depth and then moved on without counting the
+/// braces on its own line, so a single-line block never closed: every
+/// line after it in the file read as inside a socket block, and
+/// `name`, `virtual`, `workers` and `advertise` hovered as socket
+/// syntax in the middle of a route body. The cookbook writes the form
+/// across several lines, which is exactly why nothing noticed.
+#[test]
+fn a_socket_block_written_on_one_line_closes_on_that_line() {
+    let core = &kamailio_lsp::catalog::builtin_core().core;
+    let text = "socket = { bind = udp:192.0.2.1:5060; }\nrequest_route {\n    $var(name) = 1;\n}\n";
+    let got = kamailio_lsp::logic::hover_markdown_at(&[], core, text, "name", 2, 9);
+    assert!(
+        got.as_deref()
+            .is_none_or(|h| !h.to_lowercase().contains("socket attribute")),
+        "the block closed on line 0; `name` here is a variable: {got:?}"
+    );
+    // POSITIVE CONTROL: inside the one-line block it still answers
+    let inside = kamailio_lsp::logic::hover_markdown_at(&[], core, text, "bind", 0, 11);
+    assert!(
+        inside.is_some_and(|h| h.to_lowercase().contains("socket attribute")),
+        "and an attribute ON that line must still hover"
+    );
+}
+
+/// The same for a block that opens and closes across lines: what
+/// follows it is ordinary configuration again.
+#[test]
+fn a_closed_socket_block_does_not_leak_into_what_follows() {
+    let core = &kamailio_lsp::catalog::builtin_core().core;
+    let text = "socket = {\n    bind = udp:192.0.2.1:5060;\n}\n\nrequest_route {\n    $var(name) = 1;\n}\n";
+    let got = kamailio_lsp::logic::hover_markdown_at(&[], core, text, "name", 5, 9);
+    assert!(
+        got.as_deref()
+            .is_none_or(|h| !h.to_lowercase().contains("socket attribute")),
+        "{got:?}"
+    );
+}

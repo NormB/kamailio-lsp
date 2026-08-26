@@ -1782,18 +1782,31 @@ fn opens_a_listen_statement(text: &str) -> bool {
 /// block — the structured form, a different set of names in
 /// `attr = value;` shape.
 fn inside_a_socket_block(doc: &str, line: u32) -> bool {
+    let opens_here = |l: &str| {
+        l.trim_start()
+            .strip_prefix("socket")
+            .is_some_and(|r| r.trim_start().starts_with('='))
+            && l.contains('{')
+    };
     let mut depth = 0usize;
     for (n, l) in doc.lines().enumerate() {
         if n as u32 == line {
-            return depth > 0;
+            // the opener's own line counts: `socket = { bind = …`
+            // puts an attribute on the same line as the brace, and
+            // asking only about the state BEFORE the line answered
+            // nothing for it
+            return depth > 0 || opens_here(l);
         }
-        let t = l.trim_start();
         if depth == 0 {
-            if t.strip_prefix("socket")
-                .is_some_and(|r| r.trim_start().starts_with('='))
-                && l.contains('{')
-            {
-                depth = 1;
+            if opens_here(l) {
+                // count the opener's OWN braces: written on one line,
+                // `socket = { bind = …; }` opens and closes here, and
+                // treating it as open left every later line in the
+                // file reading as socket syntax
+                depth = l
+                    .matches('{')
+                    .count()
+                    .saturating_sub(l.matches('}').count());
             }
             continue;
         }
