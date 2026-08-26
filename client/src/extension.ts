@@ -9,6 +9,29 @@ import {
 } from 'vscode-languageclient/node';
 
 let client: LanguageClient | undefined;
+/// What the server says it is judging `modparam` names against.
+/// Shown only while a Kamailio config is in front of the user: a
+/// permanent item would be noise in every other editor.
+let catalogueStatus: vscode.StatusBarItem | undefined;
+let catalogueText: string | undefined;
+
+const KAMAILIO_LANGUAGE = 'kamailio-cfg';
+
+/// Show the item when the active editor is a Kamailio config and the
+/// server has said what it is using; hide it otherwise.
+function refreshCatalogueStatus(): void {
+    if (!catalogueStatus) {
+        return;
+    }
+    const active = vscode.window.activeTextEditor;
+    const relevant = active?.document?.languageId === KAMAILIO_LANGUAGE;
+    if (relevant && catalogueText) {
+        catalogueStatus.text = `$(book) ${catalogueText}`;
+        catalogueStatus.show();
+    } else {
+        catalogueStatus.hide();
+    }
+}
 
 /** Resolve the server binary: an explicit non-default setting wins,
  *  then the binary bundled inside platform-specific builds of this
@@ -139,7 +162,29 @@ export function activate(context: vscode.ExtensionContext) {
         return;
     }
     client = buildClient(context);
-    void client.start().then(associateOpenDocuments);
+    catalogueStatus = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Right,
+        100,
+    );
+    catalogueStatus.tooltip =
+        'The Kamailio release this file\u2019s modparam names are checked against';
+    catalogueStatus.command = 'workbench.action.openSettings';
+    context.subscriptions.push(catalogueStatus);
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(() => refreshCatalogueStatus()),
+    );
+    void client.start().then(() => {
+        // the server names its catalogue once it is settled, and again
+        // whenever it changes
+        client?.onNotification(
+            'kamailioLsp/catalogue',
+            (p: { describe?: string }) => {
+                catalogueText = p?.describe;
+                refreshCatalogueStatus();
+            },
+        );
+        return associateOpenDocuments();
+    });
     context.subscriptions.push(
         vscode.workspace.onDidOpenTextDocument((d) => void associateIfIncluded(d)),
     );
@@ -157,6 +202,7 @@ export function activate(context: vscode.ExtensionContext) {
         'kamailioLsp.kamailioPath',
         'kamailioLsp.kamailioSrc',
         'kamailioLsp.kamailioWiki',
+        'kamailioLsp.kamailioVersion',
         'kamailioLsp.modulesPath',
         'kamailioLsp.cacheDir',
         'kamailioLsp.diagnostics.enable',

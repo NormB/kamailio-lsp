@@ -2,6 +2,54 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.16.0] — 2026-08-25
+
+**The `modparam` check now knows what a module actually exports, and
+you can tell it which Kamailio release you run.** What a module
+accepts was read out of its README, and the README is not the
+authority.
+
+- **Parameters come from the module's own code.** A module declares
+  what `modparam` accepts in a C table, and that table is what
+  Kamailio checks against when it starts. The catalogue is now built
+  from it, which fixes both directions at once for `kazoo`: its README
+  documents `amqp_consumer_ack_timeout`, a parameter Kamailio has
+  never exported and the server used to offer in completion, while the
+  `amqp_consumer_ack_timeout_sec` and `_micro` it really has went
+  unmentioned and were warned about. 243 parameters no README mentions
+  are now available — including `msilo`'s `sc_status` and
+  `ndb_cassandra`'s `port` — and 19 entries the READMEs invented are
+  gone, among them `slack`'s `slack url`, `mohqueue`'s `db_qtable and
+  db_ctable`, and the `uid_auth_db` columns whose README documents the
+  old `auth_db` module's parameters rather than its own.
+- **The release in use is on the status bar.** While a Kamailio config
+  is in front of you, the status bar names the catalogue your
+  `modparam` lines are being checked against — `Kamailio 6.1.4`, or
+  the configured source tree when you have pointed at one. Previously
+  the only way to find out was to write something wrong and read the
+  warning. The server tells the editor directly, so it is right even
+  when the release was chosen for you by a workspace setting.
+- **The release is a dropdown, not a text box.** `kamailioVersion`
+  lists exactly the releases the shipped catalogue can answer for, so
+  it cannot be mistyped into a value the server has to reject.
+
+- **Choose the release you run.** The built-in catalogue now covers
+  Kamailio 5.8.8, 6.0.7 and 6.1.4, and `kamailioLsp.kamailioVersion`
+  picks which one your configuration is judged against. A warning
+  names that release, and when the parameter exists in another one it
+  says which: *"'ignore_user' is not exported by module 'rr' in
+  Kamailio 6.1.4 — it exists in 5.8.8, 6.0.7"*. That is the difference
+  between a warning you have to investigate and one that explains
+  itself.
+- **`kamailio-lsp check` runs the same `modparam` check the editor
+  does.** A CI job or git hook previously ran only the analyzer, so a
+  configuration naming a parameter no module exports passed there
+  while the editor warned about it. Expect `check` to report warnings
+  it did not report before; they were always true.
+- **A warning arrived with a gap in the middle of the sentence**, from
+  a line continuation that kept its indentation. It reads as a
+  sentence now.
+
 ## [0.15.1] — 2026-08-25
 
 **A split configuration whose fragments are named `.inc` now works,

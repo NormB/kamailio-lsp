@@ -16,6 +16,12 @@
 
 mod common;
 use common::*;
+use std::cell::RefCell;
+
+thread_local! {
+    /// The last `kamailioLsp/catalogue` payload seen by `diagnostics_for`.
+    static ANNOUNCED: RefCell<serde_json::Value> = const { RefCell::new(serde_json::Value::Null) };
+}
 use std::process::{Command, Stdio};
 
 const CFG: &str = "request_route {\n    xlog(\"x\");\n}\nmodparam(\"rr\", \"ignore_user\", 1)\n";
@@ -65,10 +71,21 @@ fn diagnostics_for(tag: &str, version: Option<&str>) -> Vec<String> {
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
+    // The server announces what it is judging against before it is
+    // ready; the editor shows this so the reader never has to guess.
+    // `wait_for` discards what it passes over, so this must be taken
+    // before the ready message it precedes.
+    let announced = wait_for(
+        &rx,
+        |v| v["method"] == "kamailioLsp/catalogue",
+        "catalogue announcement",
+    );
+    ANNOUNCED.with(|a| *a.borrow_mut() = announced["params"].clone());
+
     // Wait for the catalogue to be in place first. Without this the
     // "no diagnostics" case below would be satisfied by a server that
     // simply had not got there yet — an empty result meaning nothing.
-    wait_for(
+    let ready_seen = wait_for(
         &rx,
         |v| {
             v["method"] == "window/logMessage"
@@ -79,6 +96,7 @@ fn diagnostics_for(tag: &str, version: Option<&str>) -> Vec<String> {
         },
         "ready",
     );
+    let _ = ready_seen;
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
@@ -146,5 +164,51 @@ fn an_unsupported_release_still_produces_a_working_server() {
     assert!(
         hit.contains("6.1.4"),
         "it falls back to the newest, and says so in the message: {hit:?}"
+    );
+}
+
+/// The server tells the client what it is judging against, so the
+/// editor can show it without waiting for something to go wrong.
+///
+/// A warning names the catalogue, but only once a parameter is
+/// unknown. Until then nothing tells the reader which release their
+/// file is parsed against — and the answer changes with a setting
+/// that may have been set for them.
+#[test]
+fn the_server_announces_the_catalogue_it_uses() {
+    // the default: the newest built-in release, named
+    let _ = diagnostics_for("announce-default", None);
+    let d = ANNOUNCED.with(|a| a.borrow().clone());
+    assert_eq!(
+        d["version"].as_str(),
+        Some("6.1.4"),
+        "the newest release must be announced: {d}"
+    );
+    assert!(
+        d["describe"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Kamailio 6.1.4"),
+        "and named as it reads in a sentence: {d}"
+    );
+
+    // and it follows the setting, not just the default
+    let _ = diagnostics_for("announce-older", Some("6.0.7"));
+    let d = ANNOUNCED.with(|a| a.borrow().clone());
+    assert_eq!(
+        d["version"].as_str(),
+        Some("6.0.7"),
+        "the announcement must follow the chosen release: {d}"
+    );
+
+    // an unsupported one falls back, and announces what it FELL BACK
+    // TO rather than what was asked for — the editor must not show a
+    // release the server is not using
+    let _ = diagnostics_for("announce-bogus", Some("9.9.9"));
+    let d = ANNOUNCED.with(|a| a.borrow().clone());
+    assert_eq!(
+        d["version"].as_str(),
+        Some("6.1.4"),
+        "the announcement must name what is in use, not what was asked: {d}"
     );
 }
