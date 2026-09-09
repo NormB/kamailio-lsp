@@ -2,6 +2,31 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.19.2] — 2026-09-09
+
+**A release with no behaviour change: one compile-time dependency, and
+a gate so the next dependency bump cannot break the release job.**
+
+- **`@types/node` 26.4.0 to 26.4.1**, a compile-time stub with no
+  runtime half, landed here as the sibling extension took it.
+- **`@types/vscode` stays at `^1.91.0`.** `vsce package` refuses a
+  manifest whose `@types/vscode` range exceeds `engines.vscode`, and
+  the weekly dependency group proposes exactly that raise: the sibling
+  extension received it, and the same range raised on this tree was
+  confirmed to fail here with the same message. The range is not a
+  version to keep current. It is the API surface this extension
+  compiles against, and it has to equal the oldest VS Code release the
+  extension claims to run on, or the compiler will accept calls that
+  are absent there. Nothing is lost by holding it, because the caret
+  still resolves the newest 1.x.
+- **CI now packages the extension**, running the release job's own
+  `vsce package` command. A manifest in that state passes `tsc`,
+  passes the behaviour suites and passes every Rust gate; the refusal
+  would first have appeared on a pushed tag, after the release had
+  already built and uploaded the server binaries.
+
+Nothing that runs in your editor changed in this release.
+
 ## [0.19.1] — 2026-09-02
 
 **A dependency release: the language client the extension talks to,
