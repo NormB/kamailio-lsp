@@ -97,6 +97,11 @@ function buildClient(context: vscode.ExtensionContext): LanguageClient {
             assistance: cfg.get<boolean>('assistance', true),
             maxDiagnostics: cfg.get<number>('diagnostics.maxProblems', 100),
             cacheDir: cfg.get<string>('cacheDir', ''),
+            // read only at `initialize` on the server side, which is
+            // why both are on `restartSettings` below: changing either
+            // rebuilds the client, and the new value arrives here
+            versionInHints: cfg.get<boolean>('versionInHints', false),
+            kamailioVersion: cfg.get<string>('kamailioVersion', ''),
         },
     };
     return new LanguageClient(
