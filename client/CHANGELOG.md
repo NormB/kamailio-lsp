@@ -2,6 +2,35 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.19.4] — 2026-09-15
+
+**A release with no behaviour change: the weekly dependency updates, and
+nothing else.**
+
+- **`@types/node` 26.4.1 to 26.6.1**, a compile-time stub with no
+  runtime half. No dependency PR was open against this tree — the weekly
+  group had proposed 26.5.1 on the sibling extension — so the range was
+  resolved here against this tree's own lock and went straight to 26.6.1,
+  the newest 26.x, rather than to a version the next run would supersede.
+  npm's `latest` tag for this package reads 22.20.3, which is not a
+  ceiling: DefinitelyTyped publishes a line per Node major, and 26.x is
+  where every current TypeScript dist-tag points.
+- **Five transitive Rust crates**, none of them named in this crate's
+  manifest: `bitflags` 2.13.1 to 2.13.2, `crossbeam-utils` 0.8.22 to
+  0.8.23, `mio` 1.2.2 to 1.2.3, `smallvec` 1.15.2 to 1.16.1 and `syn`
+  3.0.3 to 3.0.5. Traced on this tree rather than assumed from the
+  sibling's: `bitflags` arrives through `tower-lsp-server`'s `ls-types`,
+  `crossbeam-utils` through `dashmap`, `mio` through `tokio`, `smallvec`
+  through `parking_lot_core`, and `syn` through `serde_derive`, a
+  proc-macro that runs only at build time. `Cargo.toml` is unchanged.
+  The two trees are not identical — this one has no `roxmltree`, since
+  Kamailio's core documentation is not the XML the sibling parses — but
+  these five bumps are common to both.
+- **`@types/vscode` stays at `^1.91.0`**, equal to `engines.vscode`.
+  0.19.2 recorded why and it has not changed: `vsce package` refuses a
+  manifest whose range exceeds the engine floor, so a dependabot
+  `ignore` holds it rather than the weekly group deciding it.
+
 ## [0.19.3] — 2026-09-09
 
 **Two settings that did nothing now work.**
