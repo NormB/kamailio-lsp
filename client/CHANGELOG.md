@@ -2,6 +2,19 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.19.5] — 2026-09-26
+
+**A release with no behavior change: one dependency update, and nothing
+else.**
+
+- **`@types/node` 26.6.1 to 26.6.2**, a compile-time stub with no
+  runtime half, from the weekly dependabot group (#31). No source file,
+  Rust dependency or `Cargo.lock` entry other than this crate's own
+  version changed.
+- **`@types/vscode` stays at `^1.91.0`**, equal to `engines.vscode`, for
+  the reason 0.19.2 recorded: `vsce package` refuses a manifest whose
+  range exceeds the engine floor.
+
 ## [0.19.4] — 2026-09-15
 
 **A release with no behaviour change: the weekly dependency updates, and
