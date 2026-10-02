@@ -2,6 +2,19 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.19.6] — 2026-10-01
+
+**A release with no behavior change: one weekly dependency update, and
+nothing else.**
+
+- **`vscode-languageclient` 10.1.1 to 10.1.2**, the language-client library
+  the extension bundles, and **`@types/node` 26.6.2 to 26.6.3**, a
+  compile-time stub, both from the weekly dependency group in #32. No source
+  file, Rust crate or `Cargo.lock` entry other than this package's own
+  version changed.
+- **`@types/vscode` stays at `^1.91.0`**, equal to `engines.vscode`: `vsce
+  package` refuses a manifest whose range exceeds the engine floor.
+
 ## [0.19.5] — 2026-09-26
 
 **A release with no behavior change: one dependency update, and nothing
