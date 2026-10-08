@@ -2,6 +2,19 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.19.7] — 2026-10-08
+
+**A release with no behavior change: the weekly dependency updates, and
+nothing else.**
+
+- **`tokio` 1.53.1 to 1.53.2**, the async runtime the language server runs
+  on, from the weekly cargo group in #34. A patch release of bug fixes; its
+  notes list fixes in `fs`, `io`, `process`, `rt`, `sync`, `task` and `time`.
+  Only its `Cargo.lock` entry changed.
+- **`@types/node` 26.6.3 to 26.6.4**, a compile-time stub with no runtime
+  half, from the weekly npm group in #35.
+- No source file changed.
+
 ## [0.19.6] — 2026-10-01
 
 **A release with no behavior change: a security fix in a bundled dependency,
