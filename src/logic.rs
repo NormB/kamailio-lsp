@@ -442,10 +442,9 @@ fn hint_name(param: &str) -> Option<String> {
 fn signature_of(
     catalog: &[ModuleDoc],
     core: &crate::catalog::CoreDocs,
-    doc: &str,
+    loaded: &[String],
     name: &str,
 ) -> Option<String> {
-    let loaded = loaded_names(doc);
     let sig = |m: &ModuleDoc| {
         m.functions
             .iter()
@@ -483,11 +482,13 @@ pub fn parameter_hints(
     doc: &str,
 ) -> Vec<Hint> {
     let mut out = Vec::new();
+    // once per document, not once per call
+    let loaded = loaded_names(doc);
     for call in analyze::calls(doc) {
         if call.args.is_empty() {
             continue;
         }
-        let Some(sig) = signature_of(catalog, core, doc, &call.name) else {
+        let Some(sig) = signature_of(catalog, core, &loaded, &call.name) else {
             continue;
         };
         let params = split_params(&sig);

@@ -111,17 +111,37 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
     out
 }
 
-/// Byte offset → (0-based line, 0-based col).
-fn line_col(text: &str, offset: usize) -> (u32, u32) {
-    let pre = &text.as_bytes()[..offset.min(text.len())];
-    let line = pre.iter().filter(|&&c| c == b'\n').count() as u32;
-    let col = offset
-        - pre
-            .iter()
-            .rposition(|&c| c == b'\n')
-            .map(|p| p + 1)
-            .unwrap_or(0);
-    (line, col as u32)
+/// Line starts of a text, built once so each byte offset → (line,
+/// col) lookup is a binary search instead of a rescan from the top.
+/// Rescanning made every scanner quadratic in the size of the file.
+pub(crate) struct Lines {
+    starts: Vec<usize>,
+    len: usize,
+}
+
+impl Lines {
+    pub(crate) fn new(text: &str) -> Self {
+        let mut starts = vec![0];
+        starts.extend(
+            text.bytes()
+                .enumerate()
+                .filter(|&(_, c)| c == b'\n')
+                .map(|(i, _)| i + 1),
+        );
+        Lines {
+            starts,
+            len: text.len(),
+        }
+    }
+
+    /// Byte offset → (0-based line, 0-based byte col); offsets past
+    /// the end clamp to the end.
+    pub(crate) fn line_col(&self, offset: usize) -> (u32, u32) {
+        let offset = offset.min(self.len);
+        // the last start that is <= offset
+        let line = self.starts.partition_point(|&s| s <= offset) - 1;
+        (line as u32, (offset - self.starts[line]) as u32)
+    }
 }
 
 /// Word byte, for callers outside this module.
@@ -203,6 +223,7 @@ const DEFINING: &[&str] = &[
 /// lines are part of the value.
 pub fn defines(text: &str) -> Vec<Define> {
     let class = classify(text);
+    let lines = Lines::new(text);
     let b = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
@@ -215,7 +236,7 @@ pub fn defines(text: &str) -> Vec<Define> {
         while i < b.len() && class[i] == Class::Preproc {
             i += 1;
         }
-        if let Some(d) = parse_define(text, start, i) {
+        if let Some(d) = parse_define(text, &lines, start, i) {
             out.push(d);
         }
     }
@@ -227,7 +248,7 @@ pub fn defines(text: &str) -> Vec<Define> {
 /// Two shapes bind a name: the plain `#!define NAME value` family, and
 /// `#!substdef "!NAME!value!g"`, whose first character after the quote
 /// is the delimiter — whatever it happens to be.
-fn parse_define(text: &str, start: usize, end: usize) -> Option<Define> {
+fn parse_define(text: &str, lines: &Lines, start: usize, end: usize) -> Option<Define> {
     let run = text.get(start..end)?;
     // PREP_START is "#!" or "!!"
     let rest = run.strip_prefix("#!").or_else(|| run.strip_prefix("!!"))?;
@@ -253,7 +274,7 @@ fn parse_define(text: &str, start: usize, end: usize) -> Option<Define> {
             .map(|e| &body[value_start..value_start + e])
             .unwrap_or("");
         let name_off = 2 + kw_len + q + 1 + delim.len_utf8();
-        let (line, col) = line_col(text, start + name_off);
+        let (line, col) = lines.line_col(start + name_off);
         return Some(Define {
             name: name.to_string(),
             value: value.to_string(),
@@ -279,7 +300,7 @@ fn parse_define(text: &str, start: usize, end: usize) -> Option<Define> {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    let (line, col) = line_col(text, start + 2 + kw.len() + name_off);
+    let (line, col) = lines.line_col(start + 2 + kw.len() + name_off);
     Some(Define {
         name: tail[..name_len].to_string(),
         value,
@@ -296,6 +317,7 @@ fn parse_define(text: &str, start: usize, end: usize) -> Option<Define> {
 /// much as one in a route body.
 pub fn code_words(text: &str) -> Vec<Located> {
     let class = classify(text);
+    let lines = Lines::new(text);
     let b = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
@@ -312,7 +334,7 @@ pub fn code_words(text: &str) -> Vec<Located> {
         if b[start].is_ascii_digit() {
             continue;
         }
-        let (line, col) = line_col(text, start);
+        let (line, col) = lines.line_col(start);
         out.push(Located {
             name: text[start..i].to_string(),
             line,
@@ -348,6 +370,7 @@ pub struct Call {
 /// them.
 pub fn calls(text: &str) -> Vec<Call> {
     let class = classify(text);
+    let lines = Lines::new(text);
     let b = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
@@ -401,13 +424,13 @@ pub fn calls(text: &str) -> Vec<Call> {
                     b')' => {
                         depth -= 1;
                         if depth == 0 {
-                            push_arg(text, seg_start, k, &mut args);
+                            push_arg(text, &lines, seg_start, k, &mut args);
                             closed = true;
                             break;
                         }
                     }
                     b',' if depth == 1 => {
-                        push_arg(text, seg_start, k, &mut args);
+                        push_arg(text, &lines, seg_start, k, &mut args);
                         seg_start = k + 1;
                     }
                     _ => {}
@@ -415,7 +438,7 @@ pub fn calls(text: &str) -> Vec<Call> {
             }
             k += 1;
         }
-        let (line, col) = line_col(text, name_start);
+        let (line, col) = lines.line_col(name_start);
         out.push(Call {
             name: text[name_start..name_end].to_string(),
             line,
@@ -428,17 +451,18 @@ pub fn calls(text: &str) -> Vec<Call> {
 }
 
 /// Record `text[from..to]` as an argument, unless it is blank.
-fn push_arg(text: &str, from: usize, to: usize, out: &mut Vec<(u32, u32)>) {
+fn push_arg(text: &str, lines: &Lines, from: usize, to: usize, out: &mut Vec<(u32, u32)>) {
     let seg = &text[from..to.min(text.len())];
     let Some(off) = seg.find(|c: char| !c.is_whitespace()) else {
         return;
     };
-    out.push(line_col(text, from + off));
+    out.push(lines.line_col(from + off));
 }
 
 /// Every `loadmodule "x.so"` in code position, as bare module names.
 pub fn loaded_modules(text: &str) -> Vec<Located> {
     let classes = classify(text);
+    let lines = Lines::new(text);
     let mut out = Vec::new();
     for c in re_loadmodule().captures_iter(text) {
         let whole = c.get(0).unwrap();
@@ -459,7 +483,7 @@ pub fn loaded_modules(text: &str) -> Vec<Located> {
         if base.is_empty() || base.contains('\0') {
             continue;
         }
-        let (line, col) = line_col(text, whole.start());
+        let (line, col) = lines.line_col(whole.start());
         out.push(Located {
             name: base.to_string(),
             line,
@@ -504,6 +528,7 @@ pub struct IncludeLink {
 /// [`includes`] with the path spans preserved.
 pub fn include_links(text: &str) -> Vec<IncludeLink> {
     let classes = classify(text);
+    let lines = Lines::new(text);
     let b = text.as_bytes();
     let mut out = Vec::new();
     for c in re_include().captures_iter(text) {
@@ -531,8 +556,8 @@ pub fn include_links(text: &str) -> Vec<IncludeLink> {
         if path.as_str().is_empty() || path.as_str().contains('\0') {
             continue;
         }
-        let (dir_line, dir_col) = line_col(text, start);
-        let (line, col) = line_col(text, path.start());
+        let (dir_line, dir_col) = lines.line_col(start);
+        let (line, col) = lines.line_col(path.start());
         out.push(IncludeLink {
             path: path.as_str().to_string(),
             line,
@@ -567,6 +592,7 @@ static_regex!(
 /// position, with the position of the parameter name.
 pub fn modparam_calls(text: &str) -> Vec<ModparamCall> {
     let classes = classify(text);
+    let lines = Lines::new(text);
     let b = text.as_bytes();
     let mut out = Vec::new();
     for c in re_modparam_call().captures_iter(text) {
@@ -583,7 +609,7 @@ pub fn modparam_calls(text: &str) -> Vec<ModparamCall> {
             continue;
         }
         let pm = c.get(2).unwrap();
-        let (line, col) = line_col(text, pm.start());
+        let (line, col) = lines.line_col(pm.start());
         out.push(ModparamCall {
             module: module.to_string(),
             param: param.to_string(),
@@ -606,13 +632,14 @@ static_regex!(
 /// never contribute.
 pub fn pvars(text: &str) -> Vec<(u32, u32, u32)> {
     let classes = classify(text);
+    let lines = Lines::new(text);
     let mut out = Vec::new();
     for m in re_pvar_tok().find_iter(text) {
         match classes.get(m.start()) {
             Some(&Class::Code) | Some(&Class::Str) => {}
             _ => continue,
         }
-        let (line, col) = line_col(text, m.start());
+        let (line, col) = lines.line_col(m.start());
         out.push((line, col, (m.end() - m.start()) as u32));
     }
     out
@@ -660,6 +687,7 @@ pub struct Block {
 /// close a block; an unterminated block extends to end of text.
 pub fn route_blocks(text: &str) -> Vec<Block> {
     let classes = classify(text);
+    let lines = Lines::new(text);
     let b = text.as_bytes();
     let mut out = Vec::new();
     for c in re_route_def().captures_iter(text) {
@@ -692,17 +720,17 @@ pub fn route_blocks(text: &str) -> Vec<Block> {
             }
             i += 1;
         }
-        let (line, col) = line_col(text, start);
+        let (line, col) = lines.line_col(start);
         let (end_line, end_col) = match close {
             Some(p) => {
-                let (l, c2) = line_col(text, p);
+                let (l, c2) = lines.line_col(p);
                 (l, c2 + 1)
             }
-            None => line_col(text, text.len()),
+            None => lines.line_col(text.len()),
         };
         let (name_line, name_col) = c
             .get(2)
-            .map(|m| line_col(text, m.start()))
+            .map(|m| lines.line_col(m.start()))
             .unwrap_or((line, col));
         out.push(Block {
             name: c.get(2).map(|m| m.as_str().to_string()).unwrap_or_default(),
@@ -721,6 +749,7 @@ pub fn route_blocks(text: &str) -> Vec<Block> {
 /// Every `route(name)` call site (excluding `*_route(...)` look-alikes).
 pub fn route_refs(text: &str) -> Vec<Located> {
     let classes = classify(text);
+    let lines = Lines::new(text);
     let re = re_route_ref();
     let mut out = Vec::new();
     for c in re.captures_iter(text) {
@@ -734,7 +763,7 @@ pub fn route_refs(text: &str) -> Vec<Located> {
             continue;
         }
         let name = c.get(1).unwrap();
-        let (line, col) = line_col(text, name.start());
+        let (line, col) = lines.line_col(name.start());
         out.push(Located {
             name: name.as_str().to_string(),
             line,
