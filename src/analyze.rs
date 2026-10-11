@@ -139,21 +139,26 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
                     i += 1;
                 }
             }
+            // block comments NEST: cfg.lex counts `comment_nest` up on
+            // every `/*` inside one and leaves only back at zero
             b'/' if i + 1 < b.len() && b[i + 1] == b'*' => {
-                out[i] = Class::Comment;
-                out[i + 1] = Class::Comment;
-                i += 2;
-                while i < b.len()
-                    && !(b[i] == b'*' && i + 1 < b.len() && b[i + 1] == b'/')
-                    && !breaks_at(b, i)
-                {
-                    out[i] = Class::Comment;
-                    i += 1;
-                }
-                if i + 1 < b.len() && b[i] == b'*' {
+                let mut depth = 0usize;
+                while i < b.len() && !breaks_at(b, i) {
+                    if b[i] == b'/' && b.get(i + 1) == Some(&b'*') {
+                        depth += 1;
+                    } else if b[i] == b'*' && b.get(i + 1) == Some(&b'/') {
+                        depth -= 1;
+                    } else {
+                        out[i] = Class::Comment;
+                        i += 1;
+                        continue;
+                    }
                     out[i] = Class::Comment;
                     out[i + 1] = Class::Comment;
                     i += 2;
+                    if depth == 0 {
+                        break;
+                    }
                 }
             }
             b'"' => {

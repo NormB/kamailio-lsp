@@ -544,3 +544,18 @@ fn active_includes_skips_what_the_preprocessor_compiles_out() {
         let _ = active_includes(t);
     }
 }
+
+/// Kamailio block comments nest: cfg.lex counts `comment_nest` up on
+/// every `/*` inside a comment and leaves the comment only when it
+/// returns to zero.  `kamailio -c` 6.1.4 accepts this config, so
+/// neither `route(GHOST)` nor `route[GONE]` exists.
+#[test]
+fn block_comments_nest() {
+    let t = "/* outer /* inner */ route(GHOST); */\n\
+             route[REAL] {\n    route(AFTER);\n}\n\
+             /* a /* b */ route[GONE] { exit; } */\n";
+    let refs: Vec<String> = route_refs(t).into_iter().map(|r| r.name).collect();
+    assert_eq!(refs, vec!["AFTER"]);
+    let defs: Vec<String> = route_defs(t).into_iter().map(|d| d.name).collect();
+    assert_eq!(defs, vec!["REAL"]);
+}

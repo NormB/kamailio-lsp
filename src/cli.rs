@@ -193,12 +193,15 @@ pub fn run_check(args: &[String]) -> i32 {
         // the real parser, when configured: the same invocation the
         // server uses (-c needs a writable runtime dir even to check)
         if let Some(bin) = &bin {
+            // the checker runs in the config's directory, so it gets a
+            // path that is valid from there: a relative one is not
+            let abs = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
             let out = std::process::Command::new(bin)
                 .args(["-c", "--all-errors", "-Y"])
                 .arg(std::env::temp_dir())
                 .arg("-f")
-                .arg(path)
-                .current_dir(path.parent().unwrap_or(std::path::Path::new(".")))
+                .arg(&abs)
+                .current_dir(abs.parent().unwrap_or(std::path::Path::new("/")))
                 .output();
             match out {
                 Ok(out) => {
