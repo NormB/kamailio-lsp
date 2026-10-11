@@ -81,7 +81,6 @@ impl Kamailio {
         let (o, e) = self.run(f, &["-c", "--all-errors", "-Y", rundir.to_str().unwrap()]);
         o.contains("syntax error") || e.contains("syntax error")
     }
-
 }
 
 /// `text` with every line the preprocessor skips left blank, line
@@ -94,8 +93,18 @@ impl Kamailio {
 /// fails loudly rather than guessing.
 fn as_the_parser_reads_it(text: &str) -> String {
     const DEFINING: &[&str] = &[
-        "define", "def", "trydefine", "trydef", "redefine", "redef", "defexp", "defexps",
-        "defenv", "defenvs", "trydefenv", "trydefenvs",
+        "define",
+        "def",
+        "trydefine",
+        "trydef",
+        "redefine",
+        "redef",
+        "defexp",
+        "defexps",
+        "defenv",
+        "defenvs",
+        "trydefenv",
+        "trydefenvs",
     ];
     let mut defined: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut levels: Vec<bool> = Vec::new();
@@ -146,7 +155,10 @@ fn the_skip_emulation_agrees_with_the_parser() {
     std::fs::create_dir_all(&dir).unwrap();
     // (config, the lines that must come out blank)
     let cases: &[(&str, &[usize])] = &[
-        ("request_route { exit; }\n#!ifdef NOPE\nthis is skipped\n#!endif\n", &[2]),
+        (
+            "request_route { exit; }\n#!ifdef NOPE\nthis is skipped\n#!endif\n",
+            &[2],
+        ),
         (
             "#!define WITH_A\n#!ifdef WITH_A\nrequest_route { exit; }\n#!else\nSELECT 'x\n#!endif\n",
             &[4],
@@ -165,7 +177,10 @@ fn the_skip_emulation_agrees_with_the_parser() {
     for (i, (cfg, blank)) in cases.iter().enumerate() {
         let f = dir.join(format!("c{i}.cfg"));
         std::fs::write(&f, cfg).unwrap();
-        assert!(!k.syntax_error(&f), "case {i}: the parser rejects it:\n{cfg}");
+        assert!(
+            !k.syntax_error(&f),
+            "case {i}: the parser rejects it:\n{cfg}"
+        );
         let unguarded: String = cfg
             .lines()
             .filter(|l| !l.starts_with("#!"))
@@ -232,7 +247,10 @@ fn the_grammar_parses_every_config_the_real_parser_accepts() {
     let mut printed = Vec::new();
     for (i, f) in accepted.iter().chain(&fixtures).enumerate() {
         let raw = String::from_utf8_lossy(&std::fs::read(f).unwrap()).into_owned();
-        let p = scratch.join(format!("{i:03}-{}", f.file_name().unwrap().to_string_lossy()));
+        let p = scratch.join(format!(
+            "{i:03}-{}",
+            f.file_name().unwrap().to_string_lossy()
+        ));
         std::fs::write(&p, as_the_parser_reads_it(&raw)).unwrap();
         printed.push((p, f.clone()));
     }
