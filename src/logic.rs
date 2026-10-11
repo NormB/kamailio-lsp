@@ -701,6 +701,12 @@ pub fn route_symbol_ns_at(doc: &str, line: u32, col: u32) -> Option<(String, Rou
     {
         return Some((r.name, RouteNs::Main));
     }
+    if let Some((r, kind)) = analyze::armed_route_refs(doc)
+        .into_iter()
+        .find(|(r, _)| in_span(r, &r.name, line, col))
+    {
+        return Some((r.name, RouteNs::Kind(kind.to_string())));
+    }
     analyze::route_blocks(doc)
         .into_iter()
         .filter(|b| !b.name.is_empty())
@@ -722,6 +728,52 @@ pub fn route_symbol_ns_at(doc: &str, line: u32, col: u32) -> Option<(String, Rou
         })
 }
 
+/// Where `new_name` is already defined in namespace `ns` across
+/// `files`, if anywhere.
+///
+/// Renaming onto such a name would leave two definitions of it, which
+/// `kamailio -c` rejects (`duplicate route`).  A name that is only
+/// called, never defined, is free.
+pub fn rename_conflict(
+    files: &[(std::path::PathBuf, String)],
+    new_name: &str,
+    ns: &RouteNs,
+) -> Option<(std::path::PathBuf, Located)> {
+    let kind = match ns {
+        RouteNs::Main => "route",
+        RouteNs::Kind(k) => k.as_str(),
+    };
+    files.iter().find_map(|(p, t)| {
+        analyze::route_blocks(t)
+            .into_iter()
+            .find(|b| b.kind == kind && b.name == new_name)
+            .map(|b| {
+                (
+                    p.clone(),
+                    Located {
+                        name: b.name,
+                        line: b.name_line,
+                        col: b.name_col,
+                    },
+                )
+            })
+    })
+}
+
+/// Can a name in `ns` be renamed everywhere it is used?  Main-table
+/// routes can, and so can failure, onreply and branch routes, whose
+/// arming strings [`ns_occurrences`] finds.  Event route names belong
+/// to the module that raises the event.
+pub fn renamable(ns: &RouteNs) -> bool {
+    match ns {
+        RouteNs::Main => true,
+        RouteNs::Kind(k) => matches!(
+            k.as_str(),
+            "failure_route" | "onreply_route" | "branch_route"
+        ),
+    }
+}
+
 /// [`route_symbol_ns_at`], name only.
 pub fn route_symbol_at(doc: &str, line: u32, col: u32) -> Option<String> {
     route_symbol_ns_at(doc, line, col).map(|(n, _)| n)
@@ -729,9 +781,10 @@ pub fn route_symbol_at(doc: &str, line: u32, col: u32) -> Option<String> {
 
 /// Every occurrence of `name` within its namespace in `doc`.  The
 /// bool is `true` for definitions.  Main-namespace occurrences are
-/// `route(NAME)` call sites plus `route[NAME]` definitions; per-kind
-/// namespaces list only that kind's definition name spans (their call
-/// sites are strings inside module functions like `t_on_failure`).
+/// `route(NAME)` call sites plus `route[NAME]` definitions; a per-kind
+/// namespace has its definition name spans plus, for failure, onreply
+/// and branch routes, the strings `t_on_failure`, `t_on_reply` and
+/// `t_on_branch` arm them with ([`analyze::armed_route_refs`]).
 pub fn ns_occurrences(doc: &str, name: &str, ns: &RouteNs) -> Vec<(Located, bool)> {
     if name.is_empty() {
         return Vec::new();
@@ -749,6 +802,14 @@ pub fn ns_occurrences(doc: &str, name: &str, ns: &RouteNs) -> Vec<(Located, bool
         RouteNs::Main => "route",
         RouteNs::Kind(k) => k.as_str(),
     };
+    if let RouteNs::Kind(k) = ns {
+        out.extend(
+            analyze::armed_route_refs(doc)
+                .into_iter()
+                .filter(|(r, kind)| r.name == name && kind == k)
+                .map(|(r, _)| (r, false)),
+        );
+    }
     for b in analyze::route_blocks(doc) {
         if b.name == name && b.kind == want_kind {
             out.push((
@@ -758,6 +819,57 @@ pub fn ns_occurrences(doc: &str, name: &str, ns: &RouteNs) -> Vec<(Located, bool
                     col: b.name_col,
                 },
                 true,
+            ));
+        }
+    }
+    out
+}
+
+/// The `#!define` values across `files` that name route `name` and
+/// are used as a `route(...)` target somewhere in the closure.
+///
+/// Rename rewrites these along with `route[NAME]` and `route(NAME)`:
+/// without them, `route(R)` under `#!define R NAME` would expand to a
+/// route that no longer exists.  A define that merely holds the same
+/// text and is never a route target is left alone.  The span is the
+/// value itself, inside its quotes when it has them.
+pub fn define_alias_occurrences(
+    files: &[(std::path::PathBuf, String)],
+    name: &str,
+) -> Vec<(std::path::PathBuf, Located)> {
+    let targets: std::collections::HashSet<String> = files
+        .iter()
+        .flat_map(|(_, t)| analyze::route_refs(t))
+        .map(|r| r.name)
+        .collect();
+    let mut out = Vec::new();
+    for (p, t) in files {
+        for d in analyze::defines(t) {
+            if unquote(&d.value) != name || !targets.contains(&d.name) {
+                continue;
+            }
+            let Some(line) = t.lines().nth(d.line as usize) else {
+                continue;
+            };
+            let after = d.col as usize + d.name.len();
+            let Some(tail) = line.get(after..) else {
+                continue;
+            };
+            let mut col = after + (tail.len() - tail.trim_start().len());
+            if line[col..].starts_with(['"', '\'']) {
+                col += 1;
+            }
+            // a value continued across lines is not one token here
+            if !line[col..].starts_with(name) {
+                continue;
+            }
+            out.push((
+                p.clone(),
+                Located {
+                    name: name.to_string(),
+                    line: d.line,
+                    col: col as u32,
+                },
             ));
         }
     }
@@ -1241,6 +1353,35 @@ pub struct AnalyzerDiag {
 /// another definition, so the chain is followed — but only so far: a
 /// circular pair (`#!define A B` / `#!define B A`) is legal text and
 /// must terminate rather than spin.
+/// The `#!define` bindings of a closure, applied in reading order the
+/// way `pp_define` in cfg.lex applies them: `#!trydef` keeps a value
+/// already there, `#!redefine` replaces it, and a plain `#!define` of
+/// a bound name is an error the checker reports, so the first value
+/// stands.  A value wrapped in one pair of quotes is the text inside
+/// them: `#!define R "MYROUTE"` makes `route(R)` call `route[MYROUTE]`.
+fn define_map(files: &[(std::path::PathBuf, String)]) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    for d in files.iter().flat_map(|(_, t)| analyze::defines(t)) {
+        let value = unquote(&d.value).to_string();
+        if matches!(d.directive.as_str(), "redefine" | "redef") {
+            map.insert(d.name, value);
+        } else {
+            map.entry(d.name).or_insert(value);
+        }
+    }
+    map
+}
+
+/// `s` without one pair of matching surrounding quotes, if it has them.
+fn unquote(s: &str) -> &str {
+    for q in ['"', '\''] {
+        if s.len() >= 2 && s.starts_with(q) && s.ends_with(q) {
+            return &s[1..s.len() - 1];
+        }
+    }
+    s
+}
+
 fn expand_define(name: &str, defines: &std::collections::HashMap<String, String>) -> String {
     let mut cur = name.to_string();
     for _ in 0..8 {
@@ -1288,11 +1429,7 @@ pub fn analyzer_diagnostics_in_closure(
     // `#!define` bindings from the whole closure: the preprocessor
     // expands a route target before the parser ever sees it, so a
     // route reached through an alias is not undefined
-    let define_map: std::collections::HashMap<String, String> = files
-        .iter()
-        .flat_map(|(_, t)| analyze::defines(t))
-        .map(|d| (d.name, d.value))
-        .collect();
+    let define_map = define_map(files);
     let mut out = Vec::new();
     for r in analyze::route_refs(text) {
         // route(N) is a runtime rval expression (index/name dispatch):
@@ -1327,17 +1464,32 @@ pub fn analyzer_diagnostics_in_closure(
         }
     }
     // duplicate definitions across the closure, PER KIND (cross-kind
-    // same-name configs are legal); flag current-file ones
-    let mut counts: std::collections::HashMap<(&str, &str), u32> = std::collections::HashMap::new();
+    // same-name configs are legal); flag current-file ones.  Two
+    // definitions in different branches of one #!ifdef/#!else are
+    // never both read, so they do not clash with each other.
+    let paths: std::collections::HashMap<&std::path::Path, Vec<Vec<(u32, u32)>>> = files
+        .iter()
+        .map(|(p, t)| (p.as_path(), analyze::cond_paths(t)))
+        .collect();
+    let cond_of = |p: &std::path::Path, line: u32| -> &[(u32, u32)] {
+        paths
+            .get(p)
+            .and_then(|v| v.get(line as usize))
+            .map_or(&[], |v| v.as_slice())
+    };
+    let mut seen: std::collections::HashMap<(&str, &str), Vec<(&std::path::Path, u32)>> =
+        std::collections::HashMap::new();
     for (p, b) in &blocks {
         if b.name.is_empty() {
             continue;
         }
-        let n = counts
-            .entry((b.kind.as_str(), b.name.as_str()))
-            .or_insert(0);
-        *n += 1;
-        if *n > 1 && p == path {
+        let earlier = seen.entry((b.kind.as_str(), b.name.as_str())).or_default();
+        let clashes = earlier.iter().any(|(ep, el)| {
+            !(*ep == p.as_path()
+                && analyze::mutually_exclusive(cond_of(ep, *el), cond_of(p, b.line)))
+        });
+        earlier.push((p.as_path(), b.line));
+        if clashes && p == path {
             out.push(AnalyzerDiag {
                 line: b.line,
                 col_start: b.col,

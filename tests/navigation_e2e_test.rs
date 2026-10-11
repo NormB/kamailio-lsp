@@ -295,3 +295,146 @@ fn semantic_tokens_over_stdio() {
     child.kill().ok();
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// Edits a rename produced, as (line, start, end, newText), sorted.
+fn edits_of(v: &serde_json::Value, uri: &str) -> Vec<(u64, u64, u64, String)> {
+    let mut out: Vec<_> = v["result"]["changes"][uri]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(|e| {
+            (
+                e["range"]["start"]["line"].as_u64().unwrap(),
+                e["range"]["start"]["character"].as_u64().unwrap(),
+                e["range"]["end"]["character"].as_u64().unwrap(),
+                e["newText"].as_str().unwrap().to_string(),
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+fn request(
+    stdin: &mut std::process::ChildStdin,
+    rx: &std::sync::mpsc::Receiver<serde_json::Value>,
+    id: i64,
+    method: &str,
+    params: serde_json::Value,
+) -> serde_json::Value {
+    write_msg(
+        stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":id,"method":method,"params":params}),
+    );
+    wait_for(rx, |v| v["id"] == id, method)
+}
+
+const ARMED: &str = "request_route {\n    t_on_failure(\"FR\");\n    t_relay();\n}\nfailure_route[FR] {\n    exit;\n}\n";
+
+#[test]
+fn renaming_a_failure_route_rewrites_the_string_that_arms_it() {
+    let (mut child, rx, mut stdin, uri, _base) = boot("rename-armed", serde_json::json!({}), ARMED);
+    // F2 is allowed on the failure route's name
+    let prep = request(
+        &mut stdin,
+        &rx,
+        20,
+        "textDocument/prepareRename",
+        serde_json::json!({"textDocument":{"uri":uri},"position":{"line":4,"character":15}}),
+    );
+    assert_eq!(prep["result"]["placeholder"], "FR", "{prep}");
+    let v = request(
+        &mut stdin,
+        &rx,
+        21,
+        "textDocument/rename",
+        serde_json::json!({"textDocument":{"uri":uri},"position":{"line":4,"character":15},"newName":"ON_FAIL"}),
+    );
+    assert_eq!(
+        edits_of(&v, &uri),
+        vec![
+            (1, 18, 20, "ON_FAIL".to_string()),
+            (4, 14, 16, "ON_FAIL".to_string()),
+        ],
+        "the t_on_failure string must follow the definition: {v}"
+    );
+    // references from the definition include the arming string
+    let refs = request(
+        &mut stdin,
+        &rx,
+        22,
+        "textDocument/references",
+        serde_json::json!({"textDocument":{"uri":uri},"position":{"line":4,"character":15},
+            "context":{"includeDeclaration":false}}),
+    );
+    let lines: Vec<u64> = refs["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["range"]["start"]["line"].as_u64().unwrap())
+        .collect();
+    assert_eq!(lines, vec![1], "{refs}");
+    child.kill().ok();
+}
+
+#[test]
+fn a_rename_onto_an_existing_route_is_refused() {
+    let (mut child, rx, mut stdin, uri, _base) = boot("rename-taken", serde_json::json!({}), DOC);
+    // route[OTHER_THING] renamed to HELPER, which already exists
+    let v = request(
+        &mut stdin,
+        &rx,
+        23,
+        "textDocument/rename",
+        serde_json::json!({"textDocument":{"uri":uri},"position":{"line":3,"character":8},"newName":"HELPER"}),
+    );
+    assert!(v["result"].is_null(), "no edit may be offered: {v}");
+    let msg = v["error"]["message"].as_str().unwrap_or("");
+    assert!(
+        msg.contains("'HELPER'") && msg.contains("already defined"),
+        "the refusal must say why: {v}"
+    );
+    child.kill().ok();
+}
+
+const ALIASED: &str = "#!define R MYROUTE\nrequest_route {\n    route(R);\n    route(MYROUTE);\n}\nroute[MYROUTE] {\n    exit;\n}\n";
+
+#[test]
+fn renaming_a_route_rewrites_the_define_that_aliases_it() {
+    let (mut child, rx, mut stdin, uri, _base) =
+        boot("rename-alias", serde_json::json!({}), ALIASED);
+    let v = request(
+        &mut stdin,
+        &rx,
+        24,
+        "textDocument/rename",
+        serde_json::json!({"textDocument":{"uri":uri},"position":{"line":5,"character":8},"newName":"RENAMED"}),
+    );
+    assert_eq!(
+        edits_of(&v, &uri),
+        vec![
+            (0, 11, 18, "RENAMED".to_string()),
+            (3, 10, 17, "RENAMED".to_string()),
+            (5, 6, 13, "RENAMED".to_string()),
+        ],
+        "route(R) must still reach the route after the rename: {v}"
+    );
+    let refs = request(
+        &mut stdin,
+        &rx,
+        25,
+        "textDocument/references",
+        serde_json::json!({"textDocument":{"uri":uri},"position":{"line":5,"character":8},
+            "context":{"includeDeclaration":false}}),
+    );
+    let mut lines: Vec<u64> = refs["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["range"]["start"]["line"].as_u64().unwrap())
+        .collect();
+    lines.sort();
+    assert_eq!(lines, vec![0, 3], "the alias is a reference: {refs}");
+    child.kill().ok();
+}

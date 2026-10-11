@@ -926,6 +926,32 @@ impl Backend {
         }
     }
 
+    /// The `#!define` values that alias a main-table route, across the
+    /// closure ([`logic::define_alias_occurrences`]); per-kind routes
+    /// have none.
+    fn alias_occurrences(
+        files: &[(std::path::PathBuf, String)],
+        name: &str,
+        ns: &logic::RouteNs,
+    ) -> Vec<(std::path::PathBuf, analyze::Located)> {
+        if *ns == logic::RouteNs::Main {
+            logic::define_alias_occurrences(files, name)
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// The alias occurrences that sit in `path`.
+    fn aliases_in<'a>(
+        aliases: &'a [(std::path::PathBuf, analyze::Located)],
+        path: &'a std::path::Path,
+    ) -> impl Iterator<Item = analyze::Located> + 'a {
+        aliases
+            .iter()
+            .filter(move |(p, _)| p == path)
+            .map(|(_, l)| l.clone())
+    }
+
     /// UTF-16 range of one route-name occurrence.
     fn occurrence_range(lines: &[&str], l: &analyze::Located) -> Range {
         let lt = Self::line_in(lines, l.line);
@@ -2349,18 +2375,21 @@ impl LanguageServer for Backend {
         let include_decl = p.context.include_declaration;
         let root_path = uri.to_file_path().unwrap_or_default();
         let files = self.closure_for(&uri, &text);
+        let aliases = Self::alias_occurrences(&files, &name, &ns);
         let mut locs = Vec::new();
         for (path, ftext) in &files {
             let Some(furi) = Self::closure_uri(&uri, &root_path, path) else {
                 continue;
             };
-            // the root document's occurrences come from the memoized
-            // index; included files are scanned directly
-            let occs = if *path == root_path {
+            // the root document's main-table occurrences come from the
+            // memoized index; included files, and the strings that arm
+            // a per-kind route, are scanned directly
+            let mut occs = if *path == root_path && ns == logic::RouteNs::Main {
                 logic::ns_occurrences_from(&idx.blocks, &idx.refs, &name, &ns)
             } else {
                 logic::ns_occurrences(ftext, &name, &ns)
             };
+            occs.extend(Self::aliases_in(&aliases, path).map(|l| (l, false)));
             let lines = Self::lines_of(ftext);
             for (l, is_def) in occs {
                 if include_decl || !is_def {
@@ -2414,9 +2443,9 @@ impl LanguageServer for Backend {
             // off-symbol: a null response makes the editor block F2
             return Ok(None);
         };
-        // per-kind names (event_route, failure_route, ...) are never
-        // renamable — rename() would reject them, so block at prepare
-        if !matches!(ns, logic::RouteNs::Main) {
+        // rename() rejects the names it cannot follow everywhere, so
+        // block those at prepare
+        if !logic::renamable(&ns) {
             return Ok(None);
         }
         let line = Self::doc_line(&text, pos.line);
@@ -2496,18 +2525,27 @@ impl LanguageServer for Backend {
                     "event route names are defined by their module and cannot be renamed",
                 ));
             }
-            logic::RouteNs::Kind(k) => {
-                // armed through module functions (t_on_failure, ...)
-                // whose string arguments we cannot rewrite safely
+            logic::RouteNs::Kind(k) if !logic::renamable(&ns) => {
                 return Err(tower_lsp_server::jsonrpc::Error::invalid_params(format!(
                     "{k} names are referenced from module-function arguments; renaming here would not update those call sites"
                 )));
             }
-            logic::RouteNs::Main => {}
+            _ => {}
         }
         // rewrite every occurrence in the whole include closure
         let root_path = uri.to_file_path().unwrap_or_default();
         let files = self.closure_for(&uri, &text);
+        // onto a name already defined there, the rename would leave
+        // two definitions, which the real parser rejects
+        if new_name != name
+            && let Some((path, _)) = logic::rename_conflict(&files, &new_name, &ns)
+        {
+            return Err(tower_lsp_server::jsonrpc::Error::invalid_params(format!(
+                "'{new_name}' is already defined in {}",
+                path.display()
+            )));
+        }
+        let aliases = Self::alias_occurrences(&files, &name, &ns);
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
         for (path, ftext) in &files {
@@ -2517,7 +2555,9 @@ impl LanguageServer for Backend {
             let lines = Self::lines_of(ftext);
             let edits: Vec<TextEdit> = logic::ns_occurrences(ftext, &name, &ns)
                 .into_iter()
-                .map(|(l, _)| TextEdit {
+                .map(|(l, _)| l)
+                .chain(Self::aliases_in(&aliases, path))
+                .map(|l| TextEdit {
                     range: Self::occurrence_range(&lines, &l),
                     new_text: new_name.clone(),
                 })

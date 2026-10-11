@@ -102,13 +102,30 @@ rewritten inside the quotes; illegal names are rejected — the legal
 charset includes `:` for `event_route` names); all occurrences of the
 route under the cursor are highlighted, the definition as a write.
 
+What counts as a use of a name:
+
+- **Request routes** (`route[X]`) are used by `route(X)`, and by a
+  `#!define` whose value is `X` when that define is itself a
+  `route(...)` target: with `#!define R X`, renaming `route[X]` also
+  rewrites the define's value, so `route(R)` still reaches it.
+  References list that value too.
+- **Failure, onreply and branch routes** are used by the quoted name
+  passed to `t_on_failure("X")`, `t_on_reply("X")` and
+  `t_on_branch("X")`; renaming the route rewrites the string inside the
+  quotes. A string such as `"$var(r)"` is not a fixed name and is left
+  alone.
+- **Event routes** are named by the module that raises the event, so
+  they are not renamed.
+
+A rename onto a name that is already defined in the same namespace is
+refused with an error naming the file that defines it: `kamailio -c`
+rejects two definitions of one name (`duplicate route`).
+
 **Prepare rename** (`textDocument/prepareRename`): before the rename
 box even opens, the server validates the position — on a renamable
-main-table route name it returns the exact symbol range and the
-current name as placeholder; off-symbol, or on names that cannot be
-renamed (`event_route` and other per-kind names, which are armed
-from module-function string arguments), the editor blocks F2
-outright instead of failing afterwards.
+route name it returns the exact symbol range and the current name as
+placeholder; off-symbol, or on an `event_route` name, the editor
+blocks F2 outright instead of failing afterwards.
 
 #### Include links
 
@@ -279,7 +296,23 @@ textually, before the parser sees anything. The server now reads them:
 - **Completion** offers them wherever code is legal.
 - The **outline** lists them alongside the route blocks.
 - The **analyzer** expands through them, so a route reached by alias
-  is no longer flagged as undefined.
+  is no longer flagged as undefined. It applies them in reading order
+  the way `pp_define` does: `#!trydef` keeps a value already bound,
+  `#!redefine` replaces it, and a value in quotes names the same route
+  as the bare word (`#!define R "X"` makes `route(R)` call `route[X]`).
+
+The analyzer reads both branches of every `#!ifdef`, because which one
+the parser keeps can depend on `-D` options it cannot see. Two
+consequences follow from how the preprocessor works:
+
+- In a region the parser skips, it reads nothing but the conditional
+  directives (`#!ifdef`, `#!ifndef`, `#!ifexp`, `#!else`, `#!endif`).
+  So a quote or `/*` left open inside a branch ends at that branch's
+  next conditional directive instead of hiding the rest of the file.
+- The same route defined in the `#!ifdef` and the `#!else` branch of
+  one conditional is not a duplicate: only one branch is ever read.
+  The same name under two separate conditionals still is, since both
+  symbols can be defined.
 
 Every defining form kamailio's `src/core/cfg.lex` recognises is
 collected, behind either prefix (`#!` or `!!`): `define`/`def`,
@@ -334,15 +367,15 @@ A route called but defined nowhere still appears as an outgoing edge,
 marked `undefined` — the call is in the file, and dropping it would
 hide something the reader can see.
 
-The graph is the **main route table**. `route(NAME)` is the only call
-form the server can observe, so `route[NAME]` blocks are what take
-part. `request_route` and the per-kind blocks
-(`failure_route[NAME]`, `event_route[NAME]`, …) are entry points
-armed by the core or by a module function that takes the route name
-as a string (`t_on_failure("NAME")`), which the server does not
-track: those blocks can *make* calls, and do show up as callers, but
-asking for their own hierarchy declines rather than reporting "no
-callers" — which would be a confident wrong answer.
+The graph is the **main route table**. `route(NAME)` is the call form
+it follows, so `route[NAME]` blocks are what take part.
+`request_route` and the per-kind blocks (`failure_route[NAME]`,
+`event_route[NAME]`, …) are entry points armed by the core or by a
+module function that takes the route name as a string
+(`t_on_failure("NAME")`) — armed, not called: those blocks can *make*
+calls, and do show up as callers, but asking for their own hierarchy
+declines rather than reporting "no callers", which would be a
+confident wrong answer.
 
 #### Quick fixes
 

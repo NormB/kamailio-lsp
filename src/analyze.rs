@@ -26,10 +26,85 @@ pub(crate) enum Class {
     Preproc,
 }
 
+/// The conditional directives cfg.lex still matches inside a region
+/// an `#!ifdef` switched off (state IFDEF_SKIP); everything else there
+/// is discarded unlexed.
+const CONDITIONALS: &[&str] = &["ifdef", "ifndef", "ifexp", "else", "endif"];
+
+/// The conditional directive keyword opening the line that starts at
+/// byte `i`, if any: optional blanks, `#!` or `!!`, then one of
+/// [`CONDITIONALS`] as a whole word.
+fn conditional_at(b: &[u8], mut i: usize) -> Option<&'static str> {
+    while i < b.len() && (b[i] == b' ' || b[i] == b'\t') {
+        i += 1;
+    }
+    if i + 1 >= b.len() || !(b[i] == b'#' || b[i] == b'!') || b[i + 1] != b'!' {
+        return None;
+    }
+    let rest = &b[i + 2..];
+    CONDITIONALS
+        .iter()
+        .copied()
+        .find(|k| rest.starts_with(k.as_bytes()) && rest.get(k.len()).is_none_or(|&c| !is_word(c)))
+}
+
+/// Does the newline at `i` end a string or block comment?  Only when
+/// the next line is a conditional directive: if the region was
+/// switched off, the lexer never saw the opening quote or `/*`, and
+/// the directive is where it starts listening again.  Kamailio's own
+/// `misc/examples/pkg/sipcapture.cfg` cuts a string off that way.
+fn breaks_at(b: &[u8], i: usize) -> bool {
+    b[i] == b'\n' && conditional_at(b, i + 1).is_some()
+}
+
+/// For each line of `text`, the conditional branches it sits in: one
+/// `(conditional, branch)` pair per enclosing `#!ifdef`, `#!ifndef` or
+/// `#!ifexp`, outermost first, where `#!else` moves to branch 1.  A
+/// directive line itself belongs to the level around it.
+pub fn cond_paths(text: &str) -> Vec<Vec<(u32, u32)>> {
+    let b = text.as_bytes();
+    let mut out = Vec::new();
+    let mut stack: Vec<(u32, u32)> = Vec::new();
+    let mut next_id = 0u32;
+    let mut start = 0usize;
+    loop {
+        out.push(stack.clone());
+        match conditional_at(b, start) {
+            Some("else") => {
+                if let Some(top) = stack.last_mut() {
+                    top.1 += 1;
+                }
+            }
+            Some("endif") => {
+                stack.pop();
+            }
+            Some(_) => {
+                stack.push((next_id, 0));
+                next_id += 1;
+            }
+            None => {}
+        }
+        match text[start..].find('\n') {
+            Some(n) => start += n + 1,
+            None => break,
+        }
+    }
+    out
+}
+
+/// Can lines with these [`cond_paths`] never both be read?  Only when
+/// they sit in different branches of one conditional.
+pub fn mutually_exclusive(a: &[(u32, u32)], b: &[(u32, u32)]) -> bool {
+    a.iter()
+        .any(|(id, br)| b.iter().any(|(id2, br2)| id == id2 && br != br2))
+}
+
 /// Per-byte classification: code, string interior, comment, or
 /// preprocessor directive.  Kamailio line comments are `#` and `//`
 /// (cfg.lex COM_LINE); `#!` and `!!` start directives (PREP_START),
-/// which extend across backslash-continued lines.
+/// which extend across backslash-continued lines.  A string or block
+/// comment still open at a conditional directive line ends there
+/// (see [`breaks_at`]).
 pub(crate) fn classify(text: &str) -> Vec<Class> {
     let b = text.as_bytes();
     let mut out = vec![Class::Code; b.len()];
@@ -68,11 +143,14 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
                 out[i] = Class::Comment;
                 out[i + 1] = Class::Comment;
                 i += 2;
-                while i < b.len() && !(b[i] == b'*' && i + 1 < b.len() && b[i + 1] == b'/') {
+                while i < b.len()
+                    && !(b[i] == b'*' && i + 1 < b.len() && b[i + 1] == b'/')
+                    && !breaks_at(b, i)
+                {
                     out[i] = Class::Comment;
                     i += 1;
                 }
-                if i + 1 < b.len() {
+                if i + 1 < b.len() && b[i] == b'*' {
                     out[i] = Class::Comment;
                     out[i + 1] = Class::Comment;
                     i += 2;
@@ -81,15 +159,15 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
             b'"' => {
                 // opening quote counts as code; interior as string
                 i += 1;
-                while i < b.len() && b[i] != b'"' {
+                while i < b.len() && b[i] != b'"' && !breaks_at(b, i) {
                     out[i] = Class::Str;
-                    if b[i] == b'\\' && i + 1 < b.len() {
+                    if b[i] == b'\\' && i + 1 < b.len() && !breaks_at(b, i + 1) {
                         out[i + 1] = Class::Str;
                         i += 1;
                     }
                     i += 1;
                 }
-                if i < b.len() {
+                if i < b.len() && b[i] == b'"' {
                     i += 1; // closing quote
                 }
             }
@@ -97,11 +175,11 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
                 // single-quoted string (cfg.lex STRING2): no escape
                 // processing, may span lines
                 i += 1;
-                while i < b.len() && b[i] != b'\'' {
+                while i < b.len() && b[i] != b'\'' && !breaks_at(b, i) {
                     out[i] = Class::Str;
                     i += 1;
                 }
-                if i < b.len() {
+                if i < b.len() && b[i] == b'\'' {
                     i += 1; // closing tick
                 }
             }
@@ -746,6 +824,49 @@ pub fn route_blocks(text: &str) -> Vec<Block> {
     out
 }
 
+static_regex!(
+    re_armed_route,
+    r#"(t_on_failure|t_on_reply|t_on_branch)\s*\(\s*(?:"([A-Za-z0-9_.:-]+)"|'([A-Za-z0-9_.:-]+)')\s*\)"#
+);
+
+/// Every route name passed to `t_on_failure`, `t_on_reply` or
+/// `t_on_branch`, with the block kind it names.
+///
+/// tm's `fixup_routes` looks each one up in its own list
+/// (`src/modules/tm/tm.c`: `failure_rt`, `onreply_rt`, `branch_rt`).
+/// `kamailio -c` accepts the name double- or single-quoted and rejects
+/// it bare.  `t_on_branch_failure` names an `event_route` and is not
+/// matched: event route names are not renamed.
+pub fn armed_route_refs(text: &str) -> Vec<(Located, &'static str)> {
+    let classes = classify(text);
+    let lines = Lines::new(text);
+    let b = text.as_bytes();
+    let mut out = Vec::new();
+    for c in re_armed_route().captures_iter(text) {
+        let whole = c.get(0).unwrap();
+        let start = whole.start();
+        if classes.get(start) != Some(&Class::Code) || (start > 0 && is_word(b[start - 1])) {
+            continue;
+        }
+        let kind = match &c[1] {
+            "t_on_failure" => "failure_route",
+            "t_on_reply" => "onreply_route",
+            _ => "branch_route",
+        };
+        let name = c.get(2).or_else(|| c.get(3)).unwrap();
+        let (line, col) = lines.line_col(name.start());
+        out.push((
+            Located {
+                name: name.as_str().to_string(),
+                line,
+                col,
+            },
+            kind,
+        ));
+    }
+    out
+}
+
 /// Every `route(name)` call site (excluding `*_route(...)` look-alikes).
 pub fn route_refs(text: &str) -> Vec<Located> {
     let classes = classify(text);
@@ -861,7 +982,8 @@ pub fn active_includes(text: &str) -> Vec<Located> {
             let word = w.next().unwrap_or("");
             let arg = w.next().unwrap_or("");
             match word {
-                "define" | "trydef" | "redefine" => {
+                // every spelling cfg.lex accepts (DEFINE, TRYDEF, REDEF)
+                "define" | "def" | "trydef" | "trydefine" | "redefine" | "redef" => {
                     if !arg.is_empty() {
                         defined.push((n, arg.to_string()));
                     }
@@ -874,7 +996,10 @@ pub fn active_includes(text: &str) -> Vec<Located> {
                     known.push(seen);
                     continue;
                 }
-                "ifndef" => {
+                // an #!ifexp is evaluated from values this scan does not
+                // track: unknown, like an #!ifndef — but it IS a level,
+                // and its #!endif must not close the one around it
+                "ifndef" | "ifexp" => {
                     holds.push(false);
                     known.push(false);
                     continue;
