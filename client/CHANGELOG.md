@@ -2,6 +2,66 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.20.0] — 2026-10-11
+
+**Large configs stay fast, the analyzer follows the preprocessor, rename
+follows every use of a route, and the tree-sitter grammar parses every
+config Kamailio accepts.**
+
+- **Requests no longer slow down with the square of the file size.**
+  Every scanner recomputed a line number by counting newlines from the
+  top of the file, once per match: `route_blocks` took 85 s on a
+  6000-route config and now takes under half a second. Inlay hints
+  re-read the loaded modules once per call, and converting a line
+  number to its text walked the document from the top for every
+  diagnostic, symbol, define, hint and edit; on a 3000-route document
+  inlay hints no longer time out, and seven common requests answer in
+  about 1.3 s together in the test suite's debug build.
+- **A quote or `/*` left open inside a switched-off `#!ifdef` no longer
+  hides the rest of the file.** The preprocessor reads nothing there
+  but the conditional directives, so the string or comment now ends at
+  the next one. Kamailio's own `misc/examples/pkg/sipcapture.cfg` lost
+  four false "route 'STORE' is not defined" warnings.
+- **The same route in the `#!ifdef` and `#!else` branch of one
+  conditional is not a duplicate.** Under two separate conditionals it
+  still is.
+- **Defines are applied the way the preprocessor applies them:**
+  `#!trydef` keeps a value already bound, `#!redefine` replaces it, and
+  a quoted value (`#!define R "MYROUTE"`) names the bare route.
+- **`#!ifexp` opens a level**, so its `#!endif` no longer closes the
+  `#!ifdef` around it, and `#!def`, `#!trydefine` and `#!redef` count
+  as defining for include tracking.
+- **Rename follows every use of a route name.** With
+  `#!define R MYROUTE`, renaming `route[MYROUTE]` also rewrites the
+  define's value, so `route(R)` still reaches it; references list it
+  too. Failure, onreply and branch routes can now be renamed, and the
+  `t_on_failure("x")`, `t_on_reply("x")` and `t_on_branch("x")`
+  strings that arm them follow. Event routes still cannot be renamed.
+- **Rename refuses a name that is already defined** in the same
+  namespace, naming the file that defines it; `kamailio -c` rejects the
+  result as a duplicate route.
+- **Formatting a CRLF file no longer doubles its carriage returns.**
+  Every reformatted line used to end in `\r\r\n`.
+- **`kamailio-lsp check --bin ... fn.cfg` works with a relative path.**
+  A bare file name exited 2 with "cannot run", and `sub/fn.cfg` was
+  handed to the checker from inside `sub/`.
+- **Nested block comments are comments.** Kamailio nests `/* */`;
+  `/* a /* b */ route[GONE] { exit; } */` no longer defines `GONE`.
+- **The tree-sitter grammar parses every config in the Kamailio 6.1.4
+  tree that `kamailio -c` accepts**, which the test suite now checks.
+  New: nested block comments (through `src/scanner.c`, which editors
+  building the grammar must compile along with `src/parser.c`),
+  directives anywhere, multi-line and adjacent strings, the full
+  operator set (`eq`/`ne`/`ieq`/`ine`, `^`, `<<`, `>>`, `~`,
+  `defined`, `(int)`/`(str)`), selects, `msg:len`, `$?`, IPv4 and IPv6
+  addresses, `listen` with `advertise`/`name`/`virtual`,
+  `socket = { ... }` blocks, `flags`/`avpflags`, custom variables,
+  `loadmodulex`, `modparamx`, `cfgengine`, and `include_file` inside a
+  route.
+- **The grammar ships `queries/highlights.scm` and `queries/folds.scm`.**
+  The Zed setup script in `docs/ZED.md` downloads the highlight query
+  into the extension it builds.
+
 ## [0.19.7] — 2026-10-08
 
 **A release with no behavior change: the weekly dependency updates, and
