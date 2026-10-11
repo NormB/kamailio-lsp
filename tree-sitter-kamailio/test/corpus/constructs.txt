@@ -1,0 +1,386 @@
+================================================================================
+operator precedence (cfg.y %left/%right ladder)
+================================================================================
+
+request_route {
+    $var(a) = 1 | 2 & 3 ^ 4 << 1 >> 1;
+    $var(b) = ~ 5 + 7 mod 3;
+    if ($var(s) eq "x" && $var(a) ieq 3 || $var(s) ne "y" and $var(a) ine 2) {
+        exit;
+    }
+    if (!$var(a) == 1) {
+        exit;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    (route_kind)
+    (block
+      (assignment_statement
+        (pseudo_variable)
+        (binary_expression
+          (number)
+          (binary_expression
+            (number)
+            (binary_expression
+              (number)
+              (binary_expression
+                (number)
+                (binary_expression
+                  (number)
+                  (number)))))))
+      (assignment_statement
+        (pseudo_variable)
+        (binary_expression
+          (unary_expression
+            (number))
+          (binary_expression
+            (number)
+            (number))))
+      (if_statement
+        (binary_expression
+          (binary_expression
+            (binary_expression
+              (pseudo_variable)
+              (string))
+            (binary_expression
+              (pseudo_variable)
+              (number)))
+          (binary_expression
+            (binary_expression
+              (pseudo_variable)
+              (string))
+            (binary_expression
+              (pseudo_variable)
+              (number))))
+        (block
+          (keyword_statement)))
+      (if_statement
+        (binary_expression
+          (unary_expression
+            (pseudo_variable))
+          (number))
+        (block
+          (keyword_statement))))))
+
+================================================================================
+casts, defined, selects, msg:len, uri:host
+================================================================================
+
+request_route {
+    $var(c) = (int) "12" + 1;
+    $var(d) = (str) 12;
+    if (defined $var(a) && @via[1].host == "h" && @from.tag == "" && msg:len > 4096) {
+        forward(uri:host, uri:port);
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    (route_kind)
+    (block
+      (assignment_statement
+        (pseudo_variable)
+        (binary_expression
+          (cast_expression
+            (string))
+          (number)))
+      (assignment_statement
+        (pseudo_variable)
+        (cast_expression
+          (number)))
+      (if_statement
+        (binary_expression
+          (binary_expression
+            (binary_expression
+              (defined_expression
+                (pseudo_variable))
+              (binary_expression
+                (select)
+                (string)))
+            (binary_expression
+              (select)
+              (string)))
+          (binary_expression
+            (core_value)
+            (number)))
+        (block
+          (expression_statement
+            (call_expression
+              (identifier)
+              (core_value)
+              (core_value))))))))
+
+================================================================================
+addresses in comparisons and as arguments
+================================================================================
+
+request_route {
+    if (src_ip == 192.0.2.1 || src_ip == 198.51.100.0/24 || dst_ip == ::1 || src_ip == backup.example.com) {
+        force_send_socket(udp:192.0.2.1:5060);
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    (route_kind)
+    (block
+      (if_statement
+        (binary_expression
+          (binary_expression
+            (binary_expression
+              (binary_expression
+                (identifier)
+                (ip_address))
+              (binary_expression
+                (identifier)
+                (ip_address)))
+            (binary_expression
+              (identifier)
+              (ip_address)))
+          (binary_expression
+            (identifier)
+            (host_value)))
+        (block
+          (expression_statement
+            (call_expression
+              (identifier)
+              (socket_value))))))))
+
+================================================================================
+adjacent strings fold, across lines, and strings span lines
+================================================================================
+
+modparam("acc", "log_extra",
+    "src_user=$fU;"
+    "dst_user=$rU")
+request_route {
+    $var(m) = "multi
+line";
+    drop();
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (modparam
+    (string)
+    (string)
+    (string_concatenation
+      (string)
+      (string)))
+  (route_definition
+    (route_kind)
+    (block
+      (assignment_statement
+        (pseudo_variable)
+        (string))
+      (keyword_statement))))
+
+================================================================================
+nested pseudo-variables and the return code
+================================================================================
+
+request_route {
+    $var(f) = $(avp(gw)[$(var(i){s.int})]);
+    if ($? == -2) {
+        exit;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    (route_kind)
+    (block
+      (assignment_statement
+        (pseudo_variable)
+        (pseudo_variable))
+      (if_statement
+        (binary_expression
+          (pseudo_variable)
+          (unary_expression
+            (number)))
+        (block
+          (keyword_statement))))))
+
+================================================================================
+listen with advertise, name, virtual; addresses from defines
+================================================================================
+
+listen=udp:192.0.2.1:5060 advertise 192.0.2.2:5060 name "pub"
+listen=192.0.2.3:5060 virtual
+listen=192.0.2.4
+listen=LPROTO:LADDR:5060
+listen=[::1]:5060
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (global_assignment
+    (identifier)
+    (socket_value)
+    (listen_modifier
+      (socket_value))
+    (listen_modifier
+      (string)))
+  (global_assignment
+    (identifier)
+    (socket_value)
+    (listen_modifier))
+  (global_assignment
+    (identifier)
+    (ip_address))
+  (global_assignment
+    (identifier)
+    (socket_value))
+  (global_assignment
+    (identifier)
+    (socket_value)))
+
+================================================================================
+socket block, flags, avpflags, custom variables, cfgengine
+================================================================================
+
+socket = {
+    bind = udp:192.0.2.1:5060;
+    advertise = 192.0.2.2:5060;
+    name = "sock1";
+}
+flags
+    FLAG_A : 1,
+    FLAG_B : 2;
+avpflags
+    dialog_cookie;
+mygroup.myvar = 0 desc "a custom variable"
+mygroup.mystr = "x"
+cfgengine "native"
+loadmodulex "sl.so"
+loadmodule("tm.so")
+modparamx("htable", "htable", "a=>size=4;")
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (socket_definition
+    (socket_attribute
+      (socket_value))
+    (socket_attribute
+      (socket_value))
+    (socket_attribute
+      (string)))
+  (flags_declaration
+    (flag_spec
+      (identifier)
+      (number))
+    (flag_spec
+      (identifier)
+      (number)))
+  (empty_statement)
+  (flags_declaration
+    (flag_spec
+      (identifier)))
+  (empty_statement)
+  (custom_variable
+    (custom_variable_name)
+    (number)
+    (string))
+  (custom_variable
+    (custom_variable_name)
+    (string))
+  (cfgengine
+    (string))
+  (loadmodule
+    (string))
+  (loadmodule
+    (string))
+  (modparam
+    (string)
+    (string)
+    (string)))
+
+================================================================================
+include_file inside a route block
+================================================================================
+
+request_route {
+    include_file "local.cfg"
+    exit;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    (route_kind)
+    (block
+      (include
+        (string))
+      (keyword_statement))))
+
+================================================================================
+block comments nest
+================================================================================
+
+/* outer /* inner */ route(GHOST); */
+request_route {
+    exit;
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (block_comment)
+  (route_definition
+    (route_kind)
+    (block
+      (keyword_statement))))
+
+================================================================================
+a directive between an if body and its else
+================================================================================
+
+request_route {
+    if ($var(a) == 1) {
+        exit;
+    }
+#!ifdef X
+    else if ($var(a) == 2) {
+        exit;
+    }
+#!endif
+    else {
+        drop;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    (route_kind)
+    (block
+      (if_statement
+        (binary_expression
+          (pseudo_variable)
+          (number))
+        (block
+          (keyword_statement))
+        (preproc)
+        (if_statement
+          (binary_expression
+            (pseudo_variable)
+            (number))
+          (block
+            (keyword_statement))
+          (preproc)
+          (block
+            (keyword_statement)))))))

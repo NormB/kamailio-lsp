@@ -74,6 +74,10 @@ first_line_pattern = "^#!(KAMAILIO|OPENSER|SER|MAXCOMPAT|ALL)\\b"
 line_comments = ["# "]
 TOML
 
+# the colours: the grammar's highlight query, from the same revision
+curl -fsSL -o "$EXT/languages/kamailio-cfg/highlights.scm" \
+  "https://raw.githubusercontent.com/NormB/kamailio-lsp/$REV/tree-sitter-kamailio/queries/highlights.scm"
+
 cat > "$EXT/Cargo.toml" <<'TOML'
 [package]
 name = "zed-kamailio"

@@ -26,7 +26,27 @@
             "named": true
           },
           {
+            "type": "cast_expression",
+            "named": true
+          },
+          {
+            "type": "core_value",
+            "named": true
+          },
+          {
+            "type": "defined_expression",
+            "named": true
+          },
+          {
+            "type": "host_value",
+            "named": true
+          },
+          {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "ip_address",
             "named": true
           },
           {
@@ -42,7 +62,19 @@
             "named": true
           },
           {
+            "type": "select",
+            "named": true
+          },
+          {
+            "type": "socket_value",
+            "named": true
+          },
+          {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "string_concatenation",
             "named": true
           },
           {
@@ -70,7 +102,27 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -86,7 +138,19 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -129,11 +193,11 @@
           "named": true
         },
         {
-          "type": "keyword_statement",
+          "type": "include",
           "named": true
         },
         {
-          "type": "preproc",
+          "type": "keyword_statement",
           "named": true
         },
         {
@@ -180,7 +244,27 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -196,7 +280,19 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -235,6 +331,18 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
           "type": "empty_statement",
           "named": true
         },
@@ -243,11 +351,23 @@
           "named": true
         },
         {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
           "named": true
         },
         {
           "type": "if_statement",
+          "named": true
+        },
+        {
+          "type": "include",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -263,15 +383,23 @@
           "named": true
         },
         {
-          "type": "preproc",
-          "named": true
-        },
-        {
           "type": "pseudo_variable",
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -284,6 +412,136 @@
         },
         {
           "type": "while_statement",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "cast_expression",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "parenthesized_expression",
+          "named": true
+        },
+        {
+          "type": "pseudo_variable",
+          "named": true
+        },
+        {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
+          "named": true
+        },
+        {
+          "type": "unary_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "cfgengine",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "string",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "custom_variable",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "custom_variable_name",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "string",
           "named": true
         }
       ]
@@ -322,11 +580,11 @@
           "named": true
         },
         {
-          "type": "keyword_statement",
+          "type": "include",
           "named": true
         },
         {
-          "type": "preproc",
+          "type": "keyword_statement",
           "named": true
         },
         {
@@ -335,6 +593,81 @@
         },
         {
           "type": "while_statement",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "defined_expression",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "parenthesized_expression",
+          "named": true
+        },
+        {
+          "type": "pseudo_variable",
+          "named": true
+        },
+        {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
+          "named": true
+        },
+        {
+          "type": "unary_expression",
           "named": true
         }
       ]
@@ -362,7 +695,27 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -378,11 +731,68 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
           "named": true
         },
         {
+          "type": "string_concatenation",
+          "named": true
+        },
+        {
           "type": "unary_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "flag_spec",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "number",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "flags_declaration",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "flag_spec",
           "named": true
         }
       ]
@@ -403,7 +813,7 @@
         ]
       },
       "value": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -415,11 +825,31 @@
             "named": true
           },
           {
+            "type": "cast_expression",
+            "named": true
+          },
+          {
+            "type": "core_value",
+            "named": true
+          },
+          {
+            "type": "defined_expression",
+            "named": true
+          },
+          {
             "type": "host_value",
             "named": true
           },
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "ip_address",
+            "named": true
+          },
+          {
+            "type": "listen_modifier",
             "named": true
           },
           {
@@ -435,11 +865,19 @@
             "named": true
           },
           {
+            "type": "select",
+            "named": true
+          },
+          {
             "type": "socket_value",
             "named": true
           },
           {
             "type": "string",
+            "named": true
+          },
+          {
+            "type": "string_concatenation",
             "named": true
           },
           {
@@ -479,6 +917,18 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
           "type": "empty_statement",
           "named": true
         },
@@ -487,11 +937,23 @@
           "named": true
         },
         {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
           "named": true
         },
         {
           "type": "if_statement",
+          "named": true
+        },
+        {
+          "type": "include",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -507,15 +969,23 @@
           "named": true
         },
         {
-          "type": "preproc",
-          "named": true
-        },
-        {
           "type": "pseudo_variable",
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -565,7 +1035,27 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -581,7 +1071,19 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -592,11 +1094,38 @@
     }
   },
   {
-    "type": "loadmodule",
+    "type": "listen_modifier",
     "named": true,
     "fields": {},
     "children": {
       "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
+          "type": "ip_address",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "loadmodule",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
       "required": true,
       "types": [
         {
@@ -623,7 +1152,27 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -639,7 +1188,19 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -666,7 +1227,27 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -682,7 +1263,19 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -746,6 +1339,99 @@
     "fields": {}
   },
   {
+    "type": "socket_attribute",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "ADVERTISE",
+            "named": false
+          },
+          {
+            "type": "AGNAME",
+            "named": false
+          },
+          {
+            "type": "NAME",
+            "named": false
+          },
+          {
+            "type": "advertise",
+            "named": false
+          },
+          {
+            "type": "agname",
+            "named": false
+          },
+          {
+            "type": "bind",
+            "named": false
+          },
+          {
+            "type": "name",
+            "named": false
+          },
+          {
+            "type": "virtual",
+            "named": false
+          },
+          {
+            "type": "vrf",
+            "named": false
+          },
+          {
+            "type": "workers",
+            "named": false
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "host_value",
+            "named": true
+          },
+          {
+            "type": "ip_address",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "socket_value",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "socket_definition",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "socket_attribute",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "source_file",
     "named": true,
     "root": true,
@@ -754,6 +1440,22 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "cfgengine",
+          "named": true
+        },
+        {
+          "type": "custom_variable",
+          "named": true
+        },
+        {
+          "type": "empty_statement",
+          "named": true
+        },
+        {
+          "type": "flags_declaration",
+          "named": true
+        },
         {
           "type": "global_assignment",
           "named": true
@@ -771,11 +1473,26 @@
           "named": true
         },
         {
-          "type": "preproc",
+          "type": "route_definition",
           "named": true
         },
         {
-          "type": "route_definition",
+          "type": "socket_definition",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "string_concatenation",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "string",
           "named": true
         }
       ]
@@ -802,11 +1519,31 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
           "type": "default_clause",
           "named": true
         },
         {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -822,7 +1559,19 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -849,7 +1598,27 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -865,7 +1634,19 @@
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -904,6 +1685,18 @@
           "named": true
         },
         {
+          "type": "cast_expression",
+          "named": true
+        },
+        {
+          "type": "core_value",
+          "named": true
+        },
+        {
+          "type": "defined_expression",
+          "named": true
+        },
+        {
           "type": "empty_statement",
           "named": true
         },
@@ -912,11 +1705,23 @@
           "named": true
         },
         {
+          "type": "host_value",
+          "named": true
+        },
+        {
           "type": "identifier",
           "named": true
         },
         {
           "type": "if_statement",
+          "named": true
+        },
+        {
+          "type": "include",
+          "named": true
+        },
+        {
+          "type": "ip_address",
           "named": true
         },
         {
@@ -932,15 +1737,23 @@
           "named": true
         },
         {
-          "type": "preproc",
-          "named": true
-        },
-        {
           "type": "pseudo_variable",
           "named": true
         },
         {
+          "type": "select",
+          "named": true
+        },
+        {
+          "type": "socket_value",
+          "named": true
+        },
+        {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "string_concatenation",
           "named": true
         },
         {
@@ -976,6 +1789,14 @@
   },
   {
     "type": "(",
+    "named": false
+  },
+  {
+    "type": "(int)",
+    "named": false
+  },
+  {
+    "type": "(str)",
     "named": false
   },
   {
@@ -1015,6 +1836,10 @@
     "named": false
   },
   {
+    "type": "<<",
+    "named": false
+  },
+  {
     "type": "<=",
     "named": false
   },
@@ -1039,6 +1864,22 @@
     "named": false
   },
   {
+    "type": ">>",
+    "named": false
+  },
+  {
+    "type": "ADVERTISE",
+    "named": false
+  },
+  {
+    "type": "AGNAME",
+    "named": false
+  },
+  {
+    "type": "NAME",
+    "named": false
+  },
+  {
     "type": "[",
     "named": false
   },
@@ -1047,13 +1888,37 @@
     "named": false
   },
   {
+    "type": "^",
+    "named": false
+  },
+  {
+    "type": "advertise",
+    "named": false
+  },
+  {
+    "type": "agname",
+    "named": false
+  },
+  {
     "type": "and",
+    "named": false
+  },
+  {
+    "type": "avpflags",
+    "named": false
+  },
+  {
+    "type": "bind",
     "named": false
   },
   {
     "type": "block_comment",
     "named": true,
     "extra": true
+  },
+  {
+    "type": "bool",
+    "named": false
   },
   {
     "type": "branch_route",
@@ -1068,12 +1933,40 @@
     "named": false
   },
   {
+    "type": "cfgengine",
+    "named": false
+  },
+  {
     "type": "comment",
     "named": true,
     "extra": true
   },
   {
+    "type": "core_value",
+    "named": true
+  },
+  {
+    "type": "custom_variable_name",
+    "named": true
+  },
+  {
     "type": "default",
+    "named": false
+  },
+  {
+    "type": "defined",
+    "named": false
+  },
+  {
+    "type": "desc",
+    "named": false
+  },
+  {
+    "type": "descr",
+    "named": false
+  },
+  {
+    "type": "description",
     "named": false
   },
   {
@@ -1082,6 +1975,10 @@
   },
   {
     "type": "else",
+    "named": false
+  },
+  {
+    "type": "eq",
     "named": false
   },
   {
@@ -1101,6 +1998,10 @@
     "named": false
   },
   {
+    "type": "flags",
+    "named": false
+  },
+  {
     "type": "host_value",
     "named": true
   },
@@ -1109,11 +2010,27 @@
     "named": true
   },
   {
+    "type": "ieq",
+    "named": false
+  },
+  {
     "type": "if",
     "named": false
   },
   {
+    "type": "ine",
+    "named": false
+  },
+  {
+    "type": "ip_address",
+    "named": true
+  },
+  {
     "type": "loadmodule",
+    "named": false
+  },
+  {
+    "type": "loadmodulex",
     "named": false
   },
   {
@@ -1126,6 +2043,18 @@
   },
   {
     "type": "modparam",
+    "named": false
+  },
+  {
+    "type": "modparamx",
+    "named": false
+  },
+  {
+    "type": "name",
+    "named": false
+  },
+  {
+    "type": "ne",
     "named": false
   },
   {
@@ -1150,7 +2079,8 @@
   },
   {
     "type": "preproc",
-    "named": true
+    "named": true,
+    "extra": true
   },
   {
     "type": "pseudo_variable",
@@ -1173,6 +2103,14 @@
     "named": false
   },
   {
+    "type": "select",
+    "named": true
+  },
+  {
+    "type": "socket",
+    "named": false
+  },
+  {
     "type": "socket_value",
     "named": true
   },
@@ -1185,7 +2123,19 @@
     "named": false
   },
   {
+    "type": "virtual",
+    "named": false
+  },
+  {
+    "type": "vrf",
+    "named": false
+  },
+  {
     "type": "while",
+    "named": false
+  },
+  {
+    "type": "workers",
     "named": false
   },
   {
@@ -1202,6 +2152,10 @@
   },
   {
     "type": "}",
+    "named": false
+  },
+  {
+    "type": "~",
     "named": false
   }
 ]

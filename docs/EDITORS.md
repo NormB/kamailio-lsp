@@ -151,8 +151,12 @@ comment-token = "#"
 language-servers = ["kamailio-lsp"]
 ```
 
-Helix can also use the tree-sitter grammar in `tree-sitter-kamailio/`
-for highlighting and folding; see the repository README.
+The tree-sitter grammar in `tree-sitter-kamailio/` ships highlight and
+fold queries (`queries/highlights.scm`, `queries/folds.scm`) for editors
+that build grammars themselves, Helix among them. Using them from Helix
+has not been tested; see
+[`tree-sitter-kamailio/README.md`](../tree-sitter-kamailio/README.md)
+for what the grammar contains.
 
 ## Emacs (eglot, built-in since 29)
 
@@ -270,6 +274,11 @@ path_suffixes = ["kamailio.cfg"]
 first_line_pattern = "^#!(KAMAILIO|OPENSER|SER|MAXCOMPAT|ALL)\\b"
 line_comments = ["# "]
 ```
+
+Colours come from a `highlights.scm` beside that file: copy
+`tree-sitter-kamailio/queries/highlights.scm` to
+`languages/kamailio-cfg/highlights.scm`. Without it Zed parses the file
+but colours nothing.
 
 `Cargo.toml`:
 
