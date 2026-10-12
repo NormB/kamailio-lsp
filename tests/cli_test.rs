@@ -416,3 +416,130 @@ fn check_accepts_relative_paths() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A missing include is reported on the directive that names it, not
+/// at line 1 column 1 of the file being checked.
+#[test]
+fn a_missing_include_is_reported_on_its_directive() {
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
+    let dir = setup("missing-inc");
+    let cfg = dir.join("m.cfg");
+    std::fs::write(
+        &cfg,
+        "request_route {\n    exit;\n}\n  include_file \"nope.cfg\"\n",
+    )
+    .unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .args(["check", "--bin", &bin, cfg.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("m.cfg:4:3: error: cannot open included file: nope.cfg"),
+        "{stdout}"
+    );
+    assert_eq!(out.status.code(), Some(1));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn check_reads_a_config_that_is_not_utf8() {
+    // one latin-1 byte in a comment is not a reason to refuse the file:
+    // the editor and the include graph read it, so `check` must too
+    let dir = setup("latin1");
+    let cfg = dir.join("l.cfg");
+    std::fs::write(
+        &cfg,
+        b"# caf\xe9\nrequest_route {\n    route(MISSING);\n}\n",
+    )
+    .unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .args(["check", cfg.to_str().unwrap()])
+        .env("KAMAILIO_LSP_BIN", "")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("l.cfg:3:11: warning: route 'MISSING' is not defined"),
+        "stdout: {stdout} stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(out.status.code(), Some(0));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `--modules-path` is the CLI's `modulesPath`: the checker gets it as
+/// `-L`.  An empty directory makes `loadmodule "tm.so"` fail in the
+/// real parser (`could not find module <tm> in <dir>`), and the
+/// module directory of the build makes it load.
+#[test]
+fn the_modules_path_reaches_the_checker() {
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
+    let mpath = common::required_env("KAMAILIO_LSP_TEST_MPATH");
+    let dir = setup("mpath");
+    std::fs::create_dir_all(dir.join("empty")).unwrap();
+    let cfg = dir.join("m.cfg");
+    std::fs::write(
+        &cfg,
+        "loadmodule \"tm.so\"\nrequest_route {\n    exit;\n}\n",
+    )
+    .unwrap();
+    let run = |mp: &str| {
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .args([
+                "check",
+                "--bin",
+                &bin,
+                "--modules-path",
+                mp,
+                cfg.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap()
+    };
+    let empty = run(dir.join("empty").to_str().unwrap());
+    let stdout = String::from_utf8_lossy(&empty.stdout);
+    assert!(
+        stdout.contains("m.cfg:1:12: error: failed to load module"),
+        "{stdout}"
+    );
+    assert_eq!(empty.status.code(), Some(1));
+    let real = run(&mpath);
+    assert_eq!(
+        real.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&real.stdout)
+    );
+    // a relative path means the caller's working directory, not the
+    // config's directory the checker runs in
+    std::fs::create_dir_all(dir.join("conf")).unwrap();
+    let nested = dir.join("conf/n.cfg");
+    std::fs::copy(&cfg, &nested).unwrap();
+    std::os::unix::fs::symlink(&mpath, dir.join("mods")).unwrap();
+    let rel = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .current_dir(&dir)
+        .args([
+            "check",
+            "--bin",
+            &bin,
+            "--modules-path",
+            "mods",
+            "conf/n.cfg",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        rel.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&rel.stdout)
+    );
+    // a flag without its value is a usage error
+    let out = Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+        .args(["check", "--modules-path"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    let _ = std::fs::remove_dir_all(&dir);
+}

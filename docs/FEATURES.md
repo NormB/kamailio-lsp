@@ -43,7 +43,10 @@ source tree (result cached per tree):
 
 Function completions insert **snippets** — the cursor lands between
 the parentheses (`t_relay(│)`) — disable with
-`kamailioLsp.completion.snippets`. Duplicate labels are collapsed,
+`kamailioLsp.completion.snippets`. Single quotes work wherever double
+quotes do (`loadmodule 'tm`, `modparam('tm', '`, `route('`): the lexer
+makes a string of either. Inside a `#`, `//` or `/* */` comment nothing
+is offered — nothing typed there is code. Duplicate labels are collapsed,
 keeping the most informative item. Modules loaded and routes defined
 in `include_file`/`import_file` files count — the closure is followed
 (open editor buffers preferred over disk).
@@ -91,8 +94,13 @@ documentation — and any routing block (`request_route`,
 "Routing Blocks" and "Script Statements" sections; **Ctrl+Click** a
 `route(NAME)` reference to jump to
 its definition — including definitions that live in an included file;
-**Ctrl+Shift+O** lists every route block with its full extent (the
-outline nests, and breadcrumbs know which block you're in).
+**Ctrl+Shift+O** lists every route block with its full extent, every
+`loadmodule`, every `modparam` (its module shown beside it), every
+top-level parameter assignment (a `socket = { ... }` block is one
+entry) and every `#!define`d name. The blocks inside a route — `if`,
+`else`, `switch`, `while` — nest under it, named by their condition,
+so the outline and the breadcrumbs know which block you are in.
+Selecting an entry highlights the route's name, not just the keyword.
 
 #### References, rename, highlights
 
@@ -131,11 +139,35 @@ blocks F2 outright instead of failing afterwards.
 
 Every `include_file`/`import_file` path (bare or `#!`/`!!`-prefixed,
 either quote style) becomes a clickable **document link**
-(`textDocument/documentLink`): relative paths resolve against the
-document's own directory — the same rule the checker and the include
-closure use — absolute paths pass through, and links are produced
+(`textDocument/documentLink`): a link goes to the file Kamailio would
+open — the same rule the checker and the include closure use (see
+**Where a relative include opens** below) — absolute paths pass
+through, and links are produced
 even for files that do not exist yet (the editor reports the miss on
 click). Paths in comments or strings never link.
+
+#### Where a relative include opens
+
+Kamailio tries a relative `include_file` path twice
+(`sr_push_yy_state` in `src/core/cfg.lex`): first as written, which
+the operating system resolves against the process's working
+directory, and only then beside the file that contains the directive.
+This server and `check` run `kamailio -c` in the main config's
+directory, so the server follows the same order: the main config's
+directory first, then the including file's. A fragment `inc/a.cfg`
+that includes `inc/b.cfg` — written relative to the main config, as
+many split configurations are — therefore reaches `inc/b.cfg`, not
+`inc/inc/b.cfg`, and when both `x.cfg` and `inc/x.cfg` exist,
+`include_file "x.cfg"` in `inc/a.cfg` reads the main directory's.
+Both were checked against `kamailio -c` 6.1.4. Finding the main config
+for an open fragment works before that order is known, so there the
+fragment's own directory is tried first and then the three above it;
+the two answers differ only when both candidate files exist.
+
+A missing include is reported on the directive that names it.
+Kamailio prints the file it could not open and the line it was
+reading, without naming the main config; the server finds the
+`include_file` with that name on that line in the include closure.
 
 #### An included file opened on its own
 
@@ -322,6 +354,14 @@ collected, behind either prefix (`#!` or `!!`): `define`/`def`,
 binds a name as well. A backslash-continued directive is read whole,
 so its continuation lines are part of the value.
 
+A directive is the prefix followed by one of those keywords (or
+`ifdef`, `ifndef`, `ifexp`, `else`, `endif`, `include_file`,
+`import_file`, `subst`) with what `cfg.lex` requires after it — a
+blank after `define`, nothing but blanks after `else`. Anything else
+is not one: `if (!!$var(x))` is two `!` operators, and `#!nonsense` is
+an ordinary `#` comment. `kamailio -c` reads the routes after such a
+line, and so do the analyzer and the editor grammar.
+
 A define outranks a same-named module symbol in hover and completion.
 That is not a preference: the substitution happens first, so the
 define is what the config actually means.
@@ -474,9 +514,14 @@ Four things it will not touch:
   `if` are all placed by the author to show what they belong to, and
   none of that shows up in the brace count. A line is only re-indented
   when the previous code line actually *ended* a statement — with `;`,
-  `{` or `}`. Dedenting a braceless `if` body would be the worst of
+  `{` or `}`, or a `case ...:` / `default:` label. Dedenting a braceless `if` body would be the worst of
   it: the parse would not change, but the body would read as though it
   runs unconditionally.
+
+Inside a `switch`, the `case` and `default` labels sit one level in
+and what each guards one level further, the layout upstream's
+`etc/kamailio.cfg` uses for its `switch ($var(rc))` — formatting that
+file moves nothing in it.
 
 Indentation follows the editor: the `insertSpaces` and `tabSize` the
 client sends with the request decide tabs versus spaces and the width.
@@ -496,7 +541,11 @@ sweeps the workspace without opening anything. A report carries a
 result id, so asking again for something that has not moved comes back
 `unchanged` instead of resending the same list.
 
-**Only root configs are reported by the workspace sweep.** A config
+**Only root configs are reported by the workspace sweep, and the
+include graph decides which those are** — the same graph and the same
+reader the per-document analysis uses, so `inc/../frag.inc` names the
+fragment it resolves to, and a config with a latin-1 byte is reported
+like any other. A config
 that another config includes is a fragment, not a program: checked on
 its own it would flag every route its parent defines as undefined and
 every construct it continues as a syntax error. Roots are the files
@@ -524,7 +573,8 @@ all leave the server answering from a stale read until the buffer
 happens to be touched.
 
 The server registers for `workspace/didChangeWatchedFiles` on all
-three, and reacts to each:
+three — configs as `**/*.{cfg,inc,m4}`, the extensions the workspace
+sweep reads, built from the same list — and reacts to each:
 
 - **An include changed** — every open document whose include closure
   contains that file is re-checked and republished.
@@ -586,9 +636,12 @@ compiled.
 
 #### CLI check mode
 
-`kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` runs the
+`kamailio-lsp check [--strict] [--bin <kamailio>] [--modules-path <dir>] <file>...` runs the
 same analyzer (plus the real `kamailio -c --all-errors` when a binary
-is given) for CI pipelines and git hooks. Findings print as
+is given) for CI pipelines and git hooks. `--modules-path` is the
+`modulesPath` setting: the checker gets it as `-L`, made absolute from
+where `check` runs, because the checker itself runs in the config's
+directory. Findings print as
 `file:line:col: severity: message` (1-based); errors inside included
 files attach to the `include_file` directive. Exit codes: 0 clean,
 1 findings (or warnings under `--strict`), 2 usage.
@@ -596,8 +649,21 @@ files attach to the `include_file` directive. Exit codes: 0 clean,
 #### Folding
 
 Every route-family block folds (`request_route`, `failure_route[x]`,
-`event_route[...]`, ...), with string- and comment-safe brace
-matching.
+`event_route[...]`, ...), and so does every block inside one — an
+`if`, its `else`, a `switch` — and a `socket = { ... }` definition. A
+block whose closing brace shares its line with more code (`} else {`)
+stops folding above that line, so the `else` stays visible. Each
+branch of an `#!ifdef`, `#!ifndef` or `#!ifexp` folds on its own, from
+its directive (or `#!else`) to the line before the one that ends it.
+Block comments that span lines fold, and so does every run of two or
+more `#` or `//` comment lines. Brace matching is string- and
+comment-safe: a `}` inside `xlog("}")` closes nothing.
+
+#### Selection range
+
+**Shift+Alt+→** (expand selection) grows from the word under the
+cursor to the block statement around it, then each block outside that,
+the route block, and the whole document.
 
 #### Static snippets
 
@@ -663,8 +729,9 @@ clients that can't pass options.
   no route either, the warning says so and names both — the alias and
   what it expands to.
 - Include handling is capped for safety: depth 8, 64 files, 1 MiB per
-  file; relative paths resolve against the including file's
-  directory. `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` tunes the analyzer
+  file; a relative path is tried in the main config's directory and
+  then beside the including file, as Kamailio does (see **Where a
+  relative include opens**). `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` tunes the analyzer
   debounce (default 300).
 - Runtime toggles (`diagnostics.analyzer`, `completion.snippets`,
   `codeLens.references`, `inlayHints.parameterNames`,

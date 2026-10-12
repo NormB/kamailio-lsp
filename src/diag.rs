@@ -54,9 +54,44 @@ pub fn parse_check_output(output: &str, rc: i32) -> Vec<Diag> {
         r"(CRITICAL|ERROR|WARNING): .*(parse error|warning) in config file (.*?), from line (\d+), column (\d+) to line (\d+), column (\d+): ?(.*)",
     )
     .unwrap();
+    // a missing include: the lexer names the file, then the line it
+    // was reading on a line of its own, with no file
+    let missing = regex::Regex::new(r"cannot open included file: (.+)$").unwrap();
+    // `error at %s line %d`: the file being read, `cfg` for the main one
+    let at_line = regex::Regex::new(r"error at (.+) line (\d+)\s*$").unwrap();
+    let mut pending_include: Option<String> = None;
     let mut out = Vec::new();
 
     for text_line in output.lines() {
+        if let Some(c) = missing.captures(text_line) {
+            pending_include = Some(truncate_message(&format!(
+                "cannot open included file: {}",
+                c[1].trim()
+            )));
+            continue;
+        }
+        if let Some(c) = at_line.captures(text_line)
+            && let Some(message) = pending_include.take()
+        {
+            let Ok(n) = c[2].parse::<u32>() else {
+                continue;
+            };
+            let line = n.saturating_sub(1);
+            out.push(Diag {
+                file: if &c[1] == "cfg" {
+                    String::new()
+                } else {
+                    c[1].to_string()
+                },
+                line,
+                end_line: line,
+                col_start: 0,
+                col_end: 1,
+                severity: Severity::Error,
+                message,
+            });
+            continue;
+        }
         // try the spanning shape first: the single-line regex would
         // otherwise mis-split its `from line ...` tail
         let (file, s_line, s_col, e_line, e_col, sev_word, msg);

@@ -303,74 +303,57 @@ impl Backend {
             .collect()
     }
 
-    /// Merge stored `-c` results with fresh analyzer diagnostics and
-    /// publish, capped.  Static so the debounce task can call it.
-    #[allow(clippy::too_many_arguments)]
-    async fn merge_and_publish(
-        pushing: bool,
-        client: &Client,
-        check_map: &DashMap<Uri, Vec<Diagnostic>>,
-        analyzer_enabled: bool,
-        cap: usize,
-        uri: &Uri,
-        version: i32,
-        text: &str,
-        open: std::collections::HashMap<std::path::PathBuf, String>,
-        cat: &std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
-        origin: &std::sync::Arc<std::sync::RwLock<catalog::CatalogOrigin>>,
-        skip_if_empty: bool,
-        root: Option<&std::path::Path>,
-    ) {
-        // a client that pulls gets everything through
-        // `textDocument/diagnostic`; pushing as well shows each
-        // problem twice
-        if !pushing {
-            return;
+    /// The diagnostics publisher, with the settings in force now.
+    fn diagnostics(&self) -> Diagnostics {
+        Diagnostics {
+            client: self.client.clone(),
+            docs: self.docs.clone(),
+            check_diags: self.check_diags.clone(),
+            catalog: self.catalog.clone(),
+            catalog_origin: self.catalog_origin.clone(),
+            pushing: !*self.diagnostics_pulled.read().unwrap(),
+            analyzer_enabled: *self.analyzer_enabled.read().unwrap(),
+            cap: *self.max_diagnostics.read().unwrap(),
         }
-        let merged = Self::merged_diags(
-            check_map,
-            analyzer_enabled,
-            cap,
-            uri,
-            text,
-            open,
-            cat,
-            origin,
-            root,
-        );
-        if merged.is_empty() && skip_if_empty {
-            return;
-        }
-        client
-            .publish_diagnostics(uri.clone(), merged, Some(version))
-            .await;
     }
 
-    /// The diagnostics for one document: the last checker result plus
-    /// a fresh analyzer pass, capped.  Shared by the push path and the
-    /// pull one so both can never disagree about what is wrong.
-    #[allow(clippy::too_many_arguments)]
-    fn merged_diags(
-        check_map: &DashMap<Uri, Vec<Diagnostic>>,
-        analyzer_enabled: bool,
-        cap: usize,
-        uri: &Uri,
-        text: &str,
-        open: std::collections::HashMap<std::path::PathBuf, String>,
-        cat: &std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
-        origin: &std::sync::Arc<std::sync::RwLock<catalog::CatalogOrigin>>,
-        root: Option<&std::path::Path>,
-    ) -> Vec<Diagnostic> {
-        let mut merged = check_map.get(uri).map(|v| v.clone()).unwrap_or_default();
-        if analyzer_enabled && let Some(path) = uri.to_file_path() {
-            let loader = Self::make_loader(open);
-            let cat = cat.read().unwrap().clone();
-            let files = Self::closure_rooted_at(root, &path, text, &loader);
-            let origin = origin.read().unwrap().clone();
-            merged.extend(Self::analyzer_lsp_diags(&files, &path, text, &cat, &origin));
+    /// The UTF-16 range of a byte-column [`crate::outline::Span`].
+    fn span_range(lines: &[&str], s: crate::outline::Span) -> Range {
+        let at = |line: u32, col: u32| {
+            Position::new(
+                line,
+                analyze::byte_to_utf16(Self::line_in(lines, line), col as usize),
+            )
+        };
+        Range::new(at(s.start_line, s.start_col), at(s.end_line, s.end_col))
+    }
+
+    /// An outline entry as an LSP document symbol, children included.
+    fn document_symbol_of(lines: &[&str], s: crate::outline::Sym) -> DocumentSymbol {
+        use crate::outline::SymKind;
+        #[allow(deprecated)]
+        DocumentSymbol {
+            name: s.name,
+            detail: s.detail,
+            kind: match s.kind {
+                SymKind::Module => SymbolKind::MODULE,
+                SymKind::Property => SymbolKind::PROPERTY,
+                SymKind::Variable => SymbolKind::VARIABLE,
+                SymKind::Constant => SymbolKind::CONSTANT,
+                SymKind::Route => SymbolKind::FUNCTION,
+                SymKind::Block => SymbolKind::OBJECT,
+            },
+            tags: None,
+            deprecated: None,
+            range: Self::span_range(lines, s.span),
+            selection_range: Self::span_range(lines, s.sel),
+            children: (!s.children.is_empty()).then(|| {
+                s.children
+                    .into_iter()
+                    .map(|c| Self::document_symbol_of(lines, c))
+                    .collect()
+            }),
         }
-        merged.truncate(cap.max(1));
-        merged
     }
 
     /// Whole-line rewrites as LSP edits.  Each edit replaces exactly
@@ -542,7 +525,7 @@ impl Backend {
             return;
         }
         let mut watchers = vec![FileSystemWatcher {
-            glob_pattern: GlobPattern::String("**/*.cfg".into()),
+            glob_pattern: GlobPattern::String(logic::config_watch_glob()),
             kind: None,
         }];
         let mut relative = |dir: Option<String>, pats: &[&str]| {
@@ -963,6 +946,21 @@ impl Backend {
         }
     }
 
+    /// The byte offset of an LSP (UTF-16) position; a line past the
+    /// end clamps to the end of the text.
+    fn offset_at(text: &str, pos: Position) -> usize {
+        let mut start = 0;
+        for (n, line) in text.split_inclusive('\n').enumerate() {
+            if n == pos.line as usize {
+                // a column past the end stays on this line
+                let body = line.strip_suffix('\n').unwrap_or(line);
+                return start + analyze::utf16_to_byte(body, pos.character);
+            }
+            start += line.len();
+        }
+        text.len()
+    }
+
     fn line_prefix(text: &str, pos: Position) -> String {
         text.lines()
             .nth(pos.line as usize)
@@ -987,20 +985,13 @@ impl Backend {
             return;
         }
         let ctx = CheckCtx {
-            client: self.client.clone(),
-            docs: self.docs.clone(),
-            catalog: self.catalog.clone(),
-            catalog_origin: self.catalog_origin.clone(),
-            check_diags: self.check_diags.clone(),
+            diag: self.diagnostics(),
             check_gate: self.check_gate.clone(),
             bin: self.kamailio_bin.read().unwrap().clone(),
             modules_path: self.modules_path.read().unwrap().clone(),
             check_timeout: *self.check_timeout.read().unwrap(),
-            analyzer_enabled: *self.analyzer_enabled.read().unwrap(),
-            cap: *self.max_diagnostics.read().unwrap(),
             uri: uri.clone(),
             root: self.analysis_root_of(uri),
-            pushing: !*self.diagnostics_pulled.read().unwrap(),
             refresh_after: *self.diagnostics_pulled.read().unwrap()
                 && *self.diagnostics_refresh.read().unwrap(),
             quiet_when_clean,
@@ -1019,7 +1010,7 @@ impl Backend {
     /// answered from the previous result; without the invitation that
     /// stale answer would be the last word.
     async fn run_check(ctx: CheckCtx) {
-        let (client, refresh) = (ctx.client.clone(), ctx.refresh_after);
+        let (client, refresh) = (ctx.diag.client.clone(), ctx.refresh_after);
         Self::run_check_inner(ctx).await;
         if refresh {
             let _ = client
@@ -1048,31 +1039,24 @@ impl Backend {
         // mapped through exactly this text, and the publish carries
         // exactly this version
         let (snap_version, snap_text) = ctx
+            .diag
             .docs
             .get(uri)
             .map(|d| d.clone())
             .unwrap_or((0, String::new()));
-        let analyzer_enabled = ctx.analyzer_enabled;
-        let cap = ctx.cap;
+        let cap = ctx.diag.cap;
         let Some(bin) = ctx.bin.clone() else {
             // -c disabled: analyzer-only pass
-            ctx.check_diags.insert(uri.clone(), Vec::new());
-            Self::merge_and_publish(
-                ctx.pushing,
-                &ctx.client,
-                &ctx.check_diags,
-                analyzer_enabled,
-                cap,
-                uri,
-                snap_version,
-                &snap_text,
-                Self::open_docs_snapshot_of(&ctx.docs),
-                &ctx.catalog,
-                &ctx.catalog_origin,
-                ctx.quiet_when_clean,
-                ctx.root.as_deref(),
-            )
-            .await;
+            ctx.diag.check_diags.insert(uri.clone(), Vec::new());
+            ctx.diag
+                .publish(
+                    uri,
+                    snap_version,
+                    &snap_text,
+                    ctx.quiet_when_clean,
+                    ctx.root.as_deref(),
+                )
+                .await;
             return;
         };
         // one -c at a time; a burst of didOpen events must not fork a
@@ -1145,7 +1129,8 @@ impl Backend {
         let out = match tokio::time::timeout(check_timeout, fut).await {
             Ok(r) => r,
             Err(_) => {
-                ctx.client
+                ctx.diag
+                    .client
                     .log_message(
                         MessageType::WARNING,
                         format!(
@@ -1155,55 +1140,30 @@ impl Backend {
                     )
                     .await;
                 // an incomplete check must not leave stale results pinned
-                ctx.check_diags.insert(uri.clone(), Vec::new());
-                Self::merge_and_publish(
-                    ctx.pushing,
-                    &ctx.client,
-                    &ctx.check_diags,
-                    analyzer_enabled,
-                    cap,
-                    uri,
-                    snap_version,
-                    &snap_text,
-                    Self::open_docs_snapshot_of(&ctx.docs),
-                    &ctx.catalog,
-                    &ctx.catalog_origin,
-                    false,
-                    ctx.root.as_deref(),
-                )
-                .await;
+                ctx.diag.check_diags.insert(uri.clone(), Vec::new());
+                ctx.diag
+                    .publish(uri, snap_version, &snap_text, false, ctx.root.as_deref())
+                    .await;
                 return;
             }
         };
         let Ok((status, o_buf, e_buf)) = out else {
-            ctx.client
+            ctx.diag
+                .client
                 .log_message(
                     MessageType::WARNING,
                     format!("kamailio-lsp: cannot run '{bin} -c' (configure kamailioPath)"),
                 )
                 .await;
-            ctx.check_diags.insert(uri.clone(), Vec::new());
-            Self::merge_and_publish(
-                ctx.pushing,
-                &ctx.client,
-                &ctx.check_diags,
-                analyzer_enabled,
-                cap,
-                uri,
-                snap_version,
-                &snap_text,
-                Self::open_docs_snapshot_of(&ctx.docs),
-                &ctx.catalog,
-                &ctx.catalog_origin,
-                false,
-                ctx.root.as_deref(),
-            )
-            .await;
+            ctx.diag.check_diags.insert(uri.clone(), Vec::new());
+            ctx.diag
+                .publish(uri, snap_version, &snap_text, false, ctx.root.as_deref())
+                .await;
             return;
         };
         let Some(status) = status else {
             // capped: the run's output is untrustworthy — clear and log
-            ctx.client
+            ctx.diag.client
                 .log_message(
                     MessageType::WARNING,
                     format!(
@@ -1211,23 +1171,10 @@ impl Backend {
                     ),
                 )
                 .await;
-            ctx.check_diags.insert(uri.clone(), Vec::new());
-            Self::merge_and_publish(
-                ctx.pushing,
-                &ctx.client,
-                &ctx.check_diags,
-                analyzer_enabled,
-                cap,
-                uri,
-                snap_version,
-                &snap_text,
-                Self::open_docs_snapshot_of(&ctx.docs),
-                &ctx.catalog,
-                &ctx.catalog_origin,
-                false,
-                ctx.root.as_deref(),
-            )
-            .await;
+            ctx.diag.check_diags.insert(uri.clone(), Vec::new());
+            ctx.diag
+                .publish(uri, snap_version, &snap_text, false, ctx.root.as_deref())
+                .await;
             return;
         };
         let text = format!(
@@ -1238,9 +1185,10 @@ impl Backend {
         let rc = status.code().unwrap_or(-1);
         // the buffer moved while the check ran: results belong to a
         // text that no longer exists — suppress; the next save re-checks
-        let current = ctx.docs.get(uri).map(|d| d.0);
+        let current = ctx.diag.docs.get(uri).map(|d| d.0);
         if current.is_some() && current != Some(snap_version) {
-            ctx.client
+            ctx.diag
+                .client
                 .log_message(
                     MessageType::INFO,
                     format!("kamailio-lsp: discarding stale check of {path_str} (buffer changed)"),
@@ -1250,7 +1198,18 @@ impl Backend {
         }
         // kamailio reports byte columns; the client expects UTF-16 units
         let doc_text = snap_text.clone();
-        let parsed = diag::parse_check_output(&text, rc);
+        // a missing include names no file for the main config: the
+        // closure says which file holds the directive
+        let closure = Self::closure_rooted_at(
+            ctx.root.as_deref(),
+            &path,
+            &doc_text,
+            &Self::make_loader(Self::open_docs_snapshot_of(&ctx.diag.docs)),
+        );
+        let parsed: Vec<diag::Diag> = diag::parse_check_output(&text, rc)
+            .into_iter()
+            .map(|d| logic::place_missing_include(&closure, d))
+            .collect();
         let mut mapped: Vec<diag::Diag> = parsed
             .iter()
             .filter_map(|d| match &ctx.root {
@@ -1303,7 +1262,7 @@ impl Backend {
             .collect();
         let mut diags = diags;
         if diags.len() > cap {
-            ctx.client
+            ctx.diag.client
                 .log_message(
                     MessageType::INFO,
                     format!(
@@ -1314,47 +1273,102 @@ impl Backend {
                 .await;
             diags.truncate(cap);
         }
-        ctx.check_diags.insert(uri.clone(), diags);
-        Self::merge_and_publish(
-            ctx.pushing,
-            &ctx.client,
-            &ctx.check_diags,
-            analyzer_enabled,
-            cap,
-            uri,
-            snap_version,
-            &snap_text,
-            Self::open_docs_snapshot_of(&ctx.docs),
-            &ctx.catalog,
-            &ctx.catalog_origin,
-            false,
-            ctx.root.as_deref(),
-        )
-        .await;
+        ctx.diag.check_diags.insert(uri.clone(), diags);
+        ctx.diag
+            .publish(uri, snap_version, &snap_text, false, ctx.root.as_deref())
+            .await;
     }
 }
 
 /// Everything one spawned check task needs, snapshotted at spawn
 /// time so the task owns its state outright.
-struct CheckCtx {
+/// What publishing a document's diagnostics needs: the stores it
+/// reads and the settings in force when this was taken.  Cheap to
+/// clone, so a spawned task carries its own and needs no `&self`.
+#[derive(Clone)]
+struct Diagnostics {
     client: Client,
     docs: std::sync::Arc<DashMap<Uri, (i32, String)>>,
+    check_diags: std::sync::Arc<DashMap<Uri, Vec<Diagnostic>>>,
     catalog: std::sync::Arc<std::sync::RwLock<Vec<catalog::ModuleDoc>>>,
     catalog_origin: std::sync::Arc<std::sync::RwLock<catalog::CatalogOrigin>>,
-    check_diags: std::sync::Arc<DashMap<Uri, Vec<Diagnostic>>>,
+    /// Whether this server pushes diagnostics at all.
+    pushing: bool,
+    analyzer_enabled: bool,
+    cap: usize,
+}
+
+impl Diagnostics {
+    /// The diagnostics for one document: the last checker result plus
+    /// a fresh analyzer pass, capped.  Shared by the push path and the
+    /// pull one so both can never disagree about what is wrong.
+    fn merged(
+        &self,
+        uri: &Uri,
+        text: &str,
+        open: std::collections::HashMap<std::path::PathBuf, String>,
+        root: Option<&std::path::Path>,
+    ) -> Vec<Diagnostic> {
+        let mut merged = self
+            .check_diags
+            .get(uri)
+            .map(|v| v.clone())
+            .unwrap_or_default();
+        if self.analyzer_enabled
+            && let Some(path) = uri.to_file_path()
+        {
+            let loader = Backend::make_loader(open);
+            let cat = self.catalog.read().unwrap().clone();
+            let files = Backend::closure_rooted_at(root, &path, text, &loader);
+            let origin = self.catalog_origin.read().unwrap().clone();
+            merged.extend(Backend::analyzer_lsp_diags(
+                &files, &path, text, &cat, &origin,
+            ));
+        }
+        merged.truncate(self.cap.max(1));
+        merged
+    }
+
+    /// Merge stored `-c` results with fresh analyzer diagnostics and
+    /// publish `version` of `uri`, capped.  `skip_if_empty` keeps a
+    /// clean document from getting an empty publish.
+    async fn publish(
+        &self,
+        uri: &Uri,
+        version: i32,
+        text: &str,
+        skip_if_empty: bool,
+        root: Option<&std::path::Path>,
+    ) {
+        // a client that pulls gets everything through
+        // `textDocument/diagnostic`; pushing as well shows each
+        // problem twice
+        if !self.pushing {
+            return;
+        }
+        let open = Backend::open_docs_snapshot_of(&self.docs);
+        let merged = self.merged(uri, text, open, root);
+        if merged.is_empty() && skip_if_empty {
+            return;
+        }
+        self.client
+            .publish_diagnostics(uri.clone(), merged, Some(version))
+            .await;
+    }
+}
+
+struct CheckCtx {
+    /// Where the result goes, and the settings it is published under.
+    diag: Diagnostics,
     check_gate: std::sync::Arc<tokio::sync::Mutex<()>>,
     bin: Option<String>,
     modules_path: Option<String>,
     check_timeout: std::time::Duration,
-    analyzer_enabled: bool,
-    cap: usize,
     uri: Uri,
     /// The config that must be handed to the checker when the open
     /// document is an included fragment: `kamailio -c` only accepts a
     /// whole program.  `None` when the document IS the program.
     root: Option<std::path::PathBuf>,
-    /// Whether this server pushes diagnostics at all.
-    pushing: bool,
     /// Invite a pulling client to re-ask once this check lands.
     refresh_after: bool,
     /// Suppress the empty publish a clean document gets in
@@ -1534,6 +1548,7 @@ impl LanguageServer for Backend {
                 document_range_formatting_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+                selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
                 references_provider: Some(OneOf::Left(true)),
                 document_highlight_provider: Some(OneOf::Left(true)),
                 rename_provider: Some(OneOf::Right(RenameOptions {
@@ -1745,13 +1760,7 @@ impl LanguageServer for Backend {
             *e
         };
         let gen_map = self.change_gen.clone();
-        let pushing = !*self.diagnostics_pulled.read().unwrap();
-        let check_map = self.check_diags.clone();
-        let cat_arc = self.catalog.clone();
-        let origin_arc = self.catalog_origin.clone();
-        let client = self.client.clone();
-        let open = self.open_docs_snapshot();
-        let cap = *self.max_diagnostics.read().unwrap();
+        let diag = self.diagnostics();
         let debounce = std::env::var("KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
@@ -1764,22 +1773,8 @@ impl LanguageServer for Backend {
             if gen_map.get(&uri).map(|g| *g) != Some(generation) {
                 return;
             }
-            Backend::merge_and_publish(
-                pushing,
-                &client,
-                &check_map,
-                true,
-                cap,
-                &uri,
-                version,
-                &text,
-                open,
-                &cat_arc,
-                &origin_arc,
-                false,
-                root.as_deref(),
-            )
-            .await;
+            diag.publish(&uri, version, &text, false, root.as_deref())
+                .await;
         });
     }
 
@@ -1789,15 +1784,10 @@ impl LanguageServer for Backend {
     ) -> Result<DocumentDiagnosticReportResult> {
         let uri = p.text_document.uri;
         let text = self.text_for(&uri);
-        let diags = Self::merged_diags(
-            &self.check_diags,
-            *self.analyzer_enabled.read().unwrap(),
-            *self.max_diagnostics.read().unwrap(),
+        let diags = self.diagnostics().merged(
             &uri,
             &text,
             self.open_docs_snapshot(),
-            &self.catalog,
-            &self.catalog_origin,
             self.analysis_root_of(&uri).as_deref(),
         );
         let id = Self::result_id(&diags);
@@ -1832,21 +1822,12 @@ impl LanguageServer for Backend {
         // every construct it continues as a syntax error.  Roots are
         // the files nothing else includes, and their closures already
         // cover the fragments.
+        //
+        // Which file is a root is the include graph's answer, read the
+        // same way the graph and the closures read: two readers would
+        // be two answers about which file is a program.
         let (configs, truncated) = self.workspace_configs(500);
-        let mut included: std::collections::HashSet<std::path::PathBuf> =
-            std::collections::HashSet::new();
-        let mut texts: std::collections::HashMap<std::path::PathBuf, String> =
-            std::collections::HashMap::new();
-        for path in &configs {
-            let Ok(text) = std::fs::read_to_string(path) else {
-                continue;
-            };
-            let base = path.parent().unwrap_or(std::path::Path::new("."));
-            for inc in analyze::includes(&text) {
-                included.insert(base.join(&inc.name));
-            }
-            texts.insert(path.clone(), text);
-        }
+        let graph = self.include_graph();
         if truncated {
             self.client
                 .log_message(
@@ -1857,29 +1838,23 @@ impl LanguageServer for Backend {
                 .await;
         }
 
-        let analyzer_enabled = *self.analyzer_enabled.read().unwrap();
-        let cap = *self.max_diagnostics.read().unwrap();
         let open = self.open_docs_snapshot();
         let mut items = Vec::new();
-        for (path, text) in &texts {
-            if included.contains(path) {
+        for path in &configs {
+            if graph.is_included(path) {
                 continue;
             }
             let Some(uri) = Uri::from_file_path(path) else {
                 continue;
             };
             // the open buffer wins over what is on disk
-            let text = open.get(path).cloned().unwrap_or_else(|| text.clone());
-            let diags = Self::merged_diags(
-                &self.check_diags,
-                analyzer_enabled,
-                cap,
+            let Some(text) = open.get(path).cloned().or_else(|| logic::read_config(path)) else {
+                continue;
+            };
+            let diags = self.diagnostics().merged(
                 &uri,
                 &text,
-                open.clone(),
-                &self.catalog,
-                &self.catalog_origin,
-                // the sweep reports ROOTS only, so each is its own
+                open.clone(), // the sweep reports ROOTS only, so each is its own
                 // analysis context by construction
                 None,
             );
@@ -2014,31 +1989,21 @@ impl LanguageServer for Backend {
         }
         // retuned toggles must apply to what is already on screen:
         // republish diagnostics for every open document
-        let analyzer_enabled = *self.analyzer_enabled.read().unwrap();
-        let cap = *self.max_diagnostics.read().unwrap();
         let open_docs: Vec<(Uri, i32, String)> = self
             .docs
             .iter()
             .map(|e| (e.key().clone(), e.value().0, e.value().1.clone()))
             .collect();
-        let pushing = !*self.diagnostics_pulled.read().unwrap();
         for (uri, version, text) in open_docs {
-            Self::merge_and_publish(
-                pushing,
-                &self.client,
-                &self.check_diags,
-                analyzer_enabled,
-                cap,
-                &uri,
-                version,
-                &text,
-                self.open_docs_snapshot(),
-                &self.catalog,
-                &self.catalog_origin,
-                false,
-                self.analysis_root_of(&uri).as_deref(),
-            )
-            .await;
+            self.diagnostics()
+                .publish(
+                    &uri,
+                    version,
+                    &text,
+                    false,
+                    self.analysis_root_of(&uri).as_deref(),
+                )
+                .await;
         }
     }
 
@@ -2063,6 +2028,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let pos = p.text_document_position.position;
+        // nothing typed in a comment is code, so nothing is offered
+        if analyze::in_comment(&text, Self::offset_at(&text, pos)) {
+            return Ok(Some(CompletionResponse::Array(Vec::new())));
+        }
         let prefix = Self::line_prefix(&text, pos);
         // typed `$` + tail: completions REPLACE the typed token (labels
         // carry the `$`, so plain insertion would double it)
@@ -2298,68 +2267,14 @@ impl LanguageServer for Backend {
         &self,
         p: DocumentSymbolParams,
     ) -> Result<Option<DocumentSymbolResponse>> {
-        let Some((_, text, idx)) = self.doc_with_index(&p.text_document.uri) else {
+        let Some(text) = self.docs.get(&p.text_document.uri).map(|d| d.1.clone()) else {
             return Ok(None);
         };
         let lines = Self::lines_of(&text);
-        #[allow(deprecated)]
-        let syms: Vec<DocumentSymbol> = idx
-            .blocks
-            .iter()
-            .map(|b| {
-                let lt = Self::line_in(&lines, b.line);
-                let start = Position::new(b.line, analyze::byte_to_utf16(lt, b.col as usize));
-                let et = Self::line_in(&lines, b.end_line);
-                let end = Position::new(b.end_line, analyze::byte_to_utf16(et, b.end_col as usize));
-                DocumentSymbol {
-                    name: if b.name.is_empty() {
-                        if b.kind == "route" {
-                            // legacy alias of request_route
-                            "route (main)".into()
-                        } else {
-                            b.kind.clone()
-                        }
-                    } else {
-                        format!("{}[{}]", b.kind, b.name)
-                    },
-                    detail: None,
-                    kind: SymbolKind::FUNCTION,
-                    tags: None,
-                    deprecated: None,
-                    range: Range { start, end },
-                    selection_range: Range { start, end: start },
-                    children: None,
-                }
-            })
+        let syms = crate::outline::outline(&text)
+            .into_iter()
+            .map(|sym| Self::document_symbol_of(&lines, sym))
             .collect();
-        // preprocessor symbols belong in the outline too: they are
-        // top-level bindings a reader navigates by, and in a large
-        // config they are usually the first thing you look for
-        let mut syms = syms;
-        #[allow(deprecated)]
-        for d in analyze::defines(&text) {
-            let dl = Self::line_in(&lines, d.line);
-            let start = Position::new(d.line, analyze::byte_to_utf16(dl, d.col as usize));
-            let end = Position::new(
-                d.line,
-                analyze::byte_to_utf16(dl, d.col as usize + d.name.len()),
-            );
-            syms.push(DocumentSymbol {
-                name: d.name,
-                detail: Some(if d.value.is_empty() {
-                    format!("#!{}", d.directive)
-                } else {
-                    format!("#!{} {}", d.directive, d.value)
-                }),
-                kind: SymbolKind::CONSTANT,
-                tags: None,
-                deprecated: None,
-                range: Range { start, end },
-                selection_range: Range { start, end },
-                children: None,
-            });
-        }
-        syms.sort_by_key(|s| (s.range.start.line, s.range.start.character));
         Ok(Some(DocumentSymbolResponse::Nested(syms)))
     }
 
@@ -2469,22 +2384,20 @@ impl LanguageServer for Backend {
         let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
             return Ok(None);
         };
-        let base_dir = uri
-            .to_file_path()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+        let Some(path) = uri.to_file_path().map(|p| p.into_owned()) else {
+            return Ok(Some(Vec::new()));
+        };
+        // the file the checker would open, in Kamailio's order: the
+        // main config's directory, then beside this file.  Missing
+        // files still get a link — the editor surfaces the miss on
+        // click.
+        let root = self.analysis_root_of(&uri).unwrap_or_else(|| path.clone());
+        let open = self.open_docs_snapshot();
+        let exists = |p: &std::path::Path| open.contains_key(p) || p.is_file();
         let links: Vec<DocumentLink> = analyze::include_links(&text)
             .into_iter()
             .filter_map(|l| {
-                let p = std::path::Path::new(&l.path);
-                // resolution parity with the checker and the closure
-                // walker: absolute as written, relative against the
-                // document's own directory.  Missing files still get
-                // a link — the editor surfaces the miss on click.
-                let target = if p.is_absolute() {
-                    p.to_path_buf()
-                } else {
-                    base_dir.as_ref()?.join(p)
-                };
+                let target = logic::include_target(root.parent(), &path, &l.path, &exists);
                 let target = Uri::from_file_path(&target)?;
                 let lt = Self::doc_line(&text, l.line);
                 let s = analyze::byte_to_utf16(&lt, l.col as usize);
@@ -2930,9 +2843,7 @@ impl LanguageServer for Backend {
         // only the main table takes part: `route(NAME)` is the only
         // call form the server can see, so a failure_route or
         // event_route has no callers it could honestly report
-        let Some((name, logic::RouteNs::Main)) =
-            logic::route_symbol_ns_at(&text, pos.line, pos.character)
-        else {
+        let Some((name, logic::RouteNs::Main)) = Self::route_symbol_at(&text, pos) else {
             return Ok(None);
         };
         let files = self.closure_for(&uri, &text);
@@ -3069,18 +2980,51 @@ impl LanguageServer for Backend {
         let Some(text) = self.docs.get(&p.text_document.uri).map(|d| d.1.clone()) else {
             return Ok(None);
         };
-        let ranges: Vec<FoldingRange> = analyze::route_blocks(&text)
+        let ranges: Vec<FoldingRange> = crate::outline::folds(&text)
             .into_iter()
-            .filter(|b| b.end_line > b.line)
-            .map(|b| FoldingRange {
-                start_line: b.line,
+            .map(|f| FoldingRange {
+                start_line: f.start_line,
                 start_character: None,
-                end_line: b.end_line,
+                end_line: f.end_line,
                 end_character: None,
-                kind: Some(FoldingRangeKind::Region),
+                kind: Some(match f.kind {
+                    crate::outline::FoldKind::Region => FoldingRangeKind::Region,
+                    crate::outline::FoldKind::Comment => FoldingRangeKind::Comment,
+                }),
                 collapsed_text: None,
             })
             .collect();
         Ok(Some(ranges))
+    }
+
+    async fn selection_range(
+        &self,
+        p: SelectionRangeParams,
+    ) -> Result<Option<Vec<SelectionRange>>> {
+        let Some(text) = self.docs.get(&p.text_document.uri).map(|d| d.1.clone()) else {
+            return Ok(None);
+        };
+        let lines = Self::lines_of(&text);
+        let out = p
+            .positions
+            .into_iter()
+            .map(|pos| {
+                let chain = crate::outline::selection_chain(&text, Self::offset_at(&text, pos));
+                // the protocol links them outermost-in: each range
+                // points at the one that contains it
+                let mut parent: Option<Box<SelectionRange>> = None;
+                for span in chain.into_iter().rev() {
+                    parent = Some(Box::new(SelectionRange {
+                        range: Self::span_range(&lines, span),
+                        parent,
+                    }));
+                }
+                parent.map(|b| *b).unwrap_or(SelectionRange {
+                    range: Range::new(pos, pos),
+                    parent: None,
+                })
+            })
+            .collect();
+        Ok(Some(out))
     }
 }

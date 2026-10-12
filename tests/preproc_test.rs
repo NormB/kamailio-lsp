@@ -188,3 +188,47 @@ fn ifexp_opens_a_level_that_its_endif_closes() {
         );
     }
 }
+
+#[test]
+fn a_double_negation_is_code_not_a_directive() {
+    // cfg.lex starts a directive only at PREP_START ("#!" or "!!")
+    // followed by a directive keyword.  `kamailio -c` reads
+    // `if (!!$var(x)) { route(R); }` as code: with a second
+    // `route[R]` after it, it reports `duplicate route` at that
+    // second definition.
+    let cfg = "request_route {\n    $var(x) = 1;\n    if (!!$var(x)) { route(R); }\n}\nroute[R] {\n    exit;\n}\n";
+    let refs: Vec<String> = kamailio_lsp::analyze::route_refs(cfg)
+        .into_iter()
+        .map(|r| r.name)
+        .collect();
+    assert_eq!(refs, vec!["R"]);
+    assert_eq!(warnings(cfg), Vec::<String>::new());
+}
+
+#[test]
+fn a_directive_needs_its_keyword_and_the_tail_its_rule_takes() {
+    let defined = |t: &str| -> Vec<String> {
+        kamailio_lsp::analyze::defines(t)
+            .into_iter()
+            .map(|d| d.name)
+            .collect()
+    };
+    // `{PREP_START}{DEFINE}{EAT_ABLE}+`: a directive anywhere on a line
+    assert_eq!(defined("exit; #!define A 1\n"), vec!["A"]);
+    assert_eq!(defined("!!define B 1\n"), vec!["B"]);
+    // without the whitespace the rule needs, `!!definitely` is two
+    // `!` and a word, and `#!defineC` is a `#` comment
+    let t = "request_route {\n    if (!!definitely) { route(R); }\n}\n#!defineC route(G)\nroute[R] {\n    exit;\n}\n";
+    let refs: Vec<String> = kamailio_lsp::analyze::route_refs(t)
+        .into_iter()
+        .map(|r| r.name)
+        .collect();
+    assert_eq!(refs, vec!["R"]);
+    // `{PREP_START}{ELSE}{EAT_ABLE}*{CR}`: `else` must end its line
+    let t = "request_route {\n    if (!!else_set) { route(R); }\n}\nroute[R] {\n    exit;\n}\n";
+    let refs: Vec<String> = kamailio_lsp::analyze::route_refs(t)
+        .into_iter()
+        .map(|r| r.name)
+        .collect();
+    assert_eq!(refs, vec!["R"]);
+}

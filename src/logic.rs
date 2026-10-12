@@ -73,8 +73,15 @@ macro_rules! static_regex {
     };
 }
 
-static_regex!(re_modparam_first_arg, r#"modparamx?\s*\(\s*"[^"]*$"#);
-static_regex!(re_loadmodule_arg, r#"loadmodulex?\s*\(?\s*"[^"]*$"#);
+// an open argument string of either quote: cfg.lex makes a STRING of both
+static_regex!(
+    re_modparam_first_arg,
+    r#"modparamx?\s*\(\s*(?:"[^"]*|'[^']*)$"#
+);
+static_regex!(
+    re_loadmodule_arg,
+    r#"loadmodulex?\s*\(?\s*(?:"[^"]*|'[^']*)$"#
+);
 static_regex!(
     re_route_call_arg,
     r#"(?:^|[^A-Za-z0-9_])route\s*\(\s*["']?[A-Za-z0-9_.:-]*$"#
@@ -966,6 +973,62 @@ pub fn fragment_check_diag(
         })
 }
 
+/// Put a missing-include error on the directive that names the file.
+///
+/// `kamailio -c` reports the file it could not open and the line the
+/// lexer was reading — with the file being read, except for the main
+/// config, which it calls `cfg` and the parser leaves blank.  The
+/// closure decides the rest: the file holding an
+/// `include_file`/`import_file` of that name on that line.  When the
+/// report carries the path it tried last, that path must be where the
+/// directive resolves against its own directory, which is the second
+/// place `sr_push_yy_state` looks.  Any other diagnostic, or one no
+/// closure file accounts for, comes back as it was.
+pub fn place_missing_include(
+    files: &[(std::path::PathBuf, String)],
+    d: crate::diag::Diag,
+) -> crate::diag::Diag {
+    let Some(rest) = d.message.strip_prefix("cannot open included file: ") else {
+        return d;
+    };
+    // `NAME (TRIED PATH)` or, from the first two failures, `"NAME"`
+    let (name, tried) = match rest.strip_suffix(')').and_then(|r| r.rsplit_once(" (")) {
+        Some((n, p)) => (n, Some(lexically_normal(std::path::Path::new(p)))),
+        None => (rest, None),
+    };
+    let name = name.trim_matches('"');
+    let in_file = |f: &std::path::Path| {
+        d.file.is_empty() || lexically_normal(std::path::Path::new(&d.file)) == lexically_normal(f)
+    };
+    for (file, text) in files {
+        if !in_file(file) {
+            continue;
+        }
+        for l in analyze::include_links(text) {
+            let beside = file
+                .parent()
+                .map(|dir| lexically_normal(&dir.join(&l.path)));
+            if l.path == name
+                && l.dir_line == d.line
+                && tried.as_ref().is_none_or(|t| beside.as_ref() == Some(t))
+            {
+                return crate::diag::Diag {
+                    file: file.display().to_string(),
+                    col_start: l.dir_col,
+                    // through the closing quote when it is on this line
+                    col_end: if l.line == l.dir_line {
+                        l.col + l.len + 1
+                    } else {
+                        l.dir_col + 1
+                    },
+                    ..d
+                };
+            }
+        }
+    }
+    d
+}
+
 /// Remap one `kamailio -c` diagnostic onto the checked root file.
 ///
 /// Kamailio attributes errors inside included files to the include
@@ -1065,6 +1128,51 @@ fn resolve_include(from: &std::path::Path, inc: &str) -> std::path::PathBuf {
     lexically_normal(&joined)
 }
 
+/// Where a relative `include_file`/`import_file` may open, in the
+/// order Kamailio tries them; the caller takes the first that exists,
+/// and when none does Kamailio reports the one beside the including
+/// file.
+///
+/// `sr_push_yy_state` (`src/core/cfg.lex`) opens the path as written
+/// first, which resolves against the process's working directory, and
+/// only then tries it beside the file being read.  This server and
+/// `check` run `kamailio -c` in the main config's directory, so with
+/// the main config known (`root_dir`) that directory comes first.
+/// Without it — the include graph is how the main config is found —
+/// the including file's own directory leads and the three above it
+/// follow, nearest first: the main config's directory is one of them
+/// in every layout where a root-relative include exists.  An absolute
+/// path is the only candidate.
+pub fn include_candidates(
+    root_dir: Option<&std::path::Path>,
+    from: &std::path::Path,
+    inc: &str,
+) -> Vec<std::path::PathBuf> {
+    let p = std::path::Path::new(inc);
+    if p.is_absolute() {
+        return vec![lexically_normal(p)];
+    }
+    let beside = resolve_include(from, inc);
+    let mut out = Vec::new();
+    match root_dir {
+        Some(dir) => {
+            out.push(lexically_normal(&dir.join(p)));
+            out.push(beside);
+        }
+        None => {
+            out.push(beside);
+            let mut up = from.parent().and_then(|d| d.parent());
+            for _ in 0..3 {
+                let Some(dir) = up else { break };
+                out.push(lexically_normal(&dir.join(p)));
+                up = dir.parent();
+            }
+        }
+    }
+    out.dedup();
+    out
+}
+
 /// Extensions the sweep will open looking for a configuration.
 ///
 /// A split Kamailio tree names its fragments whatever its author felt
@@ -1076,6 +1184,12 @@ fn resolve_include(from: &std::path::Path, inc: &str) -> std::path::PathBuf {
 /// workspace folder, and reading all of it is not a search, it is a
 /// scan of the user's disk.
 const CONFIG_EXTENSIONS: [&str; 3] = ["cfg", "inc", "m4"];
+
+/// The file-watcher glob for every file the sweep reads as a
+/// configuration, built from the same list so the two cannot drift.
+pub fn config_watch_glob() -> String {
+    format!("**/*.{{{}}}", CONFIG_EXTENSIONS.join(","))
+}
 
 /// Whether the sweep should treat `path` as a possible configuration.
 fn is_config_candidate(path: &std::path::Path) -> bool {
@@ -1178,8 +1292,33 @@ pub fn read_config(path: &std::path::Path) -> Option<String> {
 pub fn resolved_includes(path: &std::path::Path, text: &str) -> Vec<std::path::PathBuf> {
     analyze::includes(text)
         .into_iter()
-        .map(|inc| resolve_include(path, &inc.name))
+        .map(|inc| graph_target(path, &inc.name, &|p| p.is_file()))
         .collect()
+}
+
+/// Where the include graph says a directive in `from` opens; see
+/// [`include_target`] with no main config known.
+fn graph_target(
+    from: &std::path::Path,
+    inc: &str,
+    exists: &dyn Fn(&std::path::Path) -> bool,
+) -> std::path::PathBuf {
+    include_target(None, from, inc, exists)
+}
+
+/// The file an include directive in `from` opens: the first of
+/// [`include_candidates`] that `exists`, else the path beside `from`
+/// that Kamailio names when nothing opens.
+pub fn include_target(
+    root_dir: Option<&std::path::Path>,
+    from: &std::path::Path,
+    inc: &str,
+    exists: &dyn Fn(&std::path::Path) -> bool,
+) -> std::path::PathBuf {
+    include_candidates(root_dir, from, inc)
+        .into_iter()
+        .find(|c| exists(c))
+        .unwrap_or_else(|| resolve_include(from, inc))
 }
 
 /// The workspace's include graph, inverted: for each config, the
@@ -1199,6 +1338,9 @@ impl IncludeGraph {
     pub fn build(configs: &[(std::path::PathBuf, String)]) -> Self {
         let mut parents: std::collections::BTreeMap<std::path::PathBuf, Vec<std::path::PathBuf>> =
             std::collections::BTreeMap::new();
+        let scanned: std::collections::HashSet<&std::path::Path> =
+            configs.iter().map(|(p, _)| p.as_path()).collect();
+        let exists = |p: &std::path::Path| scanned.contains(p) || p.is_file();
         for (path, text) in configs {
             // Only the includes this config demonstrably READS: a
             // conditional the preprocessor may compile out must not
@@ -1207,7 +1349,9 @@ impl IncludeGraph {
             // smaller wrong than a file claimed by a root that never
             // opens it.
             for inc in analyze::active_includes(text) {
-                let entry = parents.entry(resolve_include(path, &inc.name)).or_default();
+                let entry = parents
+                    .entry(graph_target(path, &inc.name, &exists))
+                    .or_default();
                 if !entry.contains(path) {
                     entry.push(path.clone());
                 }
@@ -1218,6 +1362,12 @@ impl IncludeGraph {
             v.sort();
         }
         Self { parents }
+    }
+
+    /// Whether any scanned config includes `path`: then it is a
+    /// fragment, not a program in its own right.
+    pub fn is_included(&self, path: &std::path::Path) -> bool {
+        self.parents.contains_key(&lexically_normal(path))
     }
 
     /// The config `path` should be analysed as part of: the top of the
@@ -1262,6 +1412,7 @@ pub fn include_closure(
 ) -> Vec<(std::path::PathBuf, String)> {
     let mut out: Vec<(std::path::PathBuf, String)> = Vec::new();
     let mut seen: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
+    let root_dir = root_path.parent();
     let mut queue: Vec<(std::path::PathBuf, String, usize)> =
         vec![(root_path.to_path_buf(), root_text.to_string(), 0)];
     seen.insert(root_path.to_path_buf());
@@ -1271,11 +1422,14 @@ pub fn include_closure(
                 if out.len() + queue.len() + 1 >= INCLUDE_MAX_FILES {
                     break;
                 }
-                let target = resolve_include(&path, &inc.name);
-                if !seen.insert(target.clone()) {
-                    continue;
-                }
-                if let Some(t) = loader(&target) {
+                // the first candidate that opens is the file Kamailio
+                // reads, even when it was already visited
+                let found = include_candidates(root_dir, &path, &inc.name)
+                    .into_iter()
+                    .find_map(|c| loader(&c).map(|t| (c, t)));
+                if let Some((target, t)) = found
+                    && seen.insert(target.clone())
+                {
                     queue.push((target, t, depth + 1));
                 }
             }
@@ -1986,27 +2140,31 @@ pub struct CallSite {
 }
 
 /// The innermost call the cursor sits in, or `None` outside one.
+///
+/// Strings follow `cfg.lex`: `"` opens STRING1, where a backslash
+/// escapes the next character, and `'` opens STRING2, which ends at
+/// the next `'` and has no escapes.
 pub fn call_site(line_prefix: &str) -> Option<CallSite> {
     let b = line_prefix.as_bytes();
     let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
     let mut stack: Vec<(String, u32)> = Vec::new();
-    let mut in_str = false;
+    let mut quote: Option<u8> = None;
     let mut i = 0;
     while i < b.len() {
         let c = b[i];
-        if in_str {
-            if c == b'\\' {
+        if let Some(q) = quote {
+            if q == b'"' && c == b'\\' {
                 i += 2;
                 continue;
             }
-            if c == b'"' {
-                in_str = false;
+            if c == q {
+                quote = None;
             }
             i += 1;
             continue;
         }
         match c {
-            b'"' => in_str = true,
+            b'"' | b'\'' => quote = Some(c),
             b'#' => break,
             b'(' => {
                 let mut e = i;
@@ -2036,7 +2194,7 @@ pub fn call_site(line_prefix: &str) -> Option<CallSite> {
     Some(CallSite {
         name,
         arg,
-        in_string: in_str,
+        in_string: quote.is_some(),
     })
 }
 
@@ -2095,52 +2253,9 @@ pub fn signature_at(
     doc: &str,
     line_prefix: &str,
 ) -> Option<(String, String, u32)> {
-    let b = line_prefix.as_bytes();
-    let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
-    let mut stack: Vec<(String, u32)> = Vec::new();
-    let mut in_str = false;
-    let mut i = 0;
-    while i < b.len() {
-        let c = b[i];
-        if in_str {
-            if c == b'\\' {
-                i += 2;
-                continue;
-            }
-            if c == b'"' {
-                in_str = false;
-            }
-            i += 1;
-            continue;
-        }
-        match c {
-            b'"' => in_str = true,
-            b'#' => break,
-            b'(' => {
-                let mut s = i;
-                while s > 0 && (b[s - 1] as char).is_whitespace() {
-                    s -= 1;
-                }
-                let e = s;
-                while s > 0 && word(b[s - 1]) {
-                    s -= 1;
-                }
-                let ident = std::str::from_utf8(&b[s..e]).unwrap_or("").to_string();
-                stack.push((ident, 0));
-            }
-            b')' => {
-                stack.pop();
-            }
-            b',' => {
-                if let Some(top) = stack.last_mut() {
-                    top.1 += 1;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    let (name, commas) = stack.pop()?;
+    let CallSite {
+        name, arg: commas, ..
+    } = call_site(line_prefix)?;
     if name.is_empty() {
         return None;
     }

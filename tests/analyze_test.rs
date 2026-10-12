@@ -559,3 +559,24 @@ fn block_comments_nest() {
     let defs: Vec<String> = route_defs(t).into_iter().map(|d| d.name).collect();
     assert_eq!(defs, vec!["REAL"]);
 }
+
+#[test]
+fn the_cursor_is_in_a_comment_only_before_the_comment_ends() {
+    use kamailio_lsp::analyze::in_comment;
+    let at = |t: &str, needle: &str| t.find(needle).unwrap() + needle.len();
+    let t = "request_route {\n    # xlo\n    // xlo\n    xlo\n    /* a /* b */ xl */ xlo\n}\n";
+    assert!(in_comment(t, at(t, "# xlo")), "inside a # comment");
+    assert!(in_comment(t, at(t, "// xlo")), "inside a // comment");
+    assert!(!in_comment(t, at(t, "    xlo\n") - 1), "plain code");
+    assert!(in_comment(t, at(t, "b */ xl")), "still inside the outer /*");
+    assert!(!in_comment(t, at(t, "*/ xlo")), "code after the comment");
+    // a `#` or `/*` inside a string opens no comment, and a directive
+    // is not a comment
+    let s = "request_route {\n    xlog(\"# /* x\"); xl\n}\n#!define X 1\n";
+    assert!(!in_comment(s, at(s, "# /* x")));
+    assert!(!in_comment(s, at(s, "; xl")));
+    assert!(!in_comment(s, at(s, "#!define X")));
+    let e = "# c\nxl";
+    assert!(in_comment(e, 3));
+    assert!(!in_comment(e, e.len()));
+}

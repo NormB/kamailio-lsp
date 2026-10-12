@@ -61,24 +61,194 @@
         "type": "PREC",
         "value": 2,
         "content": {
-          "type": "SEQ",
+          "type": "CHOICE",
           "members": [
             {
-              "type": "CHOICE",
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "#!"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "!!"
+                    }
+                  ]
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "SEQ",
+                      "members": [
+                        {
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "STRING",
+                              "value": "define"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "def"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "trydefine"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "trydef"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "redefine"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "redef"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "defexp"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "defexps"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "ifdef"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "ifndef"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "ifexp"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "PATTERN",
+                          "value": "[ \\t\\r]"
+                        },
+                        {
+                          "type": "PATTERN",
+                          "value": "(\\\\\\r?\\n|[^\\n])*"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "SEQ",
+                      "members": [
+                        {
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "STRING",
+                              "value": "else"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "endif"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "PATTERN",
+                          "value": "[ \\t\\r]*"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "SEQ",
+                      "members": [
+                        {
+                          "type": "CHOICE",
+                          "members": [
+                            {
+                              "type": "STRING",
+                              "value": "subst"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "substdef"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "substdefs"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "defenv"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "defenvs"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "trydefenv"
+                            },
+                            {
+                              "type": "STRING",
+                              "value": "trydefenvs"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "PATTERN",
+                          "value": "(\\\\\\r?\\n|[^\\n])*"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "SEQ",
               "members": [
                 {
                   "type": "STRING",
                   "value": "#!"
                 },
                 {
-                  "type": "STRING",
-                  "value": "!!"
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": "KAMAILIO"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "OPENSER"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "SER"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "MAXCOMPAT"
+                    },
+                    {
+                      "type": "STRING",
+                      "value": "ALL"
+                    }
+                  ]
+                },
+                {
+                  "type": "PATTERN",
+                  "value": "[ \\t\\r]*"
                 }
               ]
-            },
-            {
-              "type": "PATTERN",
-              "value": "(\\\\\\r?\\n|[^\\n])*"
             }
           ]
         }

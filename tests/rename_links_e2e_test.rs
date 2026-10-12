@@ -177,3 +177,61 @@ fn document_links_skip_hostile_paths_and_multibyte_columns_are_utf16() {
     child.kill().ok();
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// A link goes where Kamailio opens the file.  `inc/a.cfg` naming
+/// `inc/b.cfg` means the main config's `inc/b.cfg` (the checker runs
+/// in that directory and tries it first), not `inc/inc/b.cfg` beside
+/// the fragment — see `tests/include_order_test.rs`.
+#[test]
+fn a_link_follows_the_order_kamailio_opens_includes_in() {
+    let base = std::env::temp_dir().join(format!("kamlsp-rnl-order-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(base.join("inc")).unwrap();
+    std::fs::write(base.join("inc/b.cfg"), "route[B] { exit; }\n").unwrap();
+    std::fs::write(base.join("main.cfg"), "include_file \"inc/a.cfg\"\n").unwrap();
+    let text = "include_file \"inc/b.cfg\"\n";
+    std::fs::write(base.join("inc/a.cfg"), text).unwrap();
+    let uri = format!("file://{}", base.join("inc/a.cfg").display());
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", "")
+            .env("KAMAILIO_LSP_SRC", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &base,
+    );
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+            "capabilities":{},
+            "workspaceFolders":[{"uri": format!("file://{}", base.display()), "name":"w"}]}}),
+    );
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentLink","params":{
+        "textDocument":{"uri":uri}}}),
+    );
+    let v = wait_for(&rx, |v| v["id"] == 2, "documentLink");
+    assert_eq!(
+        v["result"][0]["target"],
+        format!("file://{}", base.join("inc/b.cfg").display()),
+        "{v}"
+    );
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&base);
+}

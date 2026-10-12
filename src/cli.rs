@@ -59,6 +59,7 @@ fn graph_for(files: &[String]) -> logic::IncludeGraph {
 pub fn run_check(args: &[String]) -> i32 {
     let mut strict = false;
     let mut bin_flag: Option<String> = None;
+    let mut modules_path: Option<String> = None;
     let mut files: Vec<String> = Vec::new();
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -71,6 +72,14 @@ pub fn run_check(args: &[String]) -> i32 {
                     return 2;
                 }
             },
+            // the `modulesPath` setting: handed to the checker as `-L`
+            "--modules-path" => match it.next() {
+                Some(m) => modules_path = Some(m.clone()),
+                None => {
+                    eprintln!("--modules-path needs a directory");
+                    return 2;
+                }
+            },
             _ if a.starts_with("--") => {
                 eprintln!("unknown flag {a}");
                 return 2;
@@ -79,7 +88,9 @@ pub fn run_check(args: &[String]) -> i32 {
         }
     }
     if files.is_empty() {
-        eprintln!("usage: kamailio-lsp check [--strict] [--bin <kamailio>] <file>...");
+        eprintln!(
+            "usage: kamailio-lsp check [--strict] [--bin <kamailio>] [--modules-path <dir>] <file>..."
+        );
         return 2;
     }
     let bin = logic::resolve_bin(bin_flag.as_deref(), std::env::var("KAMAILIO_LSP_BIN").ok());
@@ -147,8 +158,13 @@ pub fn run_check(args: &[String]) -> i32 {
     let mut warnings = 0usize;
     for f in &files {
         let path = std::path::Path::new(f);
-        let Ok(text) = std::fs::read_to_string(path) else {
-            eprintln!("{f}: cannot read");
+        // the editor's and the include graph's reader, so the three
+        // agree about what a file says
+        let Some(text) = disk_loader(path) else {
+            eprintln!(
+                "{f}: cannot read (missing, not a regular file, or over {} bytes)",
+                logic::MAX_CONFIG_BYTES
+            );
             return 2;
         };
         let mut findings: Vec<(u32, u32, bool, String)> = Vec::new();
@@ -196,9 +212,16 @@ pub fn run_check(args: &[String]) -> i32 {
             // the checker runs in the config's directory, so it gets a
             // path that is valid from there: a relative one is not
             let abs = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
-            let out = std::process::Command::new(bin)
-                .args(["-c", "--all-errors", "-Y"])
-                .arg(std::env::temp_dir())
+            let mut cmd = std::process::Command::new(bin);
+            cmd.args(["-c", "--all-errors", "-Y"])
+                .arg(std::env::temp_dir());
+            // relative to where `check` was run, not to the config's
+            // directory the checker runs in
+            if let Some(mp) = &modules_path {
+                cmd.arg("-L")
+                    .arg(std::path::absolute(mp).unwrap_or_else(|_| mp.into()));
+            }
+            let out = cmd
                 .arg("-f")
                 .arg(&abs)
                 .current_dir(abs.parent().unwrap_or(std::path::Path::new("/")))
@@ -215,6 +238,7 @@ pub fn run_check(args: &[String]) -> i32 {
                     let mut attached = 0usize;
                     for d in &parsed {
                         let is_err = d.severity == diag::Severity::Error;
+                        let d = &logic::place_missing_include(&closure, d.clone());
                         if let Some(m) = logic::remap_include_diag(path, &text, d) {
                             findings.push((m.line, m.col_start, is_err, m.message));
                             attached += 1;

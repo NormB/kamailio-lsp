@@ -37,11 +37,35 @@ module.exports = grammar({
       $.route_definition,
     ),
 
-    // #!KAMAILIO, #!define NAME value, #!ifdef/#!else/#!endif,
-    // #!subst*/#!trydef/... — PREP_START is "#!" or "!!" (cfg.lex),
-    // one line with backslash continuations (#!define bodies may span
-    // lines). Must outrank the # comment and the ! operator.
-    preproc: _ => token(prec(2, seq(choice('#!', '!!'), /(\\\r?\n|[^\n])*/))),
+    // #!define NAME value, #!ifdef/#!else/#!endif, #!subst*,
+    // #!trydef/... — PREP_START ("#!" or "!!") followed by a directive
+    // keyword and what cfg.lex's rule for it takes: `{EAT_ABLE}+` after
+    // the define and conditional keywords, nothing but blanks after
+    // else/endif.  One line with backslash continuations (#!define
+    // bodies may span lines).  Anything else after "#!" is a # comment
+    // and "!!" is two ! operators: `if (!!$var(x))` is code.  The
+    // config-mode lines (#!KAMAILIO, #!SER, ...) are `{COM_LINE}!` rules
+    // of their own.  Must outrank the # comment and the ! operator.
+    preproc: _ => token(prec(2, choice(
+      seq(
+        choice('#!', '!!'),
+        choice(
+          seq(
+            choice('define', 'def', 'trydefine', 'trydef', 'redefine', 'redef',
+              'defexp', 'defexps', 'ifdef', 'ifndef', 'ifexp'),
+            /[ \t\r]/,
+            /(\\\r?\n|[^\n])*/,
+          ),
+          seq(choice('else', 'endif'), /[ \t\r]*/),
+          seq(
+            choice('subst', 'substdef', 'substdefs', 'defenv', 'defenvs',
+              'trydefenv', 'trydefenvs'),
+            /(\\\r?\n|[^\n])*/,
+          ),
+        ),
+      ),
+      seq('#!', choice('KAMAILIO', 'OPENSER', 'SER', 'MAXCOMPAT', 'ALL'), /[ \t\r]*/),
+    ))),
 
     // line comments are "#" and "//" (cfg.lex COM_LINE)
     comment: _ => token(choice(seq('#', /[^\n]*/), seq('//', /[^\n]*/))),

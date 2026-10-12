@@ -7,6 +7,8 @@
 //! the safety proof cheap — a config that reformatted into a
 //! different parse would be worse than no formatter at all.
 
+mod common;
+
 use kamailio_lsp::format::{Options, format, format_lines};
 
 fn tabs() -> Options {
@@ -383,4 +385,49 @@ fn crlf_edits_carry_no_line_ending() {
     assert_eq!(edits[0].line, 1);
     assert_eq!(edits[0].text, "\texit;");
     assert_eq!(format(src, &tabs()), "request_route {\r\n\texit;\r\n}\r\n");
+}
+
+/// `case` and `default` labels sit one level inside the switch and
+/// what they guard one level further, as upstream's own
+/// `etc/kamailio.cfg` lays out its `switch ($var(rc))`.
+#[test]
+fn a_case_body_is_indented_under_its_label() {
+    let src = "request_route {\nswitch ($rU) {\ncase \"1\":\ncase \"2\":\nexit;\ndefault:\nif ($rd) {\ndrop;\n}\n}\nexit;\n}\n";
+    assert_eq!(
+        format(src, &tabs()),
+        "request_route {\n\tswitch ($rU) {\n\t\tcase \"1\":\n\t\tcase \"2\":\n\t\t\texit;\n\t\tdefault:\n\t\t\tif ($rd) {\n\t\t\t\tdrop;\n\t\t\t}\n\t}\n\texit;\n}\n"
+    );
+    // a switch inside a case nests the same way, and an opening brace
+    // on the next line still opens the switch body (that line itself
+    // continues the header, so it keeps the indent it was given)
+    let nested = "request_route {\nswitch ($rU) {\ncase 1:\nswitch ($rd)\n\t\t\t{\ndefault:\nexit;\n}\nbreak;\n}\n}\n";
+    assert_eq!(
+        format(nested, &tabs()),
+        "request_route {\n\tswitch ($rU) {\n\t\tcase 1:\n\t\t\tswitch ($rd)\n\t\t\t{\n\t\t\t\tdefault:\n\t\t\t\t\texit;\n\t\t\t}\n\t\t\tbreak;\n\t}\n}\n"
+    );
+    // `default` and `case` as parts of other words are not labels
+    let words = "request_route {\n$var(default_x) = 1;\ncase_x();\ncasex();\nexit;\n}\n";
+    assert_eq!(
+        format(words, &tabs()),
+        "request_route {\n\t$var(default_x) = 1;\n\tcase_x();\n\tcasex();\n\texit;\n}\n"
+    );
+}
+
+/// The upstream config is already laid out this way: formatting it
+/// moves nothing inside its switch.
+#[test]
+fn upstreams_switch_is_left_as_it_is() {
+    let tree = common::required_env("KAMAILIO_LSP_TEST_TREE");
+    let text =
+        std::fs::read_to_string(std::path::Path::new(&tree).join("etc/kamailio.cfg")).unwrap();
+    let at = text
+        .lines()
+        .position(|l| l.trim() == "switch ($var(rc)) {")
+        .expect("upstream has its switch");
+    let moved: Vec<u32> = format_lines(&text, &tabs())
+        .into_iter()
+        .map(|e| e.line)
+        .filter(|&l| l as usize >= at && (l as usize) < at + 12)
+        .collect();
+    assert_eq!(moved, Vec::<u32>::new());
 }

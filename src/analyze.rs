@@ -48,6 +48,77 @@ fn conditional_at(b: &[u8], mut i: usize) -> Option<&'static str> {
         .find(|k| rest.starts_with(k.as_bytes()) && rest.get(k.len()).is_none_or(|&c| !is_word(c)))
 }
 
+/// The directive keywords after PREP_START (`#!` or `!!`), with
+/// what `cfg.lex` requires after each: `Some(true)` one or more of
+/// space, tab, backspace or CR (`{EAT_ABLE}+`), `Some(false)` only
+/// those up to the newline (`{EAT_ABLE}*{CR}`), `None` nothing.
+/// Longer spellings come first so a prefix cannot shadow them.
+const DIRECTIVES: [(&str, Option<bool>); 22] = [
+    ("include_file", None),
+    ("import_file", None),
+    ("trydefenvs", None),
+    ("trydefenv", None),
+    ("trydefine", Some(true)),
+    ("trydef", Some(true)),
+    ("redefine", Some(true)),
+    ("redef", Some(true)),
+    ("substdefs", None),
+    ("substdef", None),
+    ("subst", None),
+    ("defenvs", None),
+    ("defenv", None),
+    ("defexps", Some(true)),
+    ("defexp", Some(true)),
+    ("define", Some(true)),
+    ("def", Some(true)),
+    ("ifndef", Some(true)),
+    ("ifdef", Some(true)),
+    ("ifexp", Some(true)),
+    ("endif", Some(false)),
+    ("else", Some(false)),
+];
+
+/// Does a preprocessor directive start at `i`?  `cfg.lex` matches
+/// `{PREP_START}{KEYWORD}...` wherever the lexer stands, so a
+/// directive need not open its line; anything else that starts with
+/// `#!` is a `#` comment, and `!!` is two `!` operators.
+fn directive_at(b: &[u8], i: usize) -> bool {
+    if i + 1 >= b.len() || !(b[i] == b'#' || b[i] == b'!') || b[i + 1] != b'!' {
+        return false;
+    }
+    let rest = &b[i + 2..];
+    let eat = |c: u8| matches!(c, b' ' | b'\t' | 0x08 | b'\r');
+    DIRECTIVES.iter().any(|(k, tail)| {
+        if !rest.starts_with(k.as_bytes()) {
+            return false;
+        }
+        let after = &rest[k.len()..];
+        match tail {
+            None => true,
+            Some(true) => after.first().is_some_and(|&c| eat(c)),
+            Some(false) => {
+                let n = after.iter().take_while(|&&c| eat(c)).count();
+                after.get(n).is_none_or(|&c| c == b'\n')
+            }
+        }
+    })
+}
+
+/// Every conditional directive line, in order: its 0-based line and
+/// keyword (`ifdef`, `ifndef`, `ifexp`, `else`, `endif`).
+pub(crate) fn conditional_lines(text: &str) -> Vec<(u32, &'static str)> {
+    let b = text.as_bytes();
+    let mut out = Vec::new();
+    let mut start = 0;
+    for (n, line) in text.split_inclusive('\n').enumerate() {
+        if let Some(k) = conditional_at(b, start) {
+            out.push((n as u32, k));
+        }
+        start += line.len();
+    }
+    out
+}
+
 /// Does the newline at `i` end a string or block comment?  Only when
 /// the next line is a conditional directive: if the region was
 /// switched off, the lexer never saw the opening quote or `/*`, and
@@ -106,12 +177,29 @@ pub fn mutually_exclusive(a: &[(u32, u32)], b: &[(u32, u32)]) -> bool {
 /// comment still open at a conditional directive line ends there
 /// (see [`breaks_at`]).
 pub(crate) fn classify(text: &str) -> Vec<Class> {
+    scan(text).0
+}
+
+/// Whether byte offset `at` (a cursor sitting before that byte) is
+/// inside a comment: the text before it opens one it has not closed.
+/// A `#` or `//` comment runs to its newline, so the end of that line
+/// is still in it; a nested block comment ends only at the `*/` that
+/// brings its depth back to zero.  A directive is not a comment.
+pub fn in_comment(text: &str, at: usize) -> bool {
+    let at = at.min(text.len());
+    text.is_char_boundary(at) && scan(&text[..at]).1 == Class::Comment
+}
+
+/// [`classify`] plus what the scanner is still inside when the text
+/// runs out: `Code` when everything it opened was closed.
+fn scan(text: &str) -> (Vec<Class>, Class) {
     let b = text.as_bytes();
     let mut out = vec![Class::Code; b.len()];
+    let mut open = Class::Code;
     let mut i = 0;
     while i < b.len() {
         match b[i] {
-            b'#' | b'!' if i + 1 < b.len() && b[i + 1] == b'!' => {
+            b'#' | b'!' if directive_at(b, i) => {
                 // directive: to EOL, following backslash continuations
                 loop {
                     while i < b.len() && b[i] != b'\n' {
@@ -132,11 +220,17 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
                     out[i] = Class::Comment;
                     i += 1;
                 }
+                if i == b.len() {
+                    open = Class::Comment;
+                }
             }
             b'/' if i + 1 < b.len() && b[i + 1] == b'/' => {
                 while i < b.len() && b[i] != b'\n' {
                     out[i] = Class::Comment;
                     i += 1;
+                }
+                if i == b.len() {
+                    open = Class::Comment;
                 }
             }
             // block comments NEST: cfg.lex counts `comment_nest` up on
@@ -160,6 +254,10 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
                         break;
                     }
                 }
+                // a conditional directive line ends it as well
+                if depth > 0 && i == b.len() {
+                    open = Class::Comment;
+                }
             }
             b'"' => {
                 // opening quote counts as code; interior as string
@@ -174,6 +272,8 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
                 }
                 if i < b.len() && b[i] == b'"' {
                     i += 1; // closing quote
+                } else if i == b.len() {
+                    open = Class::Str;
                 }
             }
             b'\'' => {
@@ -186,12 +286,14 @@ pub(crate) fn classify(text: &str) -> Vec<Class> {
                 }
                 if i < b.len() && b[i] == b'\'' {
                     i += 1; // closing tick
+                } else if i == b.len() {
+                    open = Class::Str;
                 }
             }
             _ => i += 1,
         }
     }
-    out
+    (out, open)
 }
 
 /// Line starts of a text, built once so each byte offset → (line,
@@ -215,6 +317,14 @@ impl Lines {
             starts,
             len: text.len(),
         }
+    }
+
+    /// (0-based line, 0-based byte col) → byte offset; past the end
+    /// clamps to the end.
+    pub(crate) fn offset(&self, line: u32, col: u32) -> usize {
+        self.starts
+            .get(line as usize)
+            .map_or(self.len, |s| (s + col as usize).min(self.len))
     }
 
     /// Byte offset → (0-based line, 0-based byte col); offsets past
@@ -260,7 +370,7 @@ static_regex!(
 );
 static_regex!(
     re_modparam_ctx,
-    r#"modparamx?\s*\(\s*"([^"\n]+)"\s*,\s*("[^"\n]*)?$"#
+    r#"modparamx?\s*\(\s*(?:"([^"\n]+)"|'([^'\n]+)')\s*,\s*(?:"[^"\n]*|'[^'\n]*)?$"#
 );
 
 /// One `#!define`-family directive: the name it binds, the value it
@@ -544,6 +654,28 @@ fn push_arg(text: &str, lines: &Lines, from: usize, to: usize, out: &mut Vec<(u3
 
 /// Every `loadmodule "x.so"` in code position, as bare module names.
 pub fn loaded_modules(text: &str) -> Vec<Located> {
+    loadmodule_statements(text)
+        .into_iter()
+        .map(|s| s.module)
+        .collect()
+}
+
+/// One `loadmodule` statement and its byte extent.
+pub(crate) struct LoadStatement {
+    /// The module's bare name, at the `loadmodule` keyword.
+    pub module: Located,
+    /// Byte offset of the `loadmodule` keyword.
+    pub start: usize,
+    /// Byte extent of the path inside the quotes.
+    pub path: std::ops::Range<usize>,
+    /// Byte offset just past the statement: past the closing
+    /// parenthesis of `loadmodule("x.so", ...)`, past the closing
+    /// quote otherwise.
+    pub end: usize,
+}
+
+/// Every `loadmodule`/`loadmodulex` statement in code position.
+pub(crate) fn loadmodule_statements(text: &str) -> Vec<LoadStatement> {
     let classes = classify(text);
     let lines = Lines::new(text);
     let mut out = Vec::new();
@@ -567,13 +699,45 @@ pub fn loaded_modules(text: &str) -> Vec<Located> {
             continue;
         }
         let (line, col) = lines.line_col(whole.start());
-        out.push(Located {
-            name: base.to_string(),
-            line,
-            col,
+        let end = if whole.as_str().contains('(') {
+            close_paren(text, &classes, whole.end(), 1).unwrap_or(whole.end())
+        } else {
+            whole.end()
+        };
+        out.push(LoadStatement {
+            module: Located {
+                name: base.to_string(),
+                line,
+                col,
+            },
+            start: whole.start(),
+            path: path.range(),
+            end,
         });
     }
     out
+}
+
+/// Just past the `)` that brings the parenthesis depth from `depth`
+/// to zero, scanning code from `from`.
+fn close_paren(text: &str, classes: &[Class], from: usize, mut depth: usize) -> Option<usize> {
+    let b = text.as_bytes();
+    for i in from..b.len() {
+        if classes[i] != Class::Code {
+            continue;
+        }
+        match b[i] {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Every `include_file "x"` / `import_file "x"` — bare in code
@@ -674,6 +838,27 @@ static_regex!(
 /// Every `modparam("m", "p", ...)` / `modparamx(...)` in code
 /// position, with the position of the parameter name.
 pub fn modparam_calls(text: &str) -> Vec<ModparamCall> {
+    modparam_statements(text)
+        .into_iter()
+        .map(|s| s.call)
+        .collect()
+}
+
+/// One `modparam(...)` statement and its byte extent.
+pub(crate) struct ModparamStatement {
+    /// The module and parameter it names.
+    pub call: ModparamCall,
+    /// Byte offset of the `modparam` keyword.
+    pub start: usize,
+    /// Byte extent of the parameter name inside its quotes.
+    pub param: std::ops::Range<usize>,
+    /// Byte offset just past the closing parenthesis, or past the
+    /// parameter name when the call is never closed.
+    pub end: usize,
+}
+
+/// Every `modparam`/`modparamx` statement in code position.
+pub(crate) fn modparam_statements(text: &str) -> Vec<ModparamStatement> {
     let classes = classify(text);
     let lines = Lines::new(text);
     let b = text.as_bytes();
@@ -693,11 +878,17 @@ pub fn modparam_calls(text: &str) -> Vec<ModparamCall> {
         }
         let pm = c.get(2).unwrap();
         let (line, col) = lines.line_col(pm.start());
-        out.push(ModparamCall {
-            module: module.to_string(),
-            param: param.to_string(),
-            line,
-            col,
+        out.push(ModparamStatement {
+            call: ModparamCall {
+                module: module.to_string(),
+                param: param.to_string(),
+                line,
+                col,
+            },
+            start,
+            param: pm.range(),
+            // the value argument can hold parentheses of its own
+            end: close_paren(text, &classes, whole.end(), 1).unwrap_or(whole.end()),
         });
     }
     out
@@ -904,7 +1095,9 @@ pub fn route_refs(text: &str) -> Vec<Located> {
 /// the first argument.
 pub fn modparam_context(line_prefix: &str) -> Option<String> {
     let re = re_modparam_ctx();
-    re.captures(line_prefix).map(|c| c[1].to_string())
+    re.captures(line_prefix)
+        .and_then(|c| c.get(1).or_else(|| c.get(2)))
+        .map(|m| m.as_str().to_string())
 }
 
 /// The `[A-Za-z0-9_]+` identifier covering byte column `col`, if any.

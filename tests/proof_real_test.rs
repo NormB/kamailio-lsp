@@ -564,3 +564,70 @@ fn the_real_parser_does_not_open_a_conditionally_excluded_include() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A missing include is published on the directive that names it.
+/// `kamailio -c` gives the line it was reading but, for the main
+/// config, no file; the server finds the directive in the closure.
+#[test]
+fn a_missing_include_is_published_on_its_directive() {
+    let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
+    let dir = std::env::temp_dir().join(format!("kamlsp-proof-missing-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let text = "request_route {\n    exit;\n}\n  include_file \"nope.cfg\"\n";
+    let cfg = dir.join("main.cfg");
+    std::fs::write(&cfg, text).unwrap();
+    let uri = format!("file://{}", cfg.display());
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", &bin)
+            .env("KAMAILIO_LSP_SRC", "")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    let d = wait_for(
+        &rx,
+        |v| {
+            v["method"] == "textDocument/publishDiagnostics"
+                && v["params"]["diagnostics"]
+                    .as_array()
+                    .is_some_and(|a| a.iter().any(|d| d["source"] == "kamailio -c"))
+        },
+        "the checker's publish",
+    );
+    let ds = d["params"]["diagnostics"].as_array().unwrap();
+    let missing = ds
+        .iter()
+        .find(|d| {
+            d["message"]
+                .as_str()
+                .unwrap_or("")
+                .starts_with("cannot open included file: nope.cfg")
+        })
+        .unwrap_or_else(|| panic!("no missing-include diagnostic: {d}"));
+    assert_eq!(missing["range"]["start"]["line"], 3, "{missing}");
+    assert_eq!(missing["range"]["start"]["character"], 2, "{missing}");
+    assert_eq!(missing["range"]["end"]["character"], 25, "{missing}");
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}

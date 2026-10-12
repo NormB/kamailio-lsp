@@ -11,12 +11,14 @@ use std::process::{Command, Stdio};
 
 /// Stub kamailio: behavior keyed by a mode file next to the cfg; the
 /// cfg path is the LAST argument of the -c invocation.
-///   error -> one positioned error;  hang -> sleep past the timeout
+///   error -> one positioned error;  hang -> sleep past the timeout;
+///   slow -> take three seconds, inside the timeout
 const STUB: &str = r#"#!/bin/sh
 cfg=""
 for a in "$@"; do cfg="$a"; done
 mode=$(cat "$(dirname "$cfg")/mode")
 if [ "$mode" = hang ]; then sleep 30; fi
+if [ "$mode" = slow ]; then sleep 3; fi
 echo " 0(1) CRITICAL: <core> [core/cfg.y:1]: yyerror_at(): parse error in config file $cfg, line 1, column 2-3: planted" >&2
 exit 255
 "#;
@@ -246,6 +248,67 @@ fn output_flood_is_capped_and_clears_diagnostics() {
         d["params"]["diagnostics"].as_array().unwrap().len(),
         0,
         "capped run must clear, not publish flood-derived results: {d}"
+    );
+    child.kill().ok();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A check runs a subprocess and can take seconds; opening a document
+/// must not hold up the requests that come after it.  The transport
+/// runs at most four messages at once, so a `didOpen` that waited for
+/// its check would occupy a slot for the check's whole run, and five
+/// files opened together would leave a request queued behind them.
+#[test]
+fn requests_are_answered_while_checks_run() {
+    let (dir, stub, _) = setup("busy");
+    std::fs::write(dir.join("mode"), "slow").unwrap();
+    let mut child = Server::new(
+        Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
+            .env("KAMAILIO_LSP_BIN", stub.display().to_string())
+            .env("KAMAILIO_LSP_CHECK_TIMEOUT_MS", "20000")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+        &dir,
+    );
+    let rx = spawn_reader(&mut child);
+    let mut stdin = child.stdin.take().unwrap();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    wait_for(&rx, |v| v["id"] == 1, "init");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    let mut uris = Vec::new();
+    for i in 0..5 {
+        let cfg = dir.join(format!("f{i}.cfg"));
+        let text = "route[R] {\n    exit;\n}\n";
+        std::fs::write(&cfg, text).unwrap();
+        let uri = format!("file://{}", cfg.display());
+        write_msg(
+            &mut stdin,
+            &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+                "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+        );
+        uris.push(uri);
+    }
+    let t = std::time::Instant::now();
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol",
+            "params":{"textDocument":{"uri":uris[0]}}}),
+    );
+    let r = wait_for(&rx, |v| v["id"] == 2, "documentSymbol");
+    let took = t.elapsed();
+    assert!(r["result"].is_array(), "{r}");
+    assert!(
+        took < std::time::Duration::from_millis(1500),
+        "documentSymbol waited {took:?} behind the checks"
     );
     child.kill().ok();
     let _ = std::fs::remove_dir_all(&dir);

@@ -384,3 +384,30 @@ request_route {
           (preproc)
           (block
             (keyword_statement)))))))
+
+================================================================================
+a double negation is not a directive
+================================================================================
+
+request_route {
+    if (!!$var(x)) {
+        exit;
+    }
+}
+#!nonsense starts a comment
+!!define B 1
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (route_definition
+    (route_kind)
+    (block
+      (if_statement
+        (unary_expression
+          (unary_expression
+            (pseudo_variable)))
+        (block
+          (keyword_statement)))))
+  (comment)
+  (preproc))

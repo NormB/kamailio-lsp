@@ -245,3 +245,45 @@ fn the_6_1_shapes_parse_exactly_as_the_6_0_ones_do() {
     assert_eq!(ds[0].col_start, 31);
     assert_eq!(ds[0].message, "Can't set module parameter");
 }
+
+// `kamailio -c` 6.1.4 output for an `include_file` naming a file that
+// does not exist (2026-10-11; only the temporary directory replaced):
+// the lexer reports the file, then the line it was reading, with no
+// file name and no level on the second line.
+const REAL_MISSING_INCLUDE: &str = r#" 0(3613366) CRITICAL: <core> [core/cfg.lex:1968]: sr_push_yy_state(): cannot open included file: nope.cfg (/tmp/kamtest/nope.cfg)
+ 0(3613366) : <core> [core/cfg.lex:1514]: yylex(): error at cfg line 4
+"#;
+
+#[test]
+fn a_missing_include_is_positioned_at_the_line_the_lexer_names() {
+    let d = parse_check_output(REAL_MISSING_INCLUDE, 255);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert_eq!(d[0].line, 3);
+    assert_eq!(d[0].severity, Severity::Error);
+    assert_eq!(
+        d[0].message,
+        "cannot open included file: nope.cfg (/tmp/kamtest/nope.cfg)"
+    );
+    // which file holds the directive is not in the output; the
+    // closure decides that (logic::place_missing_include)
+    assert_eq!(d[0].file, "");
+}
+
+// The same failure inside an included file (6.1.4, 2026-10-11, the
+// temporary directory replaced): `error at %s line %d` names the file
+// the lexer was reading, or `cfg` for the main one (cfg.lex INCLF).
+const REAL_MISSING_NESTED: &str = r#" 0(3731184) CRITICAL: <core> [core/cfg.lex:1968]: sr_push_yy_state(): cannot open included file: inc/b.cfg (/tmp/kamtest/inc/inc/b.cfg)
+ 0(3731184) : <core> [core/cfg.lex:1514]: yylex(): error at /tmp/kamtest/inc/a.cfg line 1
+"#;
+
+#[test]
+fn a_missing_include_in_an_included_file_names_that_file() {
+    let d = parse_check_output(REAL_MISSING_NESTED, 255);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert_eq!(d[0].file, "/tmp/kamtest/inc/a.cfg");
+    assert_eq!(d[0].line, 0);
+    assert_eq!(
+        d[0].message,
+        "cannot open included file: inc/b.cfg (/tmp/kamtest/inc/inc/b.cfg)"
+    );
+}

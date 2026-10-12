@@ -13,8 +13,9 @@ configuration file language (`kamailio.cfg`).
 | **Hover** | Documentation for module functions, parameters, and modules, harvested from Kamailio's own docs. |
 | **Go to definition** | `route(NAME)` references resolve to their `route[NAME]` block — in this file or any included file. |
 | **References / rename / highlights** | Every call site + definition of a route name, including the `t_on_failure`/`t_on_reply`/`t_on_branch` strings that arm failure, onreply and branch routes and a `#!define` that aliases a route; rename rewrites them all (charset-gated, quoted call sites handled) and refuses a name that is already defined. `prepareRename` blocks F2 off-symbol and pre-selects the name. |
-| **Document symbols** | All route blocks (`request_route`, `route[...]`, `failure_route[...]`, `event_route[...]`, …) with full block extents, nested outline. |
-| **Folding** | Route-family blocks fold; brace matching is string/comment-safe. |
+| **Document symbols** | All route blocks (`request_route`, `route[...]`, `failure_route[...]`, `event_route[...]`, …) with full block extents and the route name as the selection; the `if`/`else`/`switch`/`while` blocks inside a route nest under it; `loadmodule`, `modparam`, top-level parameters and `#!define`d names are listed too. |
+| **Folding** | Route-family blocks and the blocks inside them fold, as do `socket = { ... }`, each `#!ifdef`/`#!else` branch, multi-line block comments and runs of `#`/`//` comment lines; brace matching is string/comment-safe. |
+| **Selection range** | Expand selection grows from the word to each enclosing block, the route block and the document. |
 | **Workspace symbols / code lenses** | Ctrl+T searches route definitions across open files + includes; named callable routes show closure-wide reference counts. |
 | **Call hierarchy** | The route call graph: who calls `route[X]`, and what `route[X]` calls, across the include closure. Main-table only — a `failure_route` is armed by a module-function string the server cannot see, so it makes calls but reports no callers. |
 | **Quick fixes** | Load the module exporting an unknown command; create a stub for an undefined `route(x)`. |
@@ -29,7 +30,7 @@ configuration file language (`kamailio.cfg`).
 | **Pull diagnostics** | `textDocument/diagnostic` and `workspace/diagnostic`. The workspace sweep reports only ROOT configs — a file another config includes is a fragment, not a program. Pushing stops when the client pulls, so nothing is reported twice. |
 | **Watched files** | An include, the module tree or the wiki checkout changing on disk — a git checkout, a rebuild — re-checks and re-harvests without the buffer being touched. |
 | **Live settings** | Runtime toggles (analyzer, snippets, code lens, max diagnostics, check timeout) apply over `workspace/didChangeConfiguration` without a server restart. |
-| **CLI** | `kamailio-lsp check [--strict] [--bin <kamailio>] <file>...` for CI and git hooks (exit 0/1/2). |
+| **CLI** | `kamailio-lsp check [--strict] [--bin <kamailio>] [--modules-path <dir>] <file>...` for CI and git hooks (exit 0/1/2). |
 
 Positions are exchanged in UTF-16 units (the LSP default) and are
 correct on multibyte lines; doc harvests are cached per source tree

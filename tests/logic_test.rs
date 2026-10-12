@@ -287,6 +287,42 @@ fn sig_catalog() -> Vec<ModuleDoc> {
 }
 
 #[test]
+fn signature_at_reads_single_quoted_strings_as_the_lexer_does() {
+    // cfg.lex: `'` opens STRING2, which ends at the next `'` and has
+    // no escapes, so a backslash inside it is just a character
+    let core = kamailio_lsp::catalog::CoreDocs::default();
+    let doc = "loadmodule \"tm.so\"\nrequest_route {\n}\n";
+    let s = signature_at(&sig_catalog(), &core, doc, "    t_relay('a,b', ").expect("sig");
+    assert_eq!(s.2, 1, "the comma inside '' is not a separator");
+    let s = signature_at(&sig_catalog(), &core, doc, r"    t_relay('\', ").expect("sig");
+    assert_eq!(s.2, 1, "'\\' is a closed string holding a backslash");
+    let s = signature_at(&sig_catalog(), &core, doc, "    t_relay('\"', ").expect("sig");
+    assert_eq!(s.2, 1);
+    // signature help and the enumerated offers walk the line the same way
+    let site = kamailio_lsp::logic::call_site("    xlog('a,b', 'x").expect("in a call");
+    assert_eq!((site.arg, site.in_string), (1, true));
+}
+
+#[test]
+fn argument_completions_follow_a_single_quote_too() {
+    // cfg.lex makes a STRING of either quote, so every quoted argument
+    // context must be recognised after `'` as it is after `"`
+    let labels = |prefix: &str| -> Vec<String> {
+        completions(&catalog(), DOC, prefix)
+            .into_iter()
+            .map(|i| i.label)
+            .collect()
+    };
+    assert_eq!(labels("modparam('htable', '"), vec!["htable"]);
+    assert_eq!(labels("modparam('htable', "), vec!["htable"]);
+    assert!(labels("modparam('").contains(&"htable".to_string()));
+    assert!(labels("loadmodule 'ht").contains(&"htable.so".to_string()));
+    assert_eq!(labels("    route('"), vec!["RELAY"]);
+    // a closed single-quoted argument leaves that context
+    assert!(!labels("loadmodule 'tm.so' ").contains(&"tm.so".to_string()));
+}
+
+#[test]
 fn signature_at_finds_active_parameter() {
     let core = kamailio_lsp::catalog::CoreDocs::default();
     let doc = "loadmodule \"tm.so\"\nrequest_route {\n}\n";
@@ -1477,4 +1513,51 @@ fn a_module_documenting_nothing_at_all_stays_silent() {
         1,
         "a module with functions but no parameters was read, and exports none"
     );
+}
+
+#[test]
+fn a_missing_include_lands_on_the_directive_that_names_it() {
+    use kamailio_lsp::diag::{Diag, Severity};
+    use kamailio_lsp::logic::place_missing_include;
+    let root = std::path::PathBuf::from("/k/main.cfg");
+    let inc = std::path::PathBuf::from("/k/inc/routes.cfg");
+    let files = vec![
+        (
+            root.clone(),
+            "include_file \"inc/routes.cfg\"\nrequest_route {\n    exit;\n}\n".to_string(),
+        ),
+        (
+            inc.clone(),
+            "route[A] {\n    exit;\n}\n  include_file \"gone.cfg\"\n".to_string(),
+        ),
+    ];
+    let d = |line: u32, msg: &str| Diag {
+        file: String::new(),
+        line,
+        end_line: line,
+        col_start: 0,
+        col_end: 1,
+        severity: Severity::Error,
+        message: msg.to_string(),
+    };
+    // the directive is in the fragment, resolved against ITS directory
+    let placed = place_missing_include(
+        &files,
+        d(3, "cannot open included file: gone.cfg (/k/inc/gone.cfg)"),
+    );
+    assert_eq!(placed.file, inc.display().to_string());
+    assert_eq!((placed.line, placed.col_start), (3, 2));
+    assert_eq!(placed.col_end, 2 + "include_file \"gone.cfg\"".len() as u32);
+    // the same name at another line, or resolving elsewhere, is not it
+    let other = place_missing_include(
+        &files,
+        d(
+            3,
+            "cannot open included file: gone.cfg (/elsewhere/gone.cfg)",
+        ),
+    );
+    assert_eq!(other.file, "");
+    // any other diagnostic passes through untouched
+    let plain = d(0, "syntax error");
+    assert_eq!(place_missing_include(&files, plain.clone()), plain);
 }

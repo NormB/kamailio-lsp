@@ -385,7 +385,7 @@ $ kamailio-lsp check /etc/kamailio/kamailio.cfg
 Exit codes are 0 clean, 1 problems found (errors, or warnings under
 `--strict`), 2 usage or read failure — so it drops straight into a
 gate. Usage is
-`kamailio-lsp check [--strict] [--bin <kamailio>] <file>...`.
+`kamailio-lsp check [--strict] [--bin <kamailio>] [--modules-path <dir>] <file>...`.
 
 GitHub Actions:
 
