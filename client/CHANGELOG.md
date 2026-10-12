@@ -2,6 +2,53 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.21.0] — 2026-10-11
+
+**Includes open where Kamailio opens them, and the outline, folding
+and selection follow a config's structure.**
+
+- **A relative include resolves the way Kamailio resolves it**: in the
+  main config's directory first, where `kamailio -c` runs, then beside
+  the including file. A fragment `inc/a.cfg` that includes
+  `inc/b.cfg` now reaches the main directory's `inc/b.cfg` instead of
+  reporting its routes as undefined. Document links follow the same
+  rule.
+- **A missing include is reported on the `include_file` line that
+  names it**, not at line 1, column 1.
+- **`if (!!$var(x))` is code.** Any `!!` or `#!` was taken as a
+  preprocessor directive that swallowed the rest of the line. A
+  directive now needs a directive keyword, as in Kamailio's lexer; the
+  tree-sitter grammar (0.3.1) follows the same rule.
+- **`kamailio-lsp check --modules-path <dir>`** passes the module
+  directory to the checker as `-L`, as the `modulesPath` setting does
+  in the editor. `check` also reads configs with a latin-1 byte, where
+  it used to stop with "cannot read".
+- **The formatter indents what a `case` or `default` label guards one
+  level under the label**, as upstream's `etc/kamailio.cfg` does. The
+  line after a label used to be left where it was.
+- **The outline nests the `if`, `else`, `switch` and `while` blocks
+  inside a route under it**, named by their condition, and lists every
+  `loadmodule`, `modparam`, top-level parameter (a `socket = { ... }`
+  block is one entry) and `#!define`. Selecting a route highlights its
+  name.
+- **Folding covers the blocks inside a route, `socket = { ... }`, each
+  branch of an `#!ifdef`, multi-line block comments and runs of `#` or
+  `//` comment lines.**
+- **Expand selection** (`textDocument/selectionRange`) grows from the
+  word under the cursor to each enclosing block, the route and the
+  file.
+- **Workspace diagnostics agree with the include tracking**: a
+  fragment included as `sub/../frag.inc` is no longer reported as a
+  program of its own, and a config with a latin-1 byte is reported
+  instead of skipped.
+- **`.inc` and `.m4` fragments edited on disk are noticed.** The file
+  watcher covered only `*.cfg`.
+- **Completion offers nothing inside a comment**, and after
+  `loadmodule '`, `modparam('` and `route('` it offers what it offers
+  after `"`. Signature help counts arguments across `'a,b'`.
+- **Call hierarchy works on a line with non-ASCII text before the
+  route name.** The cursor column was read as a byte offset.
+
 ## [0.20.0] — 2026-10-11
 
 **Large configs stay fast, the analyzer follows the preprocessor, rename
