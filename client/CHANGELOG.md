@@ -2,6 +2,22 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.21.1] — 2026-10-15
+
+**A release with no behavior change in this project's code: the weekly
+dependency updates, and nothing else.**
+
+- **`serde_json` 1.0.151 to 1.0.154**, the JSON library the language
+  server uses, from the weekly cargo group in #36. Its notes list: the
+  sign of `-0` preserved in `arbitrary_precision` mode, a fixed comparison
+  of large non-integer values with `f32::INFINITY` (1.0.152), invalid
+  UTF-8 reported at the first bad byte (1.0.153), and `preserve_order`
+  supported in `no_std` builds (1.0.154). Only its `Cargo.lock` entry
+  changed.
+- **`@types/node` 26.6.4 to 26.6.5**, a compile-time stub with no runtime
+  half, from the weekly npm group in #37.
+- No source file changed.
+
 ## [0.21.0] — 2026-10-11
 
 **Includes open where Kamailio opens them, and the outline, folding
