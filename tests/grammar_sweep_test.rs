@@ -24,121 +24,6 @@ mod common;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn corpus(tree: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let mut push = |d: PathBuf, recurse: bool| {
-        let mut stack = vec![d];
-        while let Some(dir) = stack.pop() {
-            let Ok(rd) = std::fs::read_dir(&dir) else {
-                continue;
-            };
-            for e in rd.flatten() {
-                let p = e.path();
-                if p.is_dir() && recurse {
-                    stack.push(p);
-                } else if p.extension().is_some_and(|x| x == "cfg") {
-                    out.push(p);
-                }
-            }
-        }
-    };
-    push(tree.join("etc"), false);
-    push(tree.join("misc").join("examples"), true);
-    if let Ok(rd) = std::fs::read_dir(tree.join("src").join("modules")) {
-        for e in rd.flatten() {
-            push(e.path().join("examples"), false);
-        }
-    }
-    out.sort();
-    out
-}
-
-struct Kamailio {
-    bin: String,
-    mpath: String,
-}
-
-impl Kamailio {
-    fn run(&self, f: &Path, args: &[&str]) -> (String, String) {
-        let out = Command::new(&self.bin)
-            .args(args)
-            .arg("-L")
-            .arg(&self.mpath)
-            .arg("-f")
-            .arg(f)
-            .current_dir(f.parent().unwrap())
-            .output()
-            .expect("spawn kamailio");
-        (
-            String::from_utf8_lossy(&out.stdout).into_owned(),
-            String::from_utf8_lossy(&out.stderr).into_owned(),
-        )
-    }
-
-    /// `kamailio -c` reported a syntax error in `f`.
-    fn syntax_error(&self, f: &Path) -> bool {
-        let rundir = std::env::temp_dir();
-        let (o, e) = self.run(f, &["-c", "--all-errors", "-Y", rundir.to_str().unwrap()]);
-        o.contains("syntax error") || e.contains("syntax error")
-    }
-}
-
-/// `text` with every line the preprocessor skips left blank, line
-/// numbers unchanged, judged as `kamailio -c -f` judges it with no
-/// `-D`: a symbol is defined once a define-family directive in a live
-/// region names it (cfg.lex only matches those in INITIAL state, never
-/// in IFDEF_SKIP), `#!ifdef` / `#!ifndef` test that, `#!else` flips the
-/// innermost level and `#!endif` closes it.  `#!ifexp` would need an
-/// expression evaluator; no shipped config uses one, and meeting one
-/// fails loudly rather than guessing.
-fn as_the_parser_reads_it(text: &str) -> String {
-    const DEFINING: &[&str] = &[
-        "define",
-        "def",
-        "trydefine",
-        "trydef",
-        "redefine",
-        "redef",
-        "defexp",
-        "defexps",
-        "defenv",
-        "defenvs",
-        "trydefenv",
-        "trydefenvs",
-    ];
-    let mut defined: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut levels: Vec<bool> = Vec::new();
-    let mut out = Vec::new();
-    for line in text.split('\n') {
-        let live = levels.iter().all(|l| *l);
-        let t = line.trim_start();
-        let directive = t.strip_prefix("#!").or_else(|| t.strip_prefix("!!"));
-        let mut words = directive.unwrap_or("").split_whitespace();
-        let (kw, arg) = (words.next().unwrap_or(""), words.next().unwrap_or(""));
-        match (directive.is_some(), kw) {
-            (true, "ifdef") => levels.push(defined.contains(arg)),
-            (true, "ifndef") => levels.push(!defined.contains(arg)),
-            (true, "else") => {
-                if let Some(l) = levels.last_mut() {
-                    *l = !*l;
-                }
-            }
-            (true, "endif") => {
-                levels.pop();
-            }
-            (true, "ifexp") => panic!("#!ifexp needs an evaluator this test does not have"),
-            (true, k) if live && DEFINING.contains(&k) => {
-                defined.insert(arg.to_string());
-            }
-            _ => {}
-        }
-        let is_conditional =
-            directive.is_some() && matches!(kw, "ifdef" | "ifndef" | "else" | "endif");
-        out.push(if live || is_conditional { line } else { "" });
-    }
-    out.join("\n")
-}
-
 /// The emulation above, held to the binary.  Each case's skipped text
 /// is something the parser would reject if it read it — the variant
 /// with the conditional lines removed must fail `kamailio -c` — so the
@@ -146,7 +31,7 @@ fn as_the_parser_reads_it(text: &str) -> String {
 /// must blank exactly them.
 #[test]
 fn the_skip_emulation_agrees_with_the_parser() {
-    let k = Kamailio {
+    let k = common::Kamailio {
         bin: common::required_env("KAMAILIO_LSP_TEST_BIN"),
         mpath: common::required_env("KAMAILIO_LSP_TEST_MPATH"),
     };
@@ -192,7 +77,7 @@ fn the_skip_emulation_agrees_with_the_parser() {
             k.syntax_error(&g),
             "case {i}: the skipped text parses anyway, so this case proves nothing"
         );
-        let got: Vec<usize> = as_the_parser_reads_it(cfg)
+        let got: Vec<usize> = common::as_the_parser_reads_it(cfg)
             .lines()
             .zip(cfg.lines())
             .enumerate()
@@ -207,7 +92,7 @@ fn the_skip_emulation_agrees_with_the_parser() {
 #[test]
 fn the_grammar_parses_every_config_the_real_parser_accepts() {
     let tree = PathBuf::from(common::required_env("KAMAILIO_LSP_TEST_TREE"));
-    let k = Kamailio {
+    let k = common::Kamailio {
         bin: common::required_env("KAMAILIO_LSP_TEST_BIN"),
         mpath: common::required_env("KAMAILIO_LSP_TEST_MPATH"),
     };
@@ -230,8 +115,9 @@ fn the_grammar_parses_every_config_the_real_parser_accepts() {
             f.display()
         );
     }
-    let (accepted, rejected): (Vec<PathBuf>, Vec<PathBuf>) =
-        corpus(&tree).into_iter().partition(|f| !k.syntax_error(f));
+    let (accepted, rejected): (Vec<PathBuf>, Vec<PathBuf>) = common::corpus(&tree)
+        .into_iter()
+        .partition(|f| !k.syntax_error(f));
     // POSITIVE CONTROL: a tree with nothing accepted makes this vacuous
     assert!(
         accepted.len() >= 40,
@@ -251,7 +137,7 @@ fn the_grammar_parses_every_config_the_real_parser_accepts() {
             "{i:03}-{}",
             f.file_name().unwrap().to_string_lossy()
         ));
-        std::fs::write(&p, as_the_parser_reads_it(&raw)).unwrap();
+        std::fs::write(&p, common::as_the_parser_reads_it(&raw)).unwrap();
         printed.push((p, f.clone()));
     }
     let out = Command::new("npx")

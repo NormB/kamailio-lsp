@@ -24,6 +24,11 @@ pub(crate) enum Class {
     /// continued lines (`#!define NAME value \`): directive text is
     /// never code, but it is not a comment either.
     Preproc,
+    /// The inside of `$(...)` or `$name(...)`: cfg.lex reads it in
+    /// state PVAR_P as part of one PVAR token, so a brace, `//`, `#`
+    /// or quote in there is pseudo-variable text, never code, a
+    /// comment or a string.
+    Pvar,
 }
 
 /// The conditional directives cfg.lex still matches inside a region
@@ -259,6 +264,34 @@ fn scan(text: &str) -> (Vec<Class>, Class) {
                     open = Class::Comment;
                 }
             }
+            b'$' if pvar_open(b, i).is_some() => {
+                // `$`, the name and `(` count as code, the interior as
+                // pvar and the closing `)` as code again, as a quoted
+                // string's quotes do.  cfg.lex counts parentheses
+                // (`p_nest`) and nothing else until the one that
+                // closes the first.  It has no PVAR_P rule for a
+                // newline; this ends the pvar there, so a `$(` being
+                // typed does not swallow the rest of the document.
+                i = pvar_open(b, i).unwrap();
+                let mut depth = 1usize;
+                while i < b.len() && b[i] != b'\n' {
+                    match b[i] {
+                        b'(' => depth += 1,
+                        b')' => depth -= 1,
+                        _ => {}
+                    }
+                    if depth == 0 {
+                        break;
+                    }
+                    out[i] = Class::Pvar;
+                    i += 1;
+                }
+                if i < b.len() && b[i] == b')' {
+                    i += 1; // the closing parenthesis
+                } else if i == b.len() {
+                    open = Class::Pvar;
+                }
+            }
             b'"' => {
                 // opening quote counts as code; interior as string
                 i += 1;
@@ -294,6 +327,24 @@ fn scan(text: &str) -> (Vec<Class>, Class) {
         }
     }
     (out, open)
+}
+
+/// Just past the `(` when the `$` at `i` opens a pvar that cfg.lex
+/// reads in state PVAR_P: `$(` (`{VAR_MARK}{LPAREN}`) or `$name(`
+/// (`{ID}{LPAREN}` after the mark, `ID` being `{LETTER_}{ALPHANUM}*`).
+fn pvar_open(b: &[u8], i: usize) -> Option<usize> {
+    let mut j = i + 1;
+    if b.get(j)
+        .is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_')
+    {
+        while b
+            .get(j)
+            .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'_')
+        {
+            j += 1;
+        }
+    }
+    (b.get(j) == Some(&b'(')).then_some(j + 1)
 }
 
 /// Line starts of a text, built once so each byte offset → (line,
@@ -910,7 +961,7 @@ pub fn pvars(text: &str) -> Vec<(u32, u32, u32)> {
     let mut out = Vec::new();
     for m in re_pvar_tok().find_iter(text) {
         match classes.get(m.start()) {
-            Some(&Class::Code) | Some(&Class::Str) => {}
+            Some(&Class::Code) | Some(&Class::Str) | Some(&Class::Pvar) => {}
             _ => continue,
         }
         let (line, col) = lines.line_col(m.start());

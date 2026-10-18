@@ -141,3 +141,173 @@ impl Drop for Server {
         let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// Every `.cfg` that ships in the pinned Kamailio tree: `etc/`,
+/// `misc/examples/` and each module's `examples/`, sorted.
+pub fn corpus(tree: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut push = |d: PathBuf, recurse: bool| {
+        let mut stack = vec![d];
+        while let Some(dir) = stack.pop() {
+            let Ok(rd) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.is_dir() && recurse {
+                    stack.push(p);
+                } else if p.extension().is_some_and(|x| x == "cfg") {
+                    out.push(p);
+                }
+            }
+        }
+    };
+    push(tree.join("etc"), false);
+    push(tree.join("misc").join("examples"), true);
+    if let Ok(rd) = std::fs::read_dir(tree.join("src").join("modules")) {
+        for e in rd.flatten() {
+            push(e.path().join("examples"), false);
+        }
+    }
+    out.sort();
+    out
+}
+
+/// The pinned binary and its module path.
+pub struct Kamailio {
+    pub bin: String,
+    pub mpath: String,
+}
+
+impl Kamailio {
+    pub fn run(&self, f: &Path, args: &[&str]) -> (String, String) {
+        let out = Command::new(&self.bin)
+            .args(args)
+            .arg("-L")
+            .arg(&self.mpath)
+            .arg("-f")
+            .arg(f)
+            .current_dir(f.parent().unwrap())
+            .output()
+            .expect("spawn kamailio");
+        (
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    }
+
+    /// `kamailio -c` reported a syntax error in `f`.
+    pub fn syntax_error(&self, f: &Path) -> bool {
+        let rundir = std::env::temp_dir();
+        let (o, e) = self.run(f, &["-c", "--all-errors", "-Y", rundir.to_str().unwrap()]);
+        o.contains("syntax error") || e.contains("syntax error")
+    }
+}
+
+/// `text` with every line the preprocessor skips left blank, line
+/// numbers unchanged, judged as `kamailio -c -f` judges it with no
+/// `-D`: a symbol is defined once a define-family directive in a live
+/// region names it (cfg.lex only matches those in INITIAL state, never
+/// in IFDEF_SKIP), `#!ifdef` / `#!ifndef` test that, `#!else` flips the
+/// innermost level and `#!endif` closes it.  `#!ifexp` would need an
+/// expression evaluator; no shipped config uses one, and meeting one
+/// fails loudly rather than guessing.
+pub fn as_the_parser_reads_it(text: &str) -> String {
+    const DEFINING: &[&str] = &[
+        "define",
+        "def",
+        "trydefine",
+        "trydef",
+        "redefine",
+        "redef",
+        "defexp",
+        "defexps",
+        "defenv",
+        "defenvs",
+        "trydefenv",
+        "trydefenvs",
+    ];
+    let mut defined: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut levels: Vec<bool> = Vec::new();
+    let mut out = Vec::new();
+    for line in text.split('\n') {
+        let live = levels.iter().all(|l| *l);
+        let t = line.trim_start();
+        let directive = t.strip_prefix("#!").or_else(|| t.strip_prefix("!!"));
+        let mut words = directive.unwrap_or("").split_whitespace();
+        let (kw, arg) = (words.next().unwrap_or(""), words.next().unwrap_or(""));
+        match (directive.is_some(), kw) {
+            (true, "ifdef") => levels.push(defined.contains(arg)),
+            (true, "ifndef") => levels.push(!defined.contains(arg)),
+            (true, "else") => {
+                if let Some(l) = levels.last_mut() {
+                    *l = !*l;
+                }
+            }
+            (true, "endif") => {
+                levels.pop();
+            }
+            (true, "ifexp") => panic!("#!ifexp needs an evaluator this test does not have"),
+            (true, k) if live && DEFINING.contains(&k) => {
+                defined.insert(arg.to_string());
+            }
+            _ => {}
+        }
+        let is_conditional =
+            directive.is_some() && matches!(kw, "ifdef" | "ifndef" | "else" | "endif");
+        out.push(if live || is_conditional { line } else { "" });
+    }
+    out.join("\n")
+}
+
+/// One corpus case: name, input text, expected S-expression text.
+pub struct Case {
+    pub name: String,
+    pub input: String,
+    pub expected: String,
+}
+
+/// Parse the tree-sitter corpus format: `===` fence, name, `===`
+/// fence, input, `---` fence, expected S-expression, repeat.
+pub fn parse_corpus(text: &str) -> Vec<Case> {
+    let is_eq = |l: &str| l.len() >= 3 && l.chars().all(|c| c == '=');
+    let is_dash = |l: &str| l.len() >= 3 && l.chars().all(|c| c == '-');
+    let lines: Vec<&str> = text.lines().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        if !is_eq(lines[i]) {
+            i += 1;
+            continue;
+        }
+        let name = lines.get(i + 1).unwrap_or(&"").to_string();
+        assert!(
+            lines.get(i + 2).map(|l| is_eq(l)).unwrap_or(false),
+            "corpus header fence missing after '{name}'"
+        );
+        i += 3;
+        let mut input = String::new();
+        while i < lines.len() && !is_dash(lines[i]) {
+            input.push_str(lines[i]);
+            input.push('\n');
+            i += 1;
+        }
+        assert!(i < lines.len(), "corpus separator missing in '{name}'");
+        i += 1; // the --- fence
+        let mut expected = String::new();
+        while i < lines.len() && !is_eq(lines[i]) {
+            expected.push_str(lines[i]);
+            expected.push('\n');
+            i += 1;
+        }
+        out.push(Case {
+            name,
+            input,
+            expected,
+        });
+    }
+    out
+}

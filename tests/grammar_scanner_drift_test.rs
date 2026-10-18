@@ -10,56 +10,10 @@
 //! dependencies: the corpus format and the S-expressions are parsed
 //! by hand.
 
+mod common;
+
+use common::Case;
 use kamailio_lsp::analyze;
-
-/// One corpus case: name, input text, expected S-expression text.
-struct Case {
-    name: String,
-    input: String,
-    expected: String,
-}
-
-/// Parse the tree-sitter corpus format: `===` fence, name, `===`
-/// fence, input, `---` fence, expected S-expression, repeat.
-fn parse_corpus(text: &str) -> Vec<Case> {
-    let is_eq = |l: &str| l.len() >= 3 && l.chars().all(|c| c == '=');
-    let is_dash = |l: &str| l.len() >= 3 && l.chars().all(|c| c == '-');
-    let lines: Vec<&str> = text.lines().collect();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < lines.len() {
-        if !is_eq(lines[i]) {
-            i += 1;
-            continue;
-        }
-        let name = lines.get(i + 1).unwrap_or(&"").to_string();
-        assert!(
-            lines.get(i + 2).map(|l| is_eq(l)).unwrap_or(false),
-            "corpus header fence missing after '{name}'"
-        );
-        i += 3;
-        let mut input = String::new();
-        while i < lines.len() && !is_dash(lines[i]) {
-            input.push_str(lines[i]);
-            input.push('\n');
-            i += 1;
-        }
-        assert!(i < lines.len(), "corpus separator missing in '{name}'");
-        i += 1; // the --- fence
-        let mut expected = String::new();
-        while i < lines.len() && !is_eq(lines[i]) {
-            expected.push_str(lines[i]);
-            expected.push('\n');
-            i += 1;
-        }
-        out.push(Case {
-            name,
-            input,
-            expected,
-        });
-    }
-    out
-}
 
 /// A parsed S-expression node: name plus children (leaf fields like
 /// `name:` attach to the following node as its field label).
@@ -175,7 +129,7 @@ fn corpus_cases() -> Vec<Case> {
     let mut cases = Vec::new();
     for e in std::fs::read_dir(&dir).expect("corpus dir").flatten() {
         let text = std::fs::read_to_string(e.path()).expect("corpus file");
-        cases.extend(parse_corpus(&text));
+        cases.extend(common::parse_corpus(&text));
     }
     assert!(!cases.is_empty(), "no corpus cases found under {dir:?}");
     cases

@@ -580,3 +580,74 @@ fn the_cursor_is_in_a_comment_only_before_the_comment_ends() {
     assert!(in_comment(e, 3));
     assert!(!in_comment(e, e.len()));
 }
+
+/// cfg.lex reads `$(...)` and `$name(...)` in state PVAR_P, which takes
+/// every byte up to the matching `)` and matches no comment or string
+/// rule (`<PVAR_P>.  { yymore(); }`).  Reading `//`, `#` or a quote in
+/// there as code ran a route to the end of the file in three of the
+/// shipped IMS examples.  `tests/grammar/pvar_transformations.cfg`
+/// holds the same constructs to `kamailio -c` 6.1.4.
+#[test]
+fn a_pseudo_variable_body_opens_no_comment_or_string() {
+    use kamailio_lsp::analyze::{in_comment, route_blocks};
+    let t = "request_route {\n\
+             \t$ru = $(ru{re.subst,/;transport=[A-Za-z]*//g});\n\
+             \t$var(a) = $(var(a){re.subst,/\"//g});\n\
+             \t$var(b) = $(var(b){re.subst,/#//g});\n\
+             \troute(AFTER);\n\
+             }\n\
+             route[AFTER] {\n\texit; // real\n}\n";
+    let spans: Vec<(String, u32, u32)> = route_blocks(t)
+        .into_iter()
+        .map(|b| (b.name, b.line, b.end_line))
+        .collect();
+    assert_eq!(spans, vec![("".into(), 0, 5), ("AFTER".into(), 6, 8)]);
+    let refs: Vec<String> = route_refs(t).into_iter().map(|r| r.name).collect();
+    assert_eq!(refs, vec!["AFTER"]);
+    let at = |needle: &str| t.find(needle).unwrap() + needle.len();
+    assert!(!in_comment(t, at("//g")), "`//` inside $(...)");
+    assert!(!in_comment(t, at("/#")), "`#` inside $(...)");
+    assert!(in_comment(t, at("// re")), "a `//` after the pvar closes");
+}
+
+/// `$name(` enters PVAR_P as `$(` does (`<AVP_PVAR>{ID}{LPAREN}` and
+/// `<PVARID>{LPAREN}`), so a `//` or `#` inside `$hdr(...)` is part of
+/// the pvar too.
+#[test]
+fn a_named_pseudo_variable_body_opens_no_comment() {
+    use kamailio_lsp::analyze::{in_comment, route_blocks};
+    let t = "request_route {\n\t$var(c) = $hdr(X//Y) + $hdr(X#Y);\n}\nroute[N] {\n\texit;\n}\n";
+    let spans: Vec<(String, u32, u32)> = route_blocks(t)
+        .into_iter()
+        .map(|b| (b.name, b.line, b.end_line))
+        .collect();
+    assert_eq!(spans, vec![("".into(), 0, 2), ("N".into(), 3, 5)]);
+    assert!(!in_comment(t, t.find("//Y").unwrap() + 2));
+    assert!(!in_comment(t, t.find("#Y").unwrap() + 1));
+}
+
+/// A `$(` with no `)` on its line ends there: one being typed must not
+/// turn the rest of the document into pvar text.
+#[test]
+fn an_unclosed_pseudo_variable_ends_at_its_line() {
+    use kamailio_lsp::analyze::route_blocks;
+    let t = "request_route {\n\t$var(a) = $(ru{s.len\n}\nroute[N] {\n\texit;\n}\n";
+    let spans: Vec<(String, u32, u32)> = route_blocks(t)
+        .into_iter()
+        .map(|b| (b.name, b.line, b.end_line))
+        .collect();
+    assert_eq!(spans, vec![("".into(), 0, 2), ("N".into(), 3, 5)]);
+}
+
+/// A pvar nested in another's parentheses is still a pvar to
+/// highlight, though cfg.lex reads it as text of the outer one.
+#[test]
+fn a_pseudo_variable_nested_in_another_is_still_reported() {
+    use kamailio_lsp::analyze::pvars;
+    let t = "$var(x) = $hdr($var(n));";
+    let got: Vec<&str> = pvars(t)
+        .into_iter()
+        .map(|(_, c, n)| &t[c as usize..(c + n) as usize])
+        .collect();
+    assert_eq!(got, vec!["$var(x)", "$hdr", "$var(n)"]);
+}

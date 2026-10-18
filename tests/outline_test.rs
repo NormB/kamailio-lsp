@@ -204,3 +204,20 @@ fn a_socket_definition_is_one_entry_and_folds() {
         .collect();
     assert_eq!(f, vec![(0, 3), (4, 6)]);
 }
+
+/// A `//` inside `$(...)` is pseudo-variable text (cfg.lex state
+/// PVAR_P), so the route it sits in ends at its own brace and the
+/// route after it is still in the outline.
+#[test]
+fn a_pseudo_variable_with_slashes_does_not_swallow_the_next_route() {
+    let t = "request_route {\n    $ru = $(ru{re.subst,/;t=[a-z]*//g});\n}\nroute[NEXT] {\n    exit;\n}\n";
+    let mut got = Vec::new();
+    flat(&outline(t), 0, &mut got);
+    assert_eq!(
+        got,
+        vec![
+            "request_route Route 0:0-2:1 sel 0:0-0:13",
+            "route[NEXT] Route 3:0-5:1 sel 3:6-3:10",
+        ]
+    );
+}
