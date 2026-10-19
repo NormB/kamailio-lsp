@@ -23,9 +23,9 @@ echo " 0(1) CRITICAL: <core> [core/cfg.y:1]: yyerror_at(): parse error in config
 exit 255
 "#;
 
-fn setup(tag: &str) -> (std::path::PathBuf, std::path::PathBuf, String) {
-    let dir = std::env::temp_dir().join(format!("kamlsp-cur-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+fn setup(tag: &str) -> (common::Scratch, std::path::PathBuf, String) {
+    let scratch = common::Scratch::new(&format!("kamlsp-cur-{tag}"));
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let stub = dir.join("stub.sh");
     std::fs::write(&stub, STUB).unwrap();
@@ -36,7 +36,7 @@ fn setup(tag: &str) -> (std::path::PathBuf, std::path::PathBuf, String) {
     let cfg = dir.join("t.cfg");
     std::fs::write(&cfg, "request_route { exit; }\n").unwrap();
     let uri = format!("file://{}", cfg.display());
-    (dir, stub, uri)
+    (scratch, stub, uri)
 }
 
 #[test]
@@ -100,7 +100,6 @@ fn failed_checks_clear_stale_diagnostics_and_publishes_carry_versions() {
     );
 
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -170,13 +169,12 @@ fn midflight_buffer_change_suppresses_the_stale_result() {
     );
 
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn output_flood_is_capped_and_clears_diagnostics() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-flood-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-flood");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let stub = dir.join("flood.sh");
     // ~8 MiB of noise, then a "valid" error line that must never be seen
@@ -250,7 +248,6 @@ fn output_flood_is_capped_and_clears_diagnostics() {
         "capped run must clear, not publish flood-derived results: {d}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A check runs a subprocess and can take seconds; opening a document
@@ -311,5 +308,4 @@ fn requests_are_answered_while_checks_run() {
         "documentSymbol waited {took:?} behind the checks"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }

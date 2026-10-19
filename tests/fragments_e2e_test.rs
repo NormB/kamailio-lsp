@@ -20,15 +20,15 @@ use std::process::{Command, Stdio};
 const ROOT_TEXT: &str = "#!KAMAILIO\ninclude_file \"inc/routes.cfg\"\nroute[HELPER] {\n    exit;\n}\nrequest_route {\n    route(ENTRY);\n}\n";
 const FRAG_TEXT: &str = "route[ENTRY] {\n    route(HELPER);\n    route(GHOST);\n}\n";
 
-fn setup(tag: &str) -> (std::path::PathBuf, String, String) {
-    let base = std::env::temp_dir().join(format!("kamlsp-frag-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+fn setup(tag: &str) -> (common::Scratch, String, String) {
+    let scratch = common::Scratch::new(&format!("kamlsp-frag-{tag}"));
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(base.join("inc")).unwrap();
     std::fs::write(base.join("kamailio.cfg"), ROOT_TEXT).unwrap();
     std::fs::write(base.join("inc/routes.cfg"), FRAG_TEXT).unwrap();
     let root_uri = format!("file://{}", base.join("kamailio.cfg").display());
     let frag_uri = format!("file://{}", base.join("inc/routes.cfg").display());
-    (base, root_uri, frag_uri)
+    (scratch, root_uri, frag_uri)
 }
 
 fn start(
@@ -126,7 +126,6 @@ fn the_server_names_the_root_a_fragment_belongs_to() {
     let v = wait_for(&rx, |v| v["id"] == 4, "analysisRoot(unknown)");
     assert!(v["result"].is_null(), "{v}");
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
@@ -154,7 +153,6 @@ fn a_fragment_opened_alone_is_analysed_in_its_roots_closure() {
          flagging it is an artefact of analysing the fragment alone: {msgs:?}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
@@ -193,7 +191,6 @@ fn navigation_from_a_fragment_reaches_the_root_that_includes_it() {
         "the root's route must be offered: {labels:?}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
@@ -261,7 +258,6 @@ fn the_checker_runs_on_the_root_and_the_fragments_errors_come_back_to_it() {
         "the fragment must not be handed to the checker: {args:?}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// The root is found by reading the configs under the workspace
@@ -286,7 +282,6 @@ fn without_a_workspace_folder_there_is_nothing_to_find_the_root_in() {
         "with no folder open the include graph is empty: {v}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Adding the `include_file` line is the FIX for a fragment that was
@@ -350,7 +345,6 @@ fn adding_an_include_clears_the_fragment_it_now_belongs_to() {
         "{v}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// The include graph is built from a BOUNDED scan of the workspace.
@@ -388,7 +382,6 @@ fn a_truncated_workspace_scan_says_so() {
         "the line must say who is speaking: {msg}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// The call graph, asked from inside a fragment.
@@ -455,7 +448,6 @@ fn call_hierarchy_from_a_fragment_sees_the_whole_closure() {
          an empty list, not an unanswerable question: {v}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// A fragment the ROOT's closure cannot reach.
@@ -469,8 +461,8 @@ fn call_hierarchy_from_a_fragment_sees_the_whole_closure() {
 /// context must only ever ADD to what the file could already see.
 #[test]
 fn a_fragment_outside_the_roots_closure_keeps_its_own_includes() {
-    let base = std::env::temp_dir().join(format!("frag-wide-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-frag-wide");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(&base).unwrap();
     const N: usize = 90;
     let mut root = String::from("#!KAMAILIO\n");
@@ -524,7 +516,6 @@ fn a_fragment_outside_the_roots_closure_keeps_its_own_includes() {
          above is analysis and not silence: {msgs:?}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Differential: the same question, asked of the same text, laid out
@@ -541,8 +532,8 @@ fn a_fragment_outside_the_roots_closure_keeps_its_own_includes() {
 /// identical text in the other layout disagreed.
 #[test]
 fn every_request_answers_the_same_shape_split_as_whole() {
-    let base = std::env::temp_dir().join(format!("frag-diff-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-frag-diff");
+    let base = scratch.path().to_path_buf();
     let whole_dir = base.join("whole");
     let split_dir = base.join("split");
     std::fs::create_dir_all(&whole_dir).unwrap();
@@ -726,7 +717,6 @@ fn every_request_answers_the_same_shape_split_as_whole() {
     );
 
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Hostile and malformed URIs to `kamailio/analysisRoot`.
@@ -792,7 +782,6 @@ fn analysis_root_survives_whatever_the_editor_hands_it() {
         "the server must still answer correctly after that: {v}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// The two diagnostic channels must not disagree about a fragment.
@@ -891,7 +880,6 @@ fn pull_and_push_agree_about_a_fragment() {
         "a fragment is not a program and must not be swept: {uris:?}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Many fragments open at once, edited in a burst.
@@ -904,8 +892,8 @@ fn pull_and_push_agree_about_a_fragment() {
 /// one file.
 #[test]
 fn many_fragments_open_and_edited_at_once_stay_correct() {
-    let base = std::env::temp_dir().join(format!("frag-load-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-frag-load");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(base.join("inc")).unwrap();
     const N: usize = 12;
     let mut root = String::new();
@@ -953,7 +941,6 @@ fn many_fragments_open_and_edited_at_once_stay_correct() {
         );
     }
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// One definition of "a config this server can read".
@@ -969,8 +956,8 @@ fn many_fragments_open_and_edited_at_once_stay_correct() {
 /// includes with it.
 #[test]
 fn a_config_the_scan_accepts_is_a_config_the_closure_can_load() {
-    let base = std::env::temp_dir().join(format!("frag-read-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-frag-read");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(base.join("inc")).unwrap();
     let frag = "route[F] {\n    route(TOP);\n    route(NOWHERE);\n}\n";
     std::fs::write(base.join("inc/f.cfg"), frag).unwrap();
@@ -1021,7 +1008,6 @@ fn a_config_the_scan_accepts_is_a_config_the_closure_can_load() {
         "and the analyzer is still running: {msgs:?}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// A config too large to load is too large to claim, and says so.
@@ -1031,8 +1017,8 @@ fn a_config_the_scan_accepts_is_a_config_the_closure_can_load() {
 /// "found, but its routes are not in scope" is the worst of both.
 #[test]
 fn a_root_too_large_to_load_is_not_claimed_and_is_announced() {
-    let base = std::env::temp_dir().join(format!("frag-huge-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-frag-huge");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(base.join("inc")).unwrap();
     let frag = "route[F] {\n    route(TOP);\n}\n";
     std::fs::write(base.join("inc/f.cfg"), frag).unwrap();
@@ -1080,7 +1066,6 @@ fn a_root_too_large_to_load_is_not_claimed_and_is_announced() {
         "the line must say who is speaking: {v}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// A fixture that is not the text it looks like passes while proving
@@ -1143,8 +1128,8 @@ fn encodings_do_not_change_what_a_fragment_is_part_of() {
         ("crlf", "\r\n", ""),
         ("bom", "\n", "\u{feff}"),
     ] {
-        let base = std::env::temp_dir().join(format!("frag-enc-{tag}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
+        let scratch = common::Scratch::new(&format!("kamlsp-frag-enc-{tag}"));
+        let base = scratch.path().to_path_buf();
         std::fs::create_dir_all(base.join("inc")).unwrap();
         let root = format!(
             "{bom}#!KAMAILIO\ninclude_file \"inc/f.cfg\"{eol}route[TOP] {{{eol}    exit;{eol}}}{eol}"
@@ -1183,15 +1168,14 @@ fn encodings_do_not_change_what_a_fragment_is_part_of() {
         let slice: String = line.chars().skip(s).take(e - s).collect();
         assert_eq!(slice, "NOWHERE", "{tag}: the range does not frame the name");
         let _ = child.kill();
-        let _ = std::fs::remove_dir_all(&base);
     }
 }
 
 /// What the filesystem can be that a config file is not.
 #[test]
 fn the_filesystem_being_hostile_does_not_take_the_server_down() {
-    let base = std::env::temp_dir().join(format!("frag-fs-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-frag-fs");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(base.join("inc")).unwrap();
     // the include target is a DIRECTORY that happens to be named .cfg
     std::fs::create_dir_all(base.join("inc/dir.cfg")).unwrap();
@@ -1262,7 +1246,6 @@ fn the_filesystem_being_hostile_does_not_take_the_server_down() {
     );
     assert!(v["result"].is_null(), "the root is gone: {v}");
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Metamorphic: the same routes, whole and split, must be analysed
@@ -1284,8 +1267,8 @@ fn splitting_a_configuration_does_not_change_the_findings() {
     ];
     let tail = "request_route {\n    route(A);\n}\n";
 
-    let base = std::env::temp_dir().join(format!("frag-meta-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-frag-meta");
+    let base = scratch.path().to_path_buf();
     let whole_dir = base.join("whole");
     let split_dir = base.join("split");
     std::fs::create_dir_all(&whole_dir).unwrap();
@@ -1377,7 +1360,6 @@ fn splitting_a_configuration_does_not_change_the_findings() {
         "the same routes are analysed differently once split across includes"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Lifecycle notifications out of order, malformed params, and random
@@ -1479,7 +1461,6 @@ fn the_server_survives_a_client_behaving_badly() {
         "still correct after all of that: {v}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// The same question, asked repeatedly, must give the same answer.
@@ -1540,7 +1521,6 @@ fn repeated_questions_do_not_drift() {
         "open/close churn moved the answer: {v}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// A folder added to the workspace after the server started.
@@ -1644,7 +1624,6 @@ fn a_workspace_folder_added_later_is_picked_up() {
     );
     assert!(v["result"].is_null(), "the folder is gone again: {v}");
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Edits, not shapes.
@@ -1770,7 +1749,6 @@ fn the_edits_a_fragment_produces_are_correct_not_merely_present() {
         }
     }
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Every kind of watched-file event, not just "changed".
@@ -1847,7 +1825,6 @@ fn a_root_appearing_and_vanishing_is_noticed() {
     );
     assert!(ask(&mut stdin, &mut id).is_null(), "a deleted root is gone");
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Churn: open, edit and close many documents, then check the server
@@ -1907,7 +1884,6 @@ fn state_survives_repeated_open_edit_close_cycles() {
     assert!(msgs.iter().any(|m| m.contains("GHOST")), "{msgs:?}");
     assert!(!msgs.iter().any(|m| m.contains("HELPER")), "{msgs:?}");
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// A conditionally-compiled include, end to end.
@@ -1921,9 +1897,8 @@ fn state_survives_repeated_open_edit_close_cycles() {
 #[test]
 fn a_conditionally_excluded_include_is_not_claimed() {
     for (defined, label) in [(true, "defined"), (false, "not defined")] {
-        let base = std::env::temp_dir()
-            .join(format!("frag-cond-{label}-{}", std::process::id()).replace(' ', "-"));
-        let _ = std::fs::remove_dir_all(&base);
+        let scratch = common::Scratch::new(&format!("kamlsp-frag-cond-{label}").replace(' ', "-"));
+        let base = scratch.path().to_path_buf();
         std::fs::create_dir_all(base.join("inc")).unwrap();
         let def = if defined { "#!define FEATURE_ON\n" } else { "" };
         std::fs::write(
@@ -1959,7 +1934,6 @@ fn a_conditionally_excluded_include_is_not_claimed() {
             );
         }
         let _ = child.kill();
-        let _ = std::fs::remove_dir_all(&base);
     }
 }
 
@@ -1978,8 +1952,8 @@ fn a_conditionally_excluded_include_is_not_claimed() {
 #[test]
 fn a_configuration_split_into_many_cross_calling_fragments_is_clean() {
     const N: usize = 40;
-    let base = std::env::temp_dir().join(format!("frag-scale-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-frag-scale");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(base.join("inc")).unwrap();
 
     // each fragment defines one route and calls its two neighbours,
@@ -2062,7 +2036,6 @@ fn a_configuration_split_into_many_cross_calling_fragments_is_clean() {
         );
     }
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Every setting, with a FRAGMENT open.
@@ -2076,8 +2049,7 @@ fn a_configuration_split_into_many_cross_calling_fragments_is_clean() {
 #[test]
 fn every_setting_behaves_the_same_for_a_fragment() {
     let mk = |tag: &str| {
-        let base = std::env::temp_dir().join(format!("frag-set-{tag}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
+        let base = common::Scratch::new(&format!("kamlsp-frag-set-{tag}"));
         std::fs::create_dir_all(base.join("inc")).unwrap();
         std::fs::write(
             base.join("kamailio.cfg"),
@@ -2152,7 +2124,7 @@ fn every_setting_behaves_the_same_for_a_fragment() {
     assert!(!msgs.iter().any(|m| m.contains("HELPER")), "{msgs:?}");
     let full = msgs.len();
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
+    drop(base);
 
     // maxDiagnostics caps what a fragment publishes
     let (base, uri, frag) = mk("cap");
@@ -2169,7 +2141,7 @@ fn every_setting_behaves_the_same_for_a_fragment() {
         "the cap applies to a fragment too: {n} of {full}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
+    drop(base);
 
     // live reconfiguration, with the fragment open: off, then on again
     let (base, uri, frag) = mk("live");
@@ -2221,5 +2193,4 @@ fn every_setting_behaves_the_same_for_a_fragment() {
         "and still in the ROOT's context, not the fragment's own: {msgs:?}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }

@@ -35,8 +35,8 @@ fn the_skip_emulation_agrees_with_the_parser() {
         bin: common::required_env("KAMAILIO_LSP_TEST_BIN"),
         mpath: common::required_env("KAMAILIO_LSP_TEST_MPATH"),
     };
-    let dir = std::env::temp_dir().join(format!("kamlsp-skip-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-skip");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     // (config, the lines that must come out blank)
     let cases: &[(&str, &[usize])] = &[
@@ -86,7 +86,6 @@ fn the_skip_emulation_agrees_with_the_parser() {
             .collect();
         assert_eq!(&got, blank, "case {i}");
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -127,8 +126,8 @@ fn the_grammar_parses_every_config_the_real_parser_accepts() {
     );
 
     // what the parser reads, one file per config, named after it
-    let scratch = std::env::temp_dir().join(format!("kamlsp-sweep-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&scratch);
+    let guard = common::Scratch::new("kamlsp-sweep");
+    let scratch = guard.path().to_path_buf();
     std::fs::create_dir_all(&scratch).unwrap();
     let mut printed = Vec::new();
     for (i, f) in accepted.iter().chain(&fixtures).enumerate() {
@@ -146,7 +145,6 @@ fn the_grammar_parses_every_config_the_real_parser_accepts() {
         .current_dir(root.join("tree-sitter-kamailio"))
         .output()
         .expect("npx tree-sitter-cli parse");
-    let _ = std::fs::remove_dir_all(&scratch);
     let report = String::from_utf8_lossy(&out.stdout);
     let failed: Vec<String> = report
         .lines()

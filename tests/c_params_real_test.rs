@@ -314,8 +314,8 @@ fn harvesting_the_tree_directly_reconciles_against_c() {
 /// whether the splice resolves.
 #[test]
 fn an_unresolved_splice_drops_nothing() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-cguard-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-cguard");
+    let dir = scratch.path().to_path_buf();
 
     let readme = "m\n\n1.3. Parameters\n\n1.3.1. documented_only (int)\n\nIn the README, never exported.\n\n1.3.2. really_exported (int)\n\nIn both.\n";
     for (module, table) in [
@@ -361,8 +361,6 @@ fn an_unresolved_splice_drops_nothing() {
         resolved.iter().any(|n| n == "really_exported"),
         "the exported parameter must survive; got {resolved:?}"
     );
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A conditional entry must not make a table look unresolved.

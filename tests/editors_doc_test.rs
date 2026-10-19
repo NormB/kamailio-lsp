@@ -9,6 +9,8 @@
 //! derives its expectation from the source, so the page cannot drift
 //! from the thing it documents again.
 
+mod common;
+
 use std::collections::BTreeSet;
 
 fn root() -> &'static str {
@@ -188,7 +190,8 @@ fn fenced<'a>(doc: &'a str, lang: &str, after: &str) -> &'a str {
 fn the_zed_walkthrough_is_valid_shell() {
     let walk = read("docs/ZED.md");
     let block = fenced(&walk, "sh", "## 1. Build the extension");
-    let dir = std::env::temp_dir().join(format!("oslsp-zed-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-zed");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("block.sh");
     std::fs::write(&path, block).unwrap();
@@ -197,7 +200,6 @@ fn the_zed_walkthrough_is_valid_shell() {
         .arg(&path)
         .output()
         .expect("bash");
-    let _ = std::fs::remove_dir_all(&dir);
     assert!(
         out.status.success(),
         "docs/ZED.md hands the reader shell that does not parse:\n{}",

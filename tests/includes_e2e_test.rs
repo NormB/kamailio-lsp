@@ -55,8 +55,8 @@ fn start(
 
 #[test]
 fn cross_file_definition_and_route_completion() {
-    let base = std::env::temp_dir().join(format!("kamlsp-inc-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-inc");
+    let base = scratch.path().to_path_buf();
     let (uri, text) = setup(&base);
     let (mut child, rx, mut stdin) = start(&base, serde_json::json!({"kamailioPath":""}));
     write_msg(
@@ -95,13 +95,12 @@ fn cross_file_definition_and_route_completion() {
         "include-defined route completes: {labels:?}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn analyzer_diags_appear_on_change_without_save() {
-    let base = std::env::temp_dir().join(format!("kamlsp-and-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-and");
+    let base = scratch.path().to_path_buf();
     let (uri, text) = setup(&base);
     let (mut child, rx, mut stdin) = start(&base, serde_json::json!({"kamailioPath":""}));
     write_msg(
@@ -154,13 +153,12 @@ fn analyzer_diags_appear_on_change_without_save() {
             .is_empty()
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn analyzer_diags_can_be_disabled() {
-    let base = std::env::temp_dir().join(format!("kamlsp-anoff-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-anoff");
+    let base = scratch.path().to_path_buf();
     let (uri, _) = setup(&base);
     let (mut child, rx, mut stdin) = start(
         &base,
@@ -201,13 +199,12 @@ fn analyzer_diags_can_be_disabled() {
         );
     }
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn references_and_rename_cross_the_include_closure() {
-    let base = std::env::temp_dir().join(format!("kamlsp-xref-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-xref");
+    let base = scratch.path().to_path_buf();
     let (uri, text) = setup(&base);
     let inc_uri = format!("file://{}", base.join("inc.cfg").display());
     let (mut child, rx, mut stdin) = start(&base, serde_json::json!({"kamailioPath":""}));
@@ -245,5 +242,4 @@ fn references_and_rename_cross_the_include_closure() {
     assert_eq!(inc_edit["newText"], "HELPER2");
     assert_eq!(inc_edit["range"]["start"]["line"], 0);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }

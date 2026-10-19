@@ -1,3 +1,5 @@
+mod common;
+
 use kamailio_lsp::catalog::{Item, ModuleDoc};
 use kamailio_lsp::logic::{CompKind, completions, definition_of, hover_markdown};
 
@@ -1428,8 +1430,8 @@ fn the_graph_tracks_a_model_through_random_edits() {
 fn the_workspace_sweep_reaches_configs_not_named_cfg() {
     use kamailio_lsp::logic::{configs_in_dir, scan_configs};
 
-    let dir = std::env::temp_dir().join(format!("kamlsp-sweep-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-sweep");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(dir.join("include")).unwrap();
     std::fs::write(
         dir.join("proxy.inc"),
@@ -1466,8 +1468,6 @@ fn the_workspace_sweep_reaches_configs_not_named_cfg() {
         .collect();
     assert!(here.contains(&"proxy.inc".to_string()), "{here:?}");
     assert!(!here.contains(&"notes.md".to_string()), "{here:?}");
-
-    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 /// A module the harvester read nothing from documents nothing, and an

@@ -201,7 +201,7 @@ impl Kamailio {
 
     /// `kamailio -c` reported a syntax error in `f`.
     pub fn syntax_error(&self, f: &Path) -> bool {
-        let rundir = std::env::temp_dir();
+        let rundir = check_rundir();
         let (o, e) = self.run(f, &["-c", "--all-errors", "-Y", rundir.to_str().unwrap()]);
         o.contains("syntax error") || e.contains("syntax error")
     }
@@ -310,4 +310,70 @@ pub fn parse_corpus(text: &str) -> Vec<Case> {
         });
     }
     out
+}
+
+/// A scratch path under the system temp directory, removed when the
+/// guard is dropped.
+///
+/// Cleanup written as the last statement of a test runs only when every
+/// assertion before it held, so a failing test left its directory
+/// behind. `Drop` also runs while a panic unwinds, so this removes the
+/// path whether the test passes, fails an assertion or panics.
+///
+/// The tests of one binary are threads of one process, so `name` must
+/// be unique within the binary; the process id is appended. Nothing is
+/// created: the path is reserved, and anything stale left at it is
+/// removed. Hold the guard for as long as the path is used.
+pub struct Scratch(std::path::PathBuf);
+
+impl Scratch {
+    pub fn new(name: &str) -> Self {
+        let path = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+        remove_path(&path);
+        Scratch(path)
+    }
+
+    pub fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for Scratch {
+    type Target = std::path::Path;
+    fn deref(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl AsRef<std::path::Path> for Scratch {
+    fn as_ref(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        remove_path(&self.0);
+    }
+}
+
+fn remove_path(path: &std::path::Path) {
+    if std::fs::remove_dir_all(path).is_err() {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// The runtime directory every `kamailio -c` run here is given with
+/// `-Y`.
+///
+/// A configuration check creates nothing in it. Each of the 89
+/// configurations the pinned 6.1.5 tree ships was checked with `-Y`
+/// naming a fresh empty directory (3 pass; the rest stop at a module
+/// the proof install does not build), and so was a configuration that
+/// loads every module the install does build and passes. The directory
+/// was still empty afterwards. The system temp directory itself is
+/// therefore passed, and there is nothing to remove. Every `-Y` goes through this one function
+/// so that, should a check ever start writing there, one place changes.
+pub fn check_rundir() -> std::path::PathBuf {
+    std::env::temp_dir()
 }

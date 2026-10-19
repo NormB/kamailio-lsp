@@ -49,8 +49,8 @@ fn labels(v: &serde_json::Value) -> Vec<String> {
 
 #[test]
 fn all_features_over_stdio_against_a_synthetic_tree() {
-    let base = std::env::temp_dir().join(format!("kamlsp-feat-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-feat");
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     mk_tree(&tree);
     let wiki = base.join("wiki");
@@ -245,13 +245,12 @@ fn all_features_over_stdio_against_a_synthetic_tree() {
         "second start must hit the cache: {ready2}"
     );
     child2.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn signature_help_and_pvar_text_edits() {
-    let base = std::env::temp_dir().join(format!("kamlsp-sig-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-sig");
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     mk_tree(&tree);
     let wiki = base.join("wiki");
@@ -354,13 +353,12 @@ fn signature_help_and_pvar_text_edits() {
         "edit ends at the cursor"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn undocumented_modparam_warns_between_saves() {
-    let base = std::env::temp_dir().join(format!("kamlsp-catv-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-catv");
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     mk_tree(&tree); // mymod documents my_param
     let doc = "loadmodule \"mymod.so\"\nrequest_route {\n    exit;\n}\n";
@@ -456,13 +454,12 @@ fn undocumented_modparam_warns_between_saves() {
             .is_empty()
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn completion_offers_nothing_inside_a_comment() {
-    let base = std::env::temp_dir().join(format!("kamlsp-feat-cmt-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-feat-cmt");
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     mk_tree(&tree);
     let doc = "loadmodule \"mymod.so\"\nrequest_route {\n    # my_\n    // my_\n    /* my_\n    */ my_\n}\n";
@@ -538,5 +535,4 @@ fn completion_offers_nothing_inside_a_comment() {
         );
     }
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&base);
 }

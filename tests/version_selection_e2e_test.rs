@@ -29,8 +29,8 @@ const CFG: &str = "request_route {\n    xlog(\"x\");\n}\nmodparam(\"rr\", \"igno
 /// Boot with no configured tree, so the built-in catalogue — and the
 /// requested release — is what answers.
 fn diagnostics_for(tag: &str, version: Option<&str>) -> Vec<String> {
-    let base = std::env::temp_dir().join(format!("kamlsp-vsel-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new(&format!("kamlsp-vsel-{tag}"));
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(&base).unwrap();
     let cfg = base.join("v.cfg");
     std::fs::write(&cfg, CFG).unwrap();
@@ -121,7 +121,6 @@ fn diagnostics_for(tag: &str, version: Option<&str>) -> Vec<String> {
         }
     }
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
     msgs
 }
 

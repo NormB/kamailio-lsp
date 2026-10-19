@@ -78,8 +78,8 @@ fn the_real_parser_reads_it(
 fn the_analyzer_sees_exactly_what_kamailio_reads() {
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let mpath = common::required_env("KAMAILIO_LSP_TEST_MPATH");
-    let dir = std::env::temp_dir().join(format!("kamlsp-flatten-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-flatten");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(dir.join("rt")).unwrap();
 
     // exists, and is invalid: absence would not discriminate, because
@@ -124,7 +124,6 @@ fn the_analyzer_sees_exactly_what_kamailio_reads() {
         disagreements.len(),
         disagreements.join("\n")
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The two languages differ here, and the difference is the point:

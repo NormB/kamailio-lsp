@@ -10,6 +10,8 @@
 //! that can go stale, so this fails when it has: it regenerates into a
 //! scratch copy and compares.
 
+mod common;
+
 use std::process::Command;
 
 fn grammar_dir() -> std::path::PathBuf {
@@ -52,8 +54,8 @@ fn the_committed_parser_matches_grammar_js() {
     };
     assert!(p.status.success(), "tree-sitter-cli could not be resolved");
 
-    let scratch = std::env::temp_dir().join(format!("ts-kamailio-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&scratch);
+    let guard = common::Scratch::new("kamlsp-ts-generate");
+    let scratch = guard.path().to_path_buf();
     std::fs::create_dir_all(&scratch).unwrap();
     for f in ["grammar.js", "package.json", "tree-sitter.json"] {
         std::fs::copy(dir.join(f), scratch.join(f)).unwrap();
@@ -70,7 +72,6 @@ fn the_committed_parser_matches_grammar_js() {
     );
     let fresh = std::fs::read_to_string(scratch.join("src/parser.c")).unwrap();
     let committed = std::fs::read_to_string(dir.join("src/parser.c")).unwrap();
-    let _ = std::fs::remove_dir_all(&scratch);
     assert_eq!(
         fresh.len(),
         committed.len(),

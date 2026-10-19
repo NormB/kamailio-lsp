@@ -11,17 +11,10 @@
 //! minimal stand-ins the script checks for, so it builds and clones
 //! nothing else.
 
-use std::path::{Path, PathBuf};
+mod common;
+
+use std::path::Path;
 use std::process::Command;
-
-/// Removes the directory when the test ends, passed or failed.
-struct Scratch(PathBuf);
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
 
 fn git(dir: &Path, args: &[&str]) -> String {
     let out = Command::new("git")
@@ -84,11 +77,9 @@ fn run_script(root: &Path, upstream: &Path) {
 
 #[test]
 fn an_existing_wiki_checkout_follows_upstream() {
-    let scratch =
-        Scratch(std::env::temp_dir().join(format!("kamlsp-proof-env-{}", std::process::id())));
-    let _ = std::fs::remove_dir_all(&scratch.0);
-    let upstream = scratch.0.join("upstream-wiki");
-    let root = scratch.0.join("proof");
+    let scratch = common::Scratch::new("kamlsp-proof-env");
+    let upstream = scratch.join("upstream-wiki");
+    let root = scratch.join("proof");
     std::fs::create_dir_all(&upstream).unwrap();
     git(&upstream, &["init", "-q"]);
 

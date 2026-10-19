@@ -29,13 +29,14 @@ fn boot(
     tag: &str,
     text: &str,
 ) -> (
+    common::Scratch,
     Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
     String,
 ) {
-    let dir = std::env::temp_dir().join(format!("kamlsp-def-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new(&format!("kamlsp-def-{tag}"));
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("t.cfg");
     std::fs::write(&cfg, text).unwrap();
@@ -67,12 +68,12 @@ fn boot(
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
     );
-    (child, rx, stdin, uri)
+    (scratch, child, rx, stdin, uri)
 }
 
 #[test]
 fn a_define_name_jumps_to_its_directive() {
-    let (mut child, rx, mut stdin, uri) = boot("goto", CFG);
+    let (_scratch, mut child, rx, mut stdin, uri) = boot("goto", CFG);
     // cursor on RELAY inside `route(RELAY);` (line 6)
     write_msg(
         &mut stdin,
@@ -92,7 +93,7 @@ fn a_define_name_jumps_to_its_directive() {
 
 #[test]
 fn a_define_inside_ifdef_jumps_too() {
-    let (mut child, rx, mut stdin, uri) = boot("ifdef", CFG);
+    let (_scratch, mut child, rx, mut stdin, uri) = boot("ifdef", CFG);
     // cursor on WITH_TLS inside `#!ifdef WITH_TLS` (line 5) — a
     // directive operand, not code position
     write_msg(
@@ -111,7 +112,7 @@ fn a_define_inside_ifdef_jumps_too() {
 
 #[test]
 fn hover_shows_what_a_define_binds() {
-    let (mut child, rx, mut stdin, uri) = boot("hover", CFG);
+    let (_scratch, mut child, rx, mut stdin, uri) = boot("hover", CFG);
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{
@@ -127,7 +128,7 @@ fn hover_shows_what_a_define_binds() {
 
 #[test]
 fn a_substdef_name_is_a_symbol_like_any_other() {
-    let (mut child, rx, mut stdin, uri) = boot("substdef", CFG);
+    let (_scratch, mut child, rx, mut stdin, uri) = boot("substdef", CFG);
     // MYPORT is bound by #!substdef, used inside a string
     write_msg(
         &mut stdin,
@@ -142,7 +143,7 @@ fn a_substdef_name_is_a_symbol_like_any_other() {
 
 #[test]
 fn defines_complete_in_code_position() {
-    let (mut child, rx, mut stdin, uri) = boot("complete", CFG);
+    let (_scratch, mut child, rx, mut stdin, uri) = boot("complete", CFG);
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
@@ -164,7 +165,7 @@ fn defines_complete_in_code_position() {
 
 #[test]
 fn defines_appear_in_the_outline() {
-    let (mut child, rx, mut stdin, uri) = boot("outline", CFG);
+    let (_scratch, mut child, rx, mut stdin, uri) = boot("outline", CFG);
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{

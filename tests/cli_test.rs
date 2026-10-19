@@ -6,9 +6,8 @@ mod common;
 
 use std::process::Command;
 
-fn setup(tag: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("kamlsp-cli-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+fn setup(tag: &str) -> common::Scratch {
+    let dir = common::Scratch::new(&format!("kamlsp-cli-{tag}"));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -37,7 +36,6 @@ fn check_reports_analyzer_warnings_and_exits_zero() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1), "--strict fails on warnings");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -81,7 +79,6 @@ fn check_runs_the_configured_binary_and_fails_on_errors() {
     assert!(args.contains(&"-c"), "argv: {args:?}");
     assert!(args.contains(&"--all-errors"), "argv: {args:?}");
     assert!(args.contains(&"-Y"), "argv: {args:?}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -123,7 +120,6 @@ fn check_remaps_include_errors_onto_the_root() {
         "foreign diags must attach to the include directive: {stdout}"
     );
     assert_eq!(out.status.code(), Some(1));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -160,7 +156,6 @@ fn check_clean_file_exits_zero_and_bad_usage_exits_two() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(2));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -183,7 +178,6 @@ fn check_against_the_real_binary_when_gated() {
         "the real parser's verdict shows: {stdout}"
     );
     assert_eq!(out.status.code(), Some(1));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The CLI must know about fragments too.
@@ -255,7 +249,6 @@ include_file \"inc/routes.cfg\"\nroute[HELPER] {\n    exit;\n}\nrequest_route {\
         .unwrap();
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(stdout.contains("NOWHERE"), "{stdout}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The CLI runs the same `modparam` catalogue check the editor does.
@@ -301,7 +294,6 @@ fn check_runs_the_catalogue_check_and_names_the_catalogue() {
         stderr.contains("modparam checks against Kamailio"),
         "the run must say what it judged against; stderr: {stderr}"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The release checked against is selectable, and selecting one the
@@ -350,7 +342,6 @@ fn the_checked_release_is_selectable() {
         !older_out.contains("ignore_user"),
         "6.0.8 exports it, so there is nothing to warn about; stdout: {older_out}"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// An unsupported release must not quietly become the newest — the
@@ -374,7 +365,6 @@ fn an_unsupported_release_is_reported_not_swallowed() {
     );
     assert!(stderr.contains("supported:"), "stderr: {stderr}");
     assert!(stderr.contains("using"), "stderr: {stderr}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The checker runs in the config's directory, so relative includes
@@ -414,7 +404,6 @@ fn check_accepts_relative_paths() {
             String::from_utf8_lossy(&out.stderr)
         );
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A missing include is reported on the directive that names it, not
@@ -439,7 +428,6 @@ fn a_missing_include_is_reported_on_its_directive() {
         "{stdout}"
     );
     assert_eq!(out.status.code(), Some(1));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -465,7 +453,6 @@ fn check_reads_a_config_that_is_not_utf8() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert_eq!(out.status.code(), Some(0));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// `--modules-path` is the CLI's `modulesPath`: the checker gets it as
@@ -541,5 +528,4 @@ fn the_modules_path_reaches_the_checker() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(2));
-    let _ = std::fs::remove_dir_all(&dir);
 }

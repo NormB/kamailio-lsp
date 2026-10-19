@@ -24,13 +24,13 @@ fn boot(
     capabilities: serde_json::Value,
     opts: serde_json::Value,
 ) -> (
+    common::Scratch,
     Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
-    std::path::PathBuf,
 ) {
-    let base = std::env::temp_dir().join(format!("kamlsp-harv-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new(&format!("kamlsp-harv-boot-{tag}"));
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(&base).unwrap();
     let mut child = Server::new(
         Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
@@ -57,7 +57,7 @@ fn boot(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    (child, rx, stdin, base)
+    (scratch, child, rx, stdin)
 }
 
 fn is_ready(v: &serde_json::Value) -> bool {
@@ -70,11 +70,11 @@ fn is_ready(v: &serde_json::Value) -> bool {
 
 #[test]
 fn harvest_sends_work_done_progress_when_supported() {
-    let base = std::env::temp_dir().join(format!("kamlsp-harv-prog-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-harv-prog");
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     mk_tree(&tree);
-    let (mut child, rx, mut stdin, _b) = boot(
+    let (_b, mut child, rx, mut stdin) = boot(
         "prog",
         serde_json::json!({"window":{"workDoneProgress":true}}),
         serde_json::json!({
@@ -83,6 +83,8 @@ fn harvest_sends_work_done_progress_when_supported() {
             "cacheDir": base.join("cache").display().to_string(),
         }),
     );
+    // the tree the server is pointed at is still there for it to read
+    assert!(tree.join("src/modules/mymod/README").is_file());
     // the server asks to create a progress token; answer it
     let create = wait_for(
         &rx,
@@ -124,16 +126,15 @@ fn harvest_sends_work_done_progress_when_supported() {
     assert_eq!(end["params"]["token"], token);
     wait_for(&rx, is_ready, "ready");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn no_progress_without_the_client_capability() {
-    let base = std::env::temp_dir().join(format!("kamlsp-harv-nocap-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-harv-nocap");
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     mk_tree(&tree);
-    let (mut child, rx, _stdin, _b) = boot(
+    let (_b, mut child, rx, _stdin) = boot(
         "nocap",
         serde_json::json!({}),
         serde_json::json!({
@@ -142,6 +143,8 @@ fn no_progress_without_the_client_capability() {
             "cacheDir": base.join("cache").display().to_string(),
         }),
     );
+    // the tree the server is pointed at is still there for it to read
+    assert!(tree.join("src/modules/mymod/README").is_file());
     // the harvest must complete (ready) without ever sending progress
     // or a create request the client cannot handle
     let v = wait_for(
@@ -155,19 +158,18 @@ fn no_progress_without_the_client_capability() {
     );
     assert!(is_ready(&v), "progress sent without the capability: {v}");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn configured_empty_trees_warn_visibly() {
-    let base = std::env::temp_dir().join(format!("kamlsp-harv-warn-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-harv-warn");
+    let base = scratch.path().to_path_buf();
     // both configured, both yield zero symbols
     let tree = base.join("empty-tree");
     let wiki = base.join("empty-wiki");
     std::fs::create_dir_all(&tree).unwrap();
     std::fs::create_dir_all(&wiki).unwrap();
-    let (mut child, rx, _stdin, _b) = boot(
+    let (_b, mut child, rx, _stdin) = boot(
         "warn",
         serde_json::json!({}),
         serde_json::json!({
@@ -177,6 +179,8 @@ fn configured_empty_trees_warn_visibly() {
             "cacheDir": base.join("cache").display().to_string(),
         }),
     );
+    // the trees the server is pointed at exist; they are empty, not missing
+    assert!(tree.is_dir() && wiki.is_dir());
     let mut warned_src = false;
     let mut warned_wiki = false;
     loop {
@@ -203,13 +207,12 @@ fn configured_empty_trees_warn_visibly() {
     );
     assert!(warned_wiki, "zero-symbol wiki tree must warn with its path");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn unconfigured_trees_stay_silent() {
     // the unset default must neither warn nor send progress
-    let (mut child, rx, stdin, base) = boot(
+    let (_base, mut child, rx, stdin) = boot(
         "silent",
         serde_json::json!({"window":{"workDoneProgress":true}}),
         serde_json::json!({"kamailioPath": ""}),
@@ -227,5 +230,4 @@ fn unconfigured_trees_stay_silent() {
     assert!(is_ready(&v), "unconfigured harvest must stay silent: {v}");
     drop(stdin);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }

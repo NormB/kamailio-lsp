@@ -10,8 +10,8 @@ use std::process::{Command, Stdio};
 
 #[test]
 fn hot_handlers_share_one_index_build_per_version() {
-    let base = std::env::temp_dir().join(format!("kamlsp-memo-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-memo");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(&base).unwrap();
     let text = "route[A] {\n    exit;\n}\nrequest_route {\n    route(A);\n}\n";
     let cfg = base.join("t.cfg");
@@ -105,5 +105,4 @@ fn hot_handlers_share_one_index_build_per_version() {
     );
     assert!(builds[0].contains("v1"), "{builds:?}");
     assert!(builds[1].contains("v2"), "{builds:?}");
-    let _ = std::fs::remove_dir_all(&base);
 }

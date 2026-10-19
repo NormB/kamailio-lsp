@@ -14,6 +14,8 @@
 //!   including `x.cfg`, the main directory's `x.cfg` is the one read:
 //!   its `route[B]` collides with `main.cfg`'s (`duplicate route`).
 
+mod common;
+
 use kamailio_lsp::logic::{IncludeGraph, analyzer_diagnostics_in_closure, include_closure};
 use std::path::{Path, PathBuf};
 
@@ -99,8 +101,8 @@ fn beside_the_including_file_is_the_fallback() {
 
 #[test]
 fn the_graph_finds_the_root_of_a_root_relative_nested_include() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-incorder-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-incorder");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(dir.join("inc")).unwrap();
     let w = |p: &str, t: &str| {
         std::fs::write(dir.join(p), t).unwrap();
@@ -116,5 +118,4 @@ fn the_graph_finds_the_root_of_a_root_relative_nested_include() {
         g.analysis_root(&dir.join("inc/b.cfg")),
         Some(dir.join("main.cfg"))
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -5,19 +5,26 @@ mod common;
 use common::*;
 use std::process::{Command, Stdio};
 
-fn start(
-    text: &str,
-    cfg_name: &str,
-    tag: &str,
-) -> (
+type Started = (
+    common::Scratch,
     Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
     String,
-    std::path::PathBuf,
-) {
-    let base = std::env::temp_dir().join(format!("kamlsp-rnl-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+);
+
+fn start(text: &str, cfg_name: &str, tag: &str) -> Started {
+    start_in(
+        common::Scratch::new(&format!("kamlsp-rnl-{tag}")),
+        text,
+        cfg_name,
+    )
+}
+
+/// `start` in a scratch directory the caller has already put files in;
+/// they stay beside the document while the server reads it.
+fn start_in(scratch: common::Scratch, text: &str, cfg_name: &str) -> Started {
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(&base).unwrap();
     let cfg = base.join(cfg_name);
     std::fs::write(&cfg, text).unwrap();
@@ -58,13 +65,13 @@ fn start(
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
         "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
     );
-    (child, rx, stdin, uri, base)
+    (scratch, child, rx, stdin, uri)
 }
 
 #[test]
 fn prepare_rename_returns_range_and_placeholder_on_a_route_symbol() {
     let text = "route[RELAY] {\n    exit;\n}\nrequest_route {\n    route(RELAY);\n}\n";
-    let (mut child, rx, mut stdin, uri, base) = start(text, "t.cfg", "prep");
+    let (_base, mut child, rx, mut stdin, uri) = start(text, "t.cfg", "prep");
     // on the call site name (line 4, inside RELAY)
     write_msg(
         &mut stdin,
@@ -87,13 +94,12 @@ fn prepare_rename_returns_range_and_placeholder_on_a_route_symbol() {
     assert_eq!(v["result"]["placeholder"], "RELAY", "{v}");
     assert_eq!(v["result"]["range"]["start"]["character"], 6);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn prepare_rename_blocks_off_symbol_and_unrenamable_kinds() {
     let text = "event_route[htable:mod-init] {\n    exit;\n}\nrequest_route {\n    exit;\n}\n";
-    let (mut child, rx, mut stdin, uri, base) = start(text, "t.cfg", "prepblock");
+    let (_base, mut child, rx, mut stdin, uri) = start(text, "t.cfg", "prepblock");
     // off-symbol: whitespace inside a block
     write_msg(
         &mut stdin,
@@ -115,13 +121,12 @@ fn prepare_rename_blocks_off_symbol_and_unrenamable_kinds() {
         "kind-namespace names are not renamable: {v}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn document_links_resolve_relative_absolute_and_missing_targets() {
-    let base = std::env::temp_dir().join(format!("kamlsp-rnl-links-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-rnl-links");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(base.join("sub")).unwrap();
     std::fs::write(base.join("sub/inc.cfg"), "route[H] { exit; }\n").unwrap();
     let abs = base.join("sub/inc.cfg");
@@ -129,7 +134,10 @@ fn document_links_resolve_relative_absolute_and_missing_targets() {
         "include_file \"sub/inc.cfg\"\n#!import_file \"{}\"\ninclude_file \"missing.cfg\"\nrequest_route {{ exit; }}\n",
         abs.display()
     );
-    let (mut child, rx, mut stdin, uri, _b) = start(&text, "main.cfg", "links");
+    let (_scratch, mut child, rx, mut stdin, uri) = start_in(scratch, &text, "main.cfg");
+    // the include the relative link names is still on disk beside the
+    // document while the server reads it
+    assert!(abs.is_file(), "{} is gone", abs.display());
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentLink","params":{
@@ -152,14 +160,13 @@ fn document_links_resolve_relative_absolute_and_missing_targets() {
         format!("file://{}", base.join("missing.cfg").display())
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn document_links_skip_hostile_paths_and_multibyte_columns_are_utf16() {
     // NUL never links; a multibyte prefix shifts the UTF-16 column
     let text = "include_file \"a\u{0}b.cfg\"\n# émoji 🚀 comment\ninclude_file \"ok.cfg\" # 🚀\n";
-    let (mut child, rx, mut stdin, uri, base) = start(text, "main.cfg", "hostile");
+    let (_base, mut child, rx, mut stdin, uri) = start(text, "main.cfg", "hostile");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentLink","params":{
@@ -175,7 +182,6 @@ fn document_links_skip_hostile_paths_and_multibyte_columns_are_utf16() {
     assert_eq!(links[0]["range"]["start"]["line"], 2);
     assert_eq!(links[0]["range"]["start"]["character"], 14);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// A link goes where Kamailio opens the file.  `inc/a.cfg` naming
@@ -184,8 +190,8 @@ fn document_links_skip_hostile_paths_and_multibyte_columns_are_utf16() {
 /// the fragment — see `tests/include_order_test.rs`.
 #[test]
 fn a_link_follows_the_order_kamailio_opens_includes_in() {
-    let base = std::env::temp_dir().join(format!("kamlsp-rnl-order-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-rnl-order");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(base.join("inc")).unwrap();
     std::fs::write(base.join("inc/b.cfg"), "route[B] { exit; }\n").unwrap();
     std::fs::write(base.join("main.cfg"), "include_file \"inc/a.cfg\"\n").unwrap();
@@ -233,5 +239,4 @@ fn a_link_follows_the_order_kamailio_opens_includes_in() {
         "{v}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }

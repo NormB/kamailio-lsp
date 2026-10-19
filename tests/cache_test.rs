@@ -1,18 +1,18 @@
 //! Catalog cache: harvest results are cached per (source tree, wiki)
 //! pair and invalidated when either changes.
 
+mod common;
+
 use kamailio_lsp::catalog::{CoreDocs, Item, ModuleDoc, load_cached, save_cache, tree_fingerprint};
 
-fn mk_tree(tag: &str) -> std::path::PathBuf {
-    let root = std::env::temp_dir().join(format!("kamlsp-cache-tree-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+fn mk_tree(tag: &str) -> common::Scratch {
+    let root = common::Scratch::new(&format!("kamlsp-cache-tree-{tag}"));
     std::fs::create_dir_all(root.join("src").join("modules").join("m")).unwrap();
     root
 }
 
-fn mk_wiki(tag: &str) -> std::path::PathBuf {
-    let root = std::env::temp_dir().join(format!("kamlsp-cache-wiki-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+fn mk_wiki(tag: &str) -> common::Scratch {
+    let root = common::Scratch::new(&format!("kamlsp-cache-wiki-{tag}"));
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("core.md"), "# Core Cookbook\n").unwrap();
     root
@@ -50,8 +50,8 @@ fn sample() -> (Vec<ModuleDoc>, CoreDocs) {
 fn cache_roundtrips_and_invalidates_on_tree_change() {
     let tree = mk_tree("rt");
     let wiki = mk_wiki("rt");
-    let cache = std::env::temp_dir().join(format!("kamlsp-cache-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&cache);
+    let scratch = common::Scratch::new("kamlsp-cache");
+    let cache = scratch.path().to_path_buf();
     let (mods, core) = sample();
 
     // nothing cached yet
@@ -69,10 +69,6 @@ fn cache_roundtrips_and_invalidates_on_tree_change() {
         load_cached(&tree, Some(&wiki), &cache).is_none(),
         "stale cache must miss after the tree changes"
     );
-
-    let _ = std::fs::remove_dir_all(&tree);
-    let _ = std::fs::remove_dir_all(&wiki);
-    let _ = std::fs::remove_dir_all(&cache);
 }
 
 #[test]
@@ -90,21 +86,17 @@ fn wiki_identity_is_part_of_the_fingerprint() {
         tree_fingerprint(&tree, None),
         "wiki-less harvest must not share a cache entry with a wiki'd one"
     );
-    let _ = std::fs::remove_dir_all(&tree);
-    let _ = std::fs::remove_dir_all(&wiki_a);
-    let _ = std::fs::remove_dir_all(&wiki_b);
 }
 
 #[test]
 fn corrupt_cache_is_a_miss_not_a_panic() {
     let tree = mk_tree("corrupt");
-    let cache = std::env::temp_dir().join(format!("kamlsp-cache-c-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-cache-c");
+    let cache = scratch.path().to_path_buf();
     std::fs::create_dir_all(&cache).unwrap();
     let fp = tree_fingerprint(&tree, None);
     std::fs::write(cache.join(format!("{fp}.json")), b"{not json").unwrap();
     assert!(load_cached(&tree, None, &cache).is_none());
-    let _ = std::fs::remove_dir_all(&tree);
-    let _ = std::fs::remove_dir_all(&cache);
 }
 
 #[test]
@@ -112,21 +104,19 @@ fn distinct_trees_have_distinct_fingerprints() {
     let a = mk_tree("a");
     let b = mk_tree("b");
     assert_ne!(tree_fingerprint(&a, None), tree_fingerprint(&b, None));
-    let _ = std::fs::remove_dir_all(&a);
-    let _ = std::fs::remove_dir_all(&b);
 }
 
 #[test]
 fn cache_writes_are_atomic_and_leave_no_temp_files() {
     let tree = mk_tree("atomic");
-    let cache = std::env::temp_dir().join(format!("kamlsp-cache-a-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&cache);
+    let scratch = common::Scratch::new("kamlsp-cache-a");
+    let cache = scratch.path().to_path_buf();
     let (mods, core) = sample();
 
     // hammer: concurrent writers and readers; a torn write would make
     // a reader parse a partial file (load must be Some(valid) or None,
     // and must never panic)
-    let tree2 = tree.clone();
+    let tree2 = tree.path().to_path_buf();
     let cache2 = cache.clone();
     let writer = std::thread::spawn(move || {
         for _ in 0..200 {
@@ -152,9 +142,6 @@ fn cache_writes_are_atomic_and_leave_no_temp_files() {
     // a stray temp file from a crashed writer must be ignored by load
     std::fs::write(cache.join("deadbeef.json.tmp"), b"{torn").unwrap();
     assert!(load_cached(&tree, None, &cache).is_some());
-
-    let _ = std::fs::remove_dir_all(&tree);
-    let _ = std::fs::remove_dir_all(&cache);
 }
 
 #[test]
@@ -168,8 +155,8 @@ fn editing_a_harvested_readme_invalidates_the_cache() {
         "M Module\n\n2. Parameters\n\n2.1. p (int)\n\n   Doc A.\n",
     )
     .unwrap();
-    let cache = std::env::temp_dir().join(format!("kamlsp-cache-e-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&cache);
+    let scratch = common::Scratch::new("kamlsp-cache-e");
+    let cache = scratch.path().to_path_buf();
     let (mods, core) = sample();
     save_cache(&tree, None, &cache, &mods, &core).expect("save");
     assert!(load_cached(&tree, None, &cache).is_some(), "warm hit");
@@ -191,8 +178,6 @@ fn editing_a_harvested_readme_invalidates_the_cache() {
         load_cached(&tree, None, &cache).is_none(),
         "edited README content must invalidate the cache"
     );
-    let _ = std::fs::remove_dir_all(&tree);
-    let _ = std::fs::remove_dir_all(&cache);
 }
 
 #[test]
@@ -200,8 +185,8 @@ fn same_size_readme_edit_invalidates_via_mtime() {
     let tree = mk_tree("mt");
     let readme = tree.join("src/modules/m/README");
     std::fs::write(&readme, "M Module\n\n2. Functions\n\n2.1. f()\n\n   AAA.\n").unwrap();
-    let cache = std::env::temp_dir().join(format!("kamlsp-cache-mt-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&cache);
+    let scratch = common::Scratch::new("kamlsp-cache-mt");
+    let cache = scratch.path().to_path_buf();
     let (mods, core) = sample();
     save_cache(&tree, None, &cache, &mods, &core).expect("save");
     // same byte count, different bytes; the mtime tick is the signal
@@ -211,16 +196,14 @@ fn same_size_readme_edit_invalidates_via_mtime() {
         load_cached(&tree, None, &cache).is_none(),
         "same-size edit must invalidate via the file mtime"
     );
-    let _ = std::fs::remove_dir_all(&tree);
-    let _ = std::fs::remove_dir_all(&cache);
 }
 
 #[test]
 fn editing_a_wiki_cookbook_page_invalidates_the_cache() {
     let tree = mk_tree("wedit");
     let wiki = mk_wiki("wedit");
-    let cache = std::env::temp_dir().join(format!("kamlsp-cache-we-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&cache);
+    let scratch = common::Scratch::new("kamlsp-cache-we");
+    let cache = scratch.path().to_path_buf();
     let (mods, core) = sample();
     save_cache(&tree, Some(&wiki), &cache, &mods, &core).expect("save");
     assert!(load_cached(&tree, Some(&wiki), &cache).is_some());
@@ -233,9 +216,6 @@ fn editing_a_wiki_cookbook_page_invalidates_the_cache() {
         load_cached(&tree, Some(&wiki), &cache).is_none(),
         "edited core.md must invalidate the cache"
     );
-    let _ = std::fs::remove_dir_all(&tree);
-    let _ = std::fs::remove_dir_all(&wiki);
-    let _ = std::fs::remove_dir_all(&cache);
 }
 
 #[test]
@@ -258,6 +238,4 @@ fn adversarial_module_names_are_fingerprint_distinct_and_safe() {
     // is per-tree stability + no panic on hostile names)
     assert_eq!(fa, tree_fingerprint(&a, None), "fingerprint is stable");
     assert_ne!(fa, fb);
-    let _ = std::fs::remove_dir_all(&a);
-    let _ = std::fs::remove_dir_all(&b);
 }

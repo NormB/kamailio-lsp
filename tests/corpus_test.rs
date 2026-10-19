@@ -104,7 +104,7 @@ fn corpus_sweep_no_panics_and_no_silent_failures() {
             let bin = &bin;
             let out = std::process::Command::new(bin)
                 .args(["-c", "--all-errors", "-Y"])
-                .arg(std::env::temp_dir())
+                .arg(common::check_rundir())
                 .arg("-f")
                 .arg(f)
                 // include_file with a relative path resolves against

@@ -24,14 +24,14 @@ fn boot(
     extra_opts: serde_json::Value,
     stub_errors: usize,
 ) -> (
+    common::Scratch,
     Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
     String,
-    std::path::PathBuf,
 ) {
-    let base = std::env::temp_dir().join(format!("kamlsp-set-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new(&format!("kamlsp-set-{tag}"));
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     mk_tree(&tree);
     let cfg = base.join("t.cfg");
@@ -105,7 +105,7 @@ fn boot(
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,
                 "text":"loadmodule \"mymod.so\"\nrequest_route { exit; }\n"}}}),
     );
-    (child, rx, stdin, uri, base)
+    (scratch, child, rx, stdin, uri)
 }
 
 fn completion_item<'a>(v: &'a serde_json::Value, label: &str) -> Option<&'a serde_json::Value> {
@@ -118,7 +118,7 @@ fn completion_item<'a>(v: &'a serde_json::Value, label: &str) -> Option<&'a serd
 
 #[test]
 fn function_completions_are_snippets_by_default() {
-    let (mut child, rx, mut stdin, uri, base) = boot("snip", serde_json::json!({}), 0);
+    let (_base, mut child, rx, mut stdin, uri) = boot("snip", serde_json::json!({}), 0);
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
@@ -135,12 +135,11 @@ fn function_completions_are_snippets_by_default() {
     let kw = completion_item(&v, "exit").expect("keyword");
     assert!(kw.get("insertText").is_none(), "keywords stay plain: {kw}");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn snippet_completions_can_be_disabled() {
-    let (mut child, rx, mut stdin, uri, base) = boot(
+    let (_base, mut child, rx, mut stdin, uri) = boot(
         "nosnip",
         serde_json::json!({"snippetCompletions": false}),
         0,
@@ -157,12 +156,11 @@ fn snippet_completions_can_be_disabled() {
         "plain completion when disabled: {item}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn max_diagnostics_bounds_the_publish() {
-    let (mut child, rx, _stdin, _uri, base) =
+    let (_base, mut child, rx, _stdin, _uri) =
         boot("maxdiag", serde_json::json!({"maxDiagnostics": 2}), 5);
     let d = wait_for(
         &rx,
@@ -175,16 +173,14 @@ fn max_diagnostics_bounds_the_publish() {
         "5 planted, capped at 2: {d}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn cache_dir_option_is_honored() {
-    let (mut child, _rx, _stdin, _uri, base) = boot("cachedir", serde_json::json!({}), 0);
+    let (base, mut child, _rx, _stdin, _uri) = boot("cachedir", serde_json::json!({}), 0);
     // the harvest above must have written the cache into the OPTION path
     let cache = base.join("cache");
     let n = std::fs::read_dir(&cache).map(|d| d.count()).unwrap_or(0);
     assert!(n >= 1, "cacheDir option ignored: {} entries", n);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }

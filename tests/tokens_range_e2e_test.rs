@@ -6,8 +6,8 @@ use std::process::{Command, Stdio};
 
 #[test]
 fn semantic_tokens_range_returns_the_slice_with_fresh_deltas() {
-    let base = std::env::temp_dir().join(format!("kamlsp-str-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-str");
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(&base).unwrap();
     let text =
         "route[A] {\n    exit;\n}\nroute[B] {\n    route(B);\n}\nroute[C] {\n    route(A);\n}\n";
@@ -61,5 +61,4 @@ fn semantic_tokens_range_returns_the_slice_with_fresh_deltas() {
     // exactly B's definition and call, first delta document-absolute
     assert_eq!(data, vec![3, 6, 1, 0, 0, 1, 10, 1, 0, 0], "{v}");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }

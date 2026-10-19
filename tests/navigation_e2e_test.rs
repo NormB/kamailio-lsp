@@ -12,14 +12,14 @@ fn boot(
     opts: serde_json::Value,
     text: &str,
 ) -> (
+    common::Scratch,
     Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
     String,
-    std::path::PathBuf,
 ) {
-    let base = std::env::temp_dir().join(format!("kamlsp-nav-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new(&format!("kamlsp-nav-{tag}"));
+    let base = scratch.path().to_path_buf();
     std::fs::create_dir_all(&base).unwrap();
     let cfg = base.join("t.cfg");
     std::fs::write(&cfg, text).unwrap();
@@ -69,12 +69,12 @@ fn boot(
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
         "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
     );
-    (child, rx, stdin, uri, base)
+    (scratch, child, rx, stdin, uri)
 }
 
 #[test]
 fn workspace_symbols_filter_across_open_docs() {
-    let (mut child, rx, mut stdin, _uri, base) =
+    let (_base, mut child, rx, mut stdin, _uri) =
         boot("ws", serde_json::json!({"kamailioPath":""}), DOC);
     write_msg(
         &mut stdin,
@@ -101,12 +101,11 @@ fn workspace_symbols_filter_across_open_docs() {
     let v = wait_for(&rx, |v| v["id"] == 4, "wsym-all");
     assert!(v["result"].as_array().unwrap().len() >= 3);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn code_lens_counts_route_references() {
-    let (mut child, rx, mut stdin, uri, base) =
+    let (_base, mut child, rx, mut stdin, uri) =
         boot("cl", serde_json::json!({"kamailioPath":""}), DOC);
     write_msg(
         &mut stdin,
@@ -133,12 +132,11 @@ fn code_lens_counts_route_references() {
         "failure_route must not carry a reference lens: {lenses:?}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn code_lens_can_be_disabled() {
-    let (mut child, rx, mut stdin, uri, base) = boot(
+    let (_base, mut child, rx, mut stdin, uri) = boot(
         "cloff",
         serde_json::json!({"kamailioPath":"", "codeLensReferences": false}),
         DOC,
@@ -154,13 +152,12 @@ fn code_lens_can_be_disabled() {
         "no lenses when disabled: {v}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn quick_fix_creates_a_route_stub() {
     let broken = "request_route {\n    route(MISSING);\n}\n";
-    let (mut child, rx, mut stdin, uri, base) =
+    let (_base, mut child, rx, mut stdin, uri) =
         boot("qf", serde_json::json!({"kamailioPath":""}), broken);
     write_msg(
         &mut stdin,
@@ -184,7 +181,6 @@ fn quick_fix_creates_a_route_stub() {
     assert!(stub.contains("route[MISSING]"));
     assert!(stub.contains("exit;"), "kamailio stubs need a body: {stub}");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
@@ -192,8 +188,8 @@ fn quick_fix_loads_the_exporting_module() {
     // the diagnostic position points at the call's closing paren
     // (live 6.0.1 and 6.1.5 shape: "unknown command, missing
     // loadmodule?")
-    let base = std::env::temp_dir().join(format!("kamlsp-qflm-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new("kamlsp-qflm");
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     std::fs::create_dir_all(tree.join("src/modules/tm")).unwrap();
     std::fs::write(
@@ -272,12 +268,11 @@ fn quick_fix_loads_the_exporting_module() {
     assert_eq!(edits[0]["range"]["start"]["line"], 1, "after loadmodule");
     assert_eq!(edits[0]["newText"], "loadmodule \"tm.so\"\n");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn semantic_tokens_over_stdio() {
-    let (mut child, rx, mut stdin, uri, base) = boot(
+    let (_base, mut child, rx, mut stdin, uri) = boot(
         "sem",
         serde_json::json!({"kamailioPath":""}),
         "route[AB] {\n    route(AB);\n}\n",
@@ -293,7 +288,6 @@ fn semantic_tokens_over_stdio() {
     let first: Vec<u64> = data[..5].iter().map(|x| x.as_u64().unwrap()).collect();
     assert_eq!(first, vec![0, 6, 2, 0, 0], "route name at line 0 col 6");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// Edits a rename produced, as (line, start, end, newText), sorted.
@@ -334,7 +328,7 @@ const ARMED: &str = "request_route {\n    t_on_failure(\"FR\");\n    t_relay();\
 
 #[test]
 fn renaming_a_failure_route_rewrites_the_string_that_arms_it() {
-    let (mut child, rx, mut stdin, uri, _base) = boot("rename-armed", serde_json::json!({}), ARMED);
+    let (_base, mut child, rx, mut stdin, uri) = boot("rename-armed", serde_json::json!({}), ARMED);
     // F2 is allowed on the failure route's name
     let prep = request(
         &mut stdin,
@@ -380,7 +374,7 @@ fn renaming_a_failure_route_rewrites_the_string_that_arms_it() {
 
 #[test]
 fn a_rename_onto_an_existing_route_is_refused() {
-    let (mut child, rx, mut stdin, uri, _base) = boot("rename-taken", serde_json::json!({}), DOC);
+    let (_base, mut child, rx, mut stdin, uri) = boot("rename-taken", serde_json::json!({}), DOC);
     // route[OTHER_THING] renamed to HELPER, which already exists
     let v = request(
         &mut stdin,
@@ -402,7 +396,7 @@ const ALIASED: &str = "#!define R MYROUTE\nrequest_route {\n    route(R);\n    r
 
 #[test]
 fn renaming_a_route_rewrites_the_define_that_aliases_it() {
-    let (mut child, rx, mut stdin, uri, _base) =
+    let (_base, mut child, rx, mut stdin, uri) =
         boot("rename-alias", serde_json::json!({}), ALIASED);
     let v = request(
         &mut stdin,

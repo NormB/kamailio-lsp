@@ -30,7 +30,8 @@ fn full_stack_against_a_real_kamailio_tree() {
     let wiki = common::required_env("KAMAILIO_LSP_TEST_WIKI");
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
 
-    let dir = std::env::temp_dir().join(format!("kamlsp-proof-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-proof");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("proof.cfg");
     // an unknown modparam so the diagnostics leg has something to find
@@ -157,15 +158,14 @@ fn full_stack_against_a_real_kamailio_tree() {
     assert!(hover.contains("fr_timer"), "hover: {hover}");
 
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn real_binary_include_errors_are_never_silent() {
     let _ = common::required_env("KAMAILIO_LSP_TEST_TREE");
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
-    let dir = std::env::temp_dir().join(format!("kamlsp-proof-inc-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-proof-inc");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(dir.join("incdir")).unwrap();
     std::fs::write(
         dir.join("incdir/sub_bad.cfg"),
@@ -220,7 +220,6 @@ fn real_binary_include_errors_are_never_silent() {
         "diagnostic names the broken include: {msg}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The formatter's strongest claim, checked against the real parser:
@@ -260,8 +259,8 @@ fn formatting_never_changes_what_the_real_parser_accepts() {
         }\n\
         }\n";
 
-    let dir = std::env::temp_dir().join(format!("kamlsp-fmtproof-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-fmtproof");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
 
     let parse_errors = |text: &str, tag: &str| -> Vec<String> {
@@ -305,7 +304,6 @@ fn formatting_never_changes_what_the_real_parser_accepts() {
             "formatting was not idempotent under {label}"
         );
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// An included FRAGMENT, opened on its own, against the REAL checker.
@@ -330,8 +328,8 @@ fn a_fragment_is_checked_through_its_root_by_the_real_parser() {
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let mpath = common::required_env("KAMAILIO_LSP_TEST_MPATH");
 
-    let dir = std::env::temp_dir().join(format!("kamlsp-fragproof-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-fragproof");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(dir.join("inc")).unwrap();
     std::fs::write(
         dir.join("kamailio.cfg"),
@@ -425,7 +423,6 @@ fn a_fragment_is_checked_through_its_root_by_the_real_parser() {
         "a genuinely undefined route must still be flagged: {items:?}"
     );
     let _ = child.kill();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Oracle: the REAL parser must see the same configuration whether it
@@ -443,8 +440,8 @@ fn the_real_parser_sees_the_same_program_whole_or_split() {
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let mpath = common::required_env("KAMAILIO_LSP_TEST_MPATH");
 
-    let dir = std::env::temp_dir().join(format!("kamlsp-oracle-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir_scratch = common::Scratch::new("kamlsp-oracle");
+    let dir = dir_scratch.path().to_path_buf();
     std::fs::create_dir_all(dir.join("inc")).unwrap();
 
     // three blocks, the middle one carrying a real syntax error
@@ -460,7 +457,7 @@ fn the_real_parser_sees_the_same_program_whole_or_split() {
         cmd.arg("-c")
             .arg("--all-errors")
             .arg("-Y")
-            .arg(std::env::temp_dir());
+            .arg(common::check_rundir());
         if !mpath.is_empty() {
             cmd.arg("-L").arg(&mpath);
         }
@@ -502,7 +499,6 @@ fn the_real_parser_sees_the_same_program_whole_or_split() {
         "the real parser reports something different once the same text \
          is split across includes — the premise this feature rests on"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Oracle: what the REAL parser does with a conditional include.
@@ -516,8 +512,8 @@ fn the_real_parser_does_not_open_a_conditionally_excluded_include() {
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
     let mpath = common::required_env("KAMAILIO_LSP_TEST_MPATH");
 
-    let dir = std::env::temp_dir().join(format!("kamlsp-cond-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir_scratch = common::Scratch::new("kamlsp-cond");
+    let dir = dir_scratch.path().to_path_buf();
     std::fs::create_dir_all(dir.join("inc")).unwrap();
     // a file that cannot possibly parse
     std::fs::write(dir.join("inc/on.cfg"), "route[BROKEN] {\n    exit\n}\n").unwrap();
@@ -534,7 +530,7 @@ fn the_real_parser_does_not_open_a_conditionally_excluded_include() {
         cmd.arg("-c")
             .arg("--all-errors")
             .arg("-Y")
-            .arg(std::env::temp_dir());
+            .arg(common::check_rundir());
         if !mpath.is_empty() {
             cmd.arg("-L").arg(&mpath);
         }
@@ -562,7 +558,6 @@ fn the_real_parser_does_not_open_a_conditionally_excluded_include() {
         "with the symbol defined the same file IS opened and the same error \
          appears — or this proves nothing about the conditional"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A missing include is published on the directive that names it.
@@ -571,8 +566,8 @@ fn the_real_parser_does_not_open_a_conditionally_excluded_include() {
 #[test]
 fn a_missing_include_is_published_on_its_directive() {
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
-    let dir = std::env::temp_dir().join(format!("kamlsp-proof-missing-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-proof-missing");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let text = "request_route {\n    exit;\n}\n  include_file \"nope.cfg\"\n";
     let cfg = dir.join("main.cfg");
@@ -629,5 +624,4 @@ fn a_missing_include_is_published_on_its_directive() {
     assert_eq!(missing["range"]["start"]["character"], 2, "{missing}");
     assert_eq!(missing["range"]["end"]["character"], 25, "{missing}");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }

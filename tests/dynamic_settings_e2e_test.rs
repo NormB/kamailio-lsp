@@ -16,14 +16,14 @@ fn boot(
     stub_errors: usize,
     text: &str,
 ) -> (
+    common::Scratch,
     Server,
     std::sync::mpsc::Receiver<serde_json::Value>,
     std::process::ChildStdin,
     String,
-    std::path::PathBuf,
 ) {
-    let base = std::env::temp_dir().join(format!("kamlsp-dyn-{tag}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = common::Scratch::new(&format!("kamlsp-dyn-{tag}"));
+    let base = scratch.path().to_path_buf();
     let tree = base.join("tree");
     let readme = tree.join("src/modules/mymod/README");
     std::fs::create_dir_all(readme.parent().unwrap()).unwrap();
@@ -102,7 +102,7 @@ fn boot(
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
     );
-    (child, rx, stdin, uri, base)
+    (scratch, child, rx, stdin, uri)
 }
 
 fn change_config(stdin: &mut std::process::ChildStdin, settings: serde_json::Value) {
@@ -115,7 +115,7 @@ fn change_config(stdin: &mut std::process::ChildStdin, settings: serde_json::Val
 
 #[test]
 fn max_diagnostics_applies_without_restart() {
-    let (mut child, rx, mut stdin, _uri, base) = boot(
+    let (_base, mut child, rx, mut stdin, _uri) = boot(
         "maxdiag",
         serde_json::json!({}),
         5,
@@ -147,13 +147,12 @@ fn max_diagnostics_applies_without_restart() {
     );
     assert_eq!(d["params"]["diagnostics"].as_array().unwrap().len(), 2);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn analyzer_toggle_silences_and_restores_diags() {
     // no checker: the analyzer diag (undefined route) is the signal
-    let (mut child, rx, mut stdin, _uri, base) = boot(
+    let (_base, mut child, rx, mut stdin, _uri) = boot(
         "antoggle",
         serde_json::json!({}),
         0,
@@ -215,12 +214,11 @@ fn analyzer_toggle_silences_and_restores_diags() {
             .contains("GONE")
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn snippet_toggle_applies_to_the_next_completion() {
-    let (mut child, rx, mut stdin, uri, base) = boot(
+    let (_base, mut child, rx, mut stdin, uri) = boot(
         "sniptoggle",
         serde_json::json!({}),
         0,
@@ -249,12 +247,11 @@ fn snippet_toggle_applies_to_the_next_completion() {
         "snippets disabled dynamically: {item}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
 fn flat_settings_and_garbage_are_tolerated() {
-    let (mut child, rx, mut stdin, uri, base) = boot(
+    let (_base, mut child, rx, mut stdin, uri) = boot(
         "garbage",
         serde_json::json!({}),
         5,
@@ -297,5 +294,4 @@ fn flat_settings_and_garbage_are_tolerated() {
     );
     wait_for(&rx, |v| v["id"] == 3, "hover after garbage");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&base);
 }

@@ -27,8 +27,8 @@ const MINI_README: &str = r#"Mini Module
 
 #[test]
 fn harvests_the_kamailio_src_modules_layout() {
-    let root = std::env::temp_dir().join(format!("kamlsp-harv-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let scratch = common::Scratch::new("kamlsp-harv");
+    let root = scratch.path().to_path_buf();
     write(&root.join("src/modules/mini/README"), MINI_README);
     // a module without exported chapters still harvests (empty)
     write(
@@ -43,20 +43,18 @@ fn harvests_the_kamailio_src_modules_layout() {
     let mini = &mods[1];
     assert_eq!(mini.params[0].name, "my_param");
     assert_eq!(mini.functions[0].name, "my_func");
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]
 fn falls_back_to_a_bare_modules_dir() {
     // tolerate being pointed at src/ itself, or at an installed
     // doc tree that has modules/ at the top
-    let root = std::env::temp_dir().join(format!("kamlsp-harv-flat-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let scratch = common::Scratch::new("kamlsp-harv-flat");
+    let root = scratch.path().to_path_buf();
     write(&root.join("modules/mini/README"), MINI_README);
     let mods = harvest_tree(&root);
     assert_eq!(mods.len(), 1);
     assert_eq!(mods[0].name, "mini");
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]

@@ -12,7 +12,8 @@ const STUB_PREAMBLE: &str = "#!/bin/sh\ncfg=\"\"\nfor a in \"$@\"; do cfg=\"$a\"
 
 #[test]
 fn diagnostics_flow_over_stdio() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-e2e-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-e2e");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
 
     // deterministic stub standing in for the kamailio binary: one
@@ -117,7 +118,6 @@ fn diagnostics_flow_over_stdio() {
         std::thread::sleep(Duration::from_millis(50));
     };
     assert!(status.success(), "clean exit, got {status:?}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -125,8 +125,8 @@ fn check_invocation_carries_the_kamailio_flags() {
     // the stub records its argv: the server must pass -c,
     // --all-errors, -Y <writable dir>, and -f <file>; with
     // modulesPath set, -L <dir> too
-    let dir = std::env::temp_dir().join(format!("kamlsp-e2e-args-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-e2e-args");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let argv_file = dir.join("argv");
     let stub = dir.join("kamailio-stub.sh");
@@ -195,12 +195,12 @@ fn check_invocation_carries_the_kamailio_flags() {
     let fpos = args.iter().position(|a| *a == "-f").expect("-f passed");
     assert_eq!(args[fpos + 1], cfg.display().to_string());
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn hanging_kamailio_check_is_bounded_and_reported() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-e2e-hang-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-e2e-hang");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let stub = dir.join("kamailio-hang.sh");
     std::fs::write(&stub, "#!/bin/sh\nsleep 60\n").unwrap();
@@ -259,12 +259,12 @@ fn hanging_kamailio_check_is_bounded_and_reported() {
             .contains("timed out")
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn empty_kamailio_bin_disables_checks_entirely() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-e2e-off-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-e2e-off");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("t.cfg");
     std::fs::write(&cfg, "request_route { exit; }\n").unwrap();
@@ -315,12 +315,12 @@ fn empty_kamailio_bin_disables_checks_entirely() {
     }
     assert!(!saw_diags, "diagnostics must be fully disabled");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn symbol_columns_are_utf16_on_multibyte_lines() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-utf16-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-utf16");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("u.cfg");
     // the comment holds é (2 bytes / 1 unit) and 😀 (4 bytes / 2 units):
@@ -373,12 +373,12 @@ fn symbol_columns_are_utf16_on_multibyte_lines() {
     );
     assert_eq!(sym["selectionRange"]["end"]["character"], 17);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn folding_and_nested_symbols_over_stdio() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-fold-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-fold");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("fold.cfg");
     let text = "loadmodule \"tm.so\"\nrequest_route {\n    if (1) {\n        exit;\n    }\n}\nfailure_route[FR] {\n    xlog(\"}\");\n}\n";
@@ -461,12 +461,12 @@ fn folding_and_nested_symbols_over_stdio() {
     assert_eq!(syms[2]["range"]["end"]["line"], 8);
     assert_eq!(syms[2]["selectionRange"]["start"]["character"], 14);
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn references_rename_highlight_over_stdio() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-refs-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-refs");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("refs.cfg");
     let text = "request_route {\n    route(RELAY);\n    route(\"RELAY\");\n}\nroute[RELAY] {\n    exit;\n}\n";
@@ -577,12 +577,12 @@ fn references_rename_highlight_over_stdio() {
         );
     }
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn event_route_names_cannot_be_renamed_but_still_highlight() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-evr-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-evr");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("ev.cfg");
     let text = "event_route[htable:mod-init] {\n    exit;\n}\n";
@@ -636,7 +636,6 @@ fn event_route_names_cannot_be_renamed_but_still_highlight() {
         "event-route rename must be rejected: {v}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -644,8 +643,8 @@ fn include_file_errors_surface_on_the_include_directive() {
     // kamailio attributes errors in included files to the include path
     // AS WRITTEN (often relative to its own cwd); such diagnostics
     // must attach to the include_file directive, never vanish
-    let dir = std::env::temp_dir().join(format!("kamlsp-incdiag-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-incdiag");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(dir.join("incdir")).unwrap();
     std::fs::write(
         dir.join("incdir/sub_bad.cfg"),
@@ -715,7 +714,6 @@ fn include_file_errors_surface_on_the_include_directive() {
         "message carries the include context: {msg}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -723,8 +721,8 @@ fn filtered_out_diags_still_yield_a_root_fallback() {
     // rc!=0 with positioned errors pointing at a file OUTSIDE the
     // include closure (e.g. a nested include): everything would be
     // filtered — a fallback diagnostic must still surface
-    let dir = std::env::temp_dir().join(format!("kamlsp-fallb-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-fallb");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("main.cfg");
     let text = "#!KAMAILIO\nrequest_route { exit; }\n";
@@ -781,7 +779,6 @@ fn filtered_out_diags_still_yield_a_root_fallback() {
         "fallback carries the dropped context: {msg}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -790,8 +787,8 @@ fn checker_runs_in_the_configs_directory() {
     // cwd set to the config's own directory, so relative
     // include_file paths resolve identically in editor and CI runs.
     // The stub fails unless ./inc.cfg is visible from its cwd.
-    let dir = std::env::temp_dir().join(format!("kamlsp-e2e-cwd-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-e2e-cwd");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("inc.cfg"), "route[H] {\n    exit;\n}\n").unwrap();
     let stub = dir.join("kamailio-stub.sh");
@@ -849,7 +846,6 @@ fn checker_runs_in_the_configs_directory() {
         "relative include must resolve from the config's directory: {ds:?}"
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -858,8 +854,8 @@ fn newer_save_supersedes_a_slow_check() {
     // nor outlive a newer save of the same document — the newer
     // check's diagnostics arrive promptly (well under the stale
     // run's 60s sleep; the harness bounds the wait at 15s).
-    let dir = std::env::temp_dir().join(format!("kamlsp-e2e-super-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-e2e-super");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let stub = dir.join("kamailio-stub.sh");
     std::fs::write(
@@ -943,12 +939,12 @@ fn newer_save_supersedes_a_slow_check() {
     );
     assert_eq!(d["params"]["version"], 2, "results belong to v2: {d}");
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn selection_range_grows_outward_over_stdio() {
-    let dir = std::env::temp_dir().join(format!("kamlsp-selrange-{}", std::process::id()));
+    let scratch = common::Scratch::new("kamlsp-selrange");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     let cfg = dir.join("s.cfg");
     // `é` is two bytes and one UTF-16 unit, so every column on line 1
@@ -1015,5 +1011,4 @@ fn selection_range_grows_outward_over_stdio() {
         ]
     );
     child.kill().ok();
-    let _ = std::fs::remove_dir_all(&dir);
 }

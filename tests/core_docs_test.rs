@@ -213,8 +213,8 @@ fn harvests_core_docs_from_a_real_wiki_checkout_when_present() {
 /// without a code change.
 #[test]
 fn the_newest_stable_cookbook_wins_and_devel_is_never_picked() {
-    let root = std::env::temp_dir().join(format!("kamlsp-book-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let scratch = common::Scratch::new("kamlsp-book");
+    let root = scratch.path().to_path_buf();
     let books = root.join("docs").join("cookbooks");
     // each cookbook names one core parameter after itself, so the
     // parsed output identifies the directory the harvest read
@@ -246,6 +246,4 @@ fn the_newest_stable_cookbook_wins_and_devel_is_never_picked() {
     let core = kamailio_lsp::catalog::harvest_core(&root);
     let names: Vec<String> = core.params.iter().map(|p| p.name.clone()).collect();
     assert_eq!(names, vec!["marker_60".to_string()], "got {names:?}");
-
-    let _ = std::fs::remove_dir_all(&root);
 }

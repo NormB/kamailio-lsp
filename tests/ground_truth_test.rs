@@ -40,7 +40,7 @@ fn corpus(tree: &std::path::Path) -> Vec<std::path::PathBuf> {
 fn accepts(bin: &str, f: &std::path::Path) -> bool {
     std::process::Command::new(bin)
         .args(["-c", "--all-errors", "-Y"])
-        .arg(std::env::temp_dir())
+        .arg(common::check_rundir())
         .arg("-f")
         .arg(f)
         .current_dir(f.parent().unwrap())
@@ -110,8 +110,8 @@ fn analyzer_is_silent_on_every_accepted_corpus_config() {
 #[test]
 fn rename_round_trips_through_the_real_parser() {
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
-    let dir = std::env::temp_dir().join(format!("kamlsp-roundtrip-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-roundtrip");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     // a named route with bare AND quoted call sites
     let original = "#!KAMAILIO\nroute[OLD_NAME] {\n    exit;\n}\nrequest_route {\n    route(OLD_NAME);\n    route(\"OLD_NAME\");\n}\n";
@@ -148,7 +148,6 @@ fn rename_round_trips_through_the_real_parser() {
         accepts(&bin, &after),
         "the renamed config must be accepted by the real parser:\n{renamed}"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// G2 counterpart: the names the gate REJECTS really are the ones the
@@ -156,8 +155,8 @@ fn rename_round_trips_through_the_real_parser() {
 #[test]
 fn rejected_rename_targets_really_break_configs() {
     let bin = common::required_env("KAMAILIO_LSP_TEST_BIN");
-    let dir = std::env::temp_dir().join(format!("kamlsp-rt-neg-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = common::Scratch::new("kamlsp-rt-neg");
+    let dir = scratch.path().to_path_buf();
     std::fs::create_dir_all(&dir).unwrap();
     for bad in ["a.b", "a:b", "a-b", "1ab"] {
         assert!(!logic::valid_route_name(bad), "{bad} must be gate-rejected");
@@ -172,7 +171,6 @@ fn rejected_rename_targets_really_break_configs() {
             "'{bad}' is unquoted-legal after all — loosen the gate?"
         );
     }
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The README's own `modparam` examples, as ground truth for what the
