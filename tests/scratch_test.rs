@@ -80,8 +80,30 @@ fn rust_files(dir: &Path, skip: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Two live guards on one path are refused; once the first is gone the
+/// name is free again.
+#[test]
+fn a_path_held_by_a_live_guard_cannot_be_taken_again() {
+    let first = Scratch::new("kamlsp-scratch-twice");
+    std::fs::create_dir_all(first.path()).unwrap();
+    std::fs::write(first.path().join("fixture.cfg"), "request_route {}\n").unwrap();
+    let second = std::panic::catch_unwind(|| Scratch::new("kamlsp-scratch-twice"));
+    assert!(
+        second.is_err(),
+        "a second live guard on the same path was allowed"
+    );
+    assert!(
+        first.path().join("fixture.cfg").exists(),
+        "the refused guard must not have cleared the first guard's files"
+    );
+    drop(first);
+    let again = Scratch::new("kamlsp-scratch-twice");
+    assert!(!again.path().exists());
+}
+
 /// `tests/common/` holds `Scratch` itself, the one place allowed to
-/// build a path under the system temp directory.
+/// build a path under a temp directory — the system's, or Cargo's
+/// `target/tmp`.
 #[test]
 fn no_test_builds_a_temp_path_without_the_guard() {
     let tests = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
@@ -91,12 +113,12 @@ fn no_test_builds_a_temp_path_without_the_guard() {
     // POSITIVE CONTROL: the walk found the test files
     assert!(files.len() > 50, "only {} test files found", files.len());
     // split so this file does not match itself
-    let needle = concat!("temp", "_dir(");
+    let needles = [concat!("temp", "_dir("), concat!("CARGO_TARGET", "_TMPDIR")];
     let mut sites = Vec::new();
     for f in &files {
         let text = std::fs::read_to_string(f).unwrap();
         for (i, line) in text.lines().enumerate() {
-            if line.contains(needle) {
+            if needles.iter().any(|n| line.contains(n)) {
                 let rel = f.strip_prefix(env!("CARGO_MANIFEST_DIR")).unwrap();
                 sites.push(format!("{}:{}", rel.display(), i + 1));
             }
@@ -104,7 +126,7 @@ fn no_test_builds_a_temp_path_without_the_guard() {
     }
     assert!(
         sites.is_empty(),
-        "{} test lines build a path under the system temp directory \
+        "{} test lines build a path under a temp directory \
          without common::Scratch, so a failing test leaves it behind:\n{}",
         sites.len(),
         sites.join("\n")
