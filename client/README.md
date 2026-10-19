@@ -157,7 +157,7 @@ Full reference:
 ## Requirements
 
 None to start — the server is bundled. Optional, for the full
-experience: an `kamailio` binary (diagnostics) and a Kamailio source
+experience: a `kamailio` binary (diagnostics) and a Kamailio source
 tree plus a kamailio-wiki checkout (documentation). Version-proven
 against Kamailio 6.1.5; the built-in module catalogue is also proven
 against the 6.0.8 and 5.8.8 source trees.

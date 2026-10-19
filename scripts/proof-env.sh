@@ -11,10 +11,12 @@
 #   eval "$(scripts/proof-env.sh)"   # local shell
 #   scripts/proof-env.sh             # in CI: appends to $GITHUB_ENV
 #
-# Everything lands under .proof/ (gitignored). A local run reuses what
-# is already there, so the build happens once. CI does NOT: the only
-# cache in the workflow is Swatinem/rust-cache, which caches Cargo
-# artefacts and not this directory, so every CI run re-clones all
+# Everything lands under .proof/ (gitignored). A local run reuses the
+# tagged trees and the build, so the build happens once; the wiki, which
+# is not a tag, is fetched to its current HEAD on every run, as CI
+# clones it. CI reuses nothing: the only cache in the workflow is
+# Swatinem/rust-cache, which caches Cargo artefacts and not this
+# directory, so every CI run re-clones all
 # three trees and rebuilds $TAG from scratch. Said the other way
 # round, adding a release costs CI one shallow clone per run — which
 # is affordable precisely because the older ones are never built.
@@ -29,6 +31,7 @@ OLDER_TAGS="${KAMAILIO_OLDER_TAGS:-5.8.8 6.0.8}"
 ROOT="${PROOF_ROOT:-${PWD}/.proof}"
 SRC="$ROOT/kamailio-$TAG"
 WIKI="$ROOT/kamailio-wiki"
+WIKI_URL="${KAMAILIO_WIKI_URL:-https://github.com/kamailio/kamailio-wiki.git}"
 INST="$ROOT/inst-$TAG"
 
 # The only modules any test loads.  Building the full set is minutes
@@ -41,8 +44,14 @@ if [ ! -d "$WIKI/docs/cookbooks" ]; then
 	log "cloning kamailio-wiki into $ROOT"
 	rm -rf "$WIKI"
 	mkdir -p "$ROOT"
-	git clone -q --depth 1 \
-		https://github.com/kamailio/kamailio-wiki.git "$WIKI"
+	git clone -q --depth 1 "$WIKI_URL" "$WIKI"
+else
+	# The wiki is not a tag: CI clones its current HEAD every run, so
+	# an existing checkout is brought to that same HEAD rather than
+	# proving against whatever it held when it was first cloned.
+	log "refreshing kamailio-wiki in $ROOT"
+	git -C "$WIKI" fetch -q --depth 1 "$WIKI_URL" HEAD
+	git -C "$WIKI" reset -q --hard FETCH_HEAD
 fi
 
 if [ ! -x "$INST/sbin/kamailio" ]; then
