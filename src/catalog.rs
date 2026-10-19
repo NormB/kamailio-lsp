@@ -90,8 +90,9 @@ fn sanitize_doc(text: &str) -> String {
 /// is a type may be split off: `crl` and `script_counter` are real
 /// parameters documented with no type, and `slack url` is an upstream
 /// typo for `slack_url`, not a type annotation.  `integer` is the only
-/// spelling 6.1.4 writes bare; the rest are the spellings the same
-/// corpus uses inside the parentheses.
+/// spelling 6.1.5 writes bare (`ims_qos` and `ims_qos_npn`, as in
+/// 6.1.4); the rest are the spellings the same corpus uses inside the
+/// parentheses.
 const BARE_TYPE_WORDS: [&str; 8] = [
     "int", "integer", "string", "str", "float", "boolean", "bool", "flag",
 ];
@@ -242,14 +243,17 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
                 && depth > cur_depth
                 && nums.starts_with(&cur_nums)
                 && heading_is_item(title);
-            // `rtpengine` documents 85 parameters as `5.1.`…`5.86.`
-            // and then drops back to `6.`, `7.`, … for the last nine.
-            // A heading at the chapter's own depth normally ENDS the
-            // chapter; what makes this safe is that a renumbered item
-            // still carries its type and a chapter title
-            // (`15. Functions`) does not — across the whole 6.1.4
+            // `rtpengine` in 6.1.4 documents 86 parameters as
+            // `5.1.`…`5.86.` and then drops back to `6.`, `7.`, … for
+            // the last nine.  A heading at the chapter's own depth
+            // normally ENDS the chapter; what makes this safe is that a
+            // renumbered item still carries its type and a chapter
+            // title (`15. Functions`) does not — across the whole 6.1.4
             // tree the only nine headings this admits are rtpengine's
-            // nine real parameters.
+            // nine real parameters.  5.8.8, 6.0.8 and 6.1.5 number all
+            // of rtpengine's parameters inside chapter 5 (6.1.5:
+            // `5.1.`…`5.95.`), so none of the shipped releases needs
+            // this; a configured 6.1.4 tree still does.
             let renumbered =
                 section != Section::Other && depth <= sec_depth && heading_is_item(title);
             let in_section = section != Section::Other && nums.starts_with(&sec_prefix);

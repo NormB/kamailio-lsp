@@ -64,18 +64,18 @@
         "kamailioLsp.kamailioVersion": {
           "type": "string",
           "default": "",
-          "description": "Built-in Kamailio release to check modparam names against (e.g. 6.0.7). Empty means the newest the catalogue covers. Ignored when kamailioSrc is set.",
+          "description": "Built-in Kamailio release to check modparam names against (e.g. 6.0.8). Empty means the newest the catalogue covers. Ignored when kamailioSrc is set.",
           "enum": [
             "",
             "5.8.8",
-            "6.0.7",
-            "6.1.4"
+            "6.0.8",
+            "6.1.5"
           ],
           "enumDescriptions": [
-            "Newest release the built-in catalogue covers (6.1.4).",
+            "Newest release the built-in catalogue covers (6.1.5).",
             "Check modparam names against Kamailio 5.8.8.",
-            "Check modparam names against Kamailio 6.0.7.",
-            "Check modparam names against Kamailio 6.1.4."
+            "Check modparam names against Kamailio 6.0.8.",
+            "Check modparam names against Kamailio 6.1.5."
           ]
         },
         "kamailioLsp.kamailioWiki": {

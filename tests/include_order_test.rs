@@ -3,8 +3,8 @@
 //! `sr_push_yy_state` (`src/core/cfg.lex`) first opens the path as
 //! written, which resolves against the process's working directory,
 //! and only when that fails tries it beside the file being read.
-//! `kamailio -c` 6.1.4, run in the main config's directory as this
-//! server and `check` run it (2026-10-11):
+//! `kamailio -c` 6.1.5, run in the main config's directory as this
+//! server and `check` run it (2026-10-19):
 //!
 //! - `main.cfg` includes `inc/a.cfg`, which includes `inc/b.cfg`:
 //!   accepted (`config file ok`), so `inc/b.cfg` is found against the

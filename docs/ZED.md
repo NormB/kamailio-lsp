@@ -176,7 +176,7 @@ Everything below is optional. Put it in Zed's `settings.json`:
   **`kamailioWiki`** at a
   [kamailio-wiki](https://github.com/kamailio/kamailio-wiki) checkout.
   The core language (from the 6.1.x cookbook) and every documented
-  module (from the 6.1.4 tree) are already built in; set these when you
+  module (from the 6.1.5 tree) are already built in; set these when you
   want documentation exact to your own version instead. Each replaces
   the matching built-in catalogue rather than merging with it.
 

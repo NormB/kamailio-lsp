@@ -199,7 +199,7 @@ module.exports = grammar({
 
     _statement: $ => choice(
       // the lexer splices an include wherever it stands (accepted
-      // inside a route block by kamailio -c 6.1.4)
+      // inside a route block by kamailio -c 6.1.5)
       $.include,
       $.empty_statement,
       $.if_statement,

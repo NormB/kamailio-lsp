@@ -43,10 +43,15 @@ core-language docs (parameters, functions, pseudo-variables) from a
 [kamailio-wiki](https://github.com/kamailio/kamailio-wiki) checkout
 (`docs/cookbooks/<version>/` — the newest stable cookbook is picked).
 
-Supported and version-proven: **Kamailio 6.1.x** (6.1.4, the current
-stable line) and **6.0.x** (6.0.1) — the proof suite runs against a
-real tree, wiki, and binary of each
-(`KAMAILIO_LSP_TEST_TREE`/`KAMAILIO_LSP_TEST_WIKI`/`KAMAILIO_LSP_TEST_BIN`).
+Version-proven against **Kamailio 6.1.5**: the proof suite runs
+against the 6.1.5 source tree, a binary built from it, and a
+kamailio-wiki checkout whose newest stable cookbook (`6.1.x`) supplies
+the core docs
+(`KAMAILIO_LSP_TEST_TREE`/`KAMAILIO_LSP_TEST_BIN`/`KAMAILIO_LSP_TEST_WIKI`).
+For **6.0.8** and **5.8.8** only the built-in module catalogue is
+proven: the suite harvests each release's source tree and checks that
+the shipped catalogue reproduces it exactly (`KAMAILIO_LSP_TEST_TREES`).
+No 6.0.x or 5.8.x binary is run.
 Nothing pins a version: module docs come from the tree you point at,
 core docs from the newest stable cookbook in the wiki checkout, and
 diagnostics from your own binary.
@@ -59,7 +64,7 @@ Via LSP `initializationOptions` (or environment fallback):
 |---|---|---|---|
 | `kamailioPath` | `KAMAILIO_LSP_BIN` | `kamailio` | Binary used for `-c` diagnostics. |
 | `kamailioSrc` | `KAMAILIO_LSP_SRC` | *(none)* | Source tree to harvest module docs from. |
-| `kamailioWiki` | `KAMAILIO_LSP_WIKI` | *(none)* | kamailio-wiki checkout for core-language docs. Not needed to get started: the core language and all 254 documented modules are built in, harvested from 6.1.x and 6.1.4, and used whenever nothing is configured — so `debug`, `loadmodule "` and `is_method` all complete on a fresh install. A configured source wins and replaces the matching catalogue wholesale. |
+| `kamailioWiki` | `KAMAILIO_LSP_WIKI` | *(none)* | kamailio-wiki checkout for core-language docs. Not needed to get started: the core language and all 254 documented modules are built in, harvested from 6.1.x and 6.1.5, and used whenever nothing is configured — so `debug`, `loadmodule "` and `is_method` all complete on a fresh install. A configured source wins and replaces the matching catalogue wholesale. |
 | `modulesPath` | — | *(none)* | Module search path for the checker (`-L`). |
 
 Diagnostics fidelity note: `-c` loads the modules the cfg references,

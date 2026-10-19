@@ -14,7 +14,7 @@ Install the server first — either grab a prebuilt binary from the
 
 **You do not need a source tree to get started.** The core language
 (from the 6.1.x cookbook) and all 254 documented modules (from the
-6.1.4 tree) are built in, so completion and hover work immediately.
+6.1.5 tree) are built in, so completion and hover work immediately.
 Set `kamailioSrc` for module docs exact to your own build, and
 `kamailioWiki` for the core half — each replaces the matching built-in
 catalogue wholesale. Every setting is optional; the full

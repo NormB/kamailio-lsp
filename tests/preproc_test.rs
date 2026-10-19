@@ -1,6 +1,6 @@
 //! The analyzer against Kamailio's preprocessor.
 //!
-//! Every expectation here was checked against `kamailio -c` 6.1.4
+//! Every expectation here was checked against `kamailio -c` 6.1.5
 //! (`-c --all-errors`); the parser source is `src/core/cfg.lex`.
 //!
 //! - In a region an `#!ifdef` switched off, the lexer is in state

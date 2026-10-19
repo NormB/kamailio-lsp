@@ -159,7 +159,7 @@ that includes `inc/b.cfg` — written relative to the main config, as
 many split configurations are — therefore reaches `inc/b.cfg`, not
 `inc/inc/b.cfg`, and when both `x.cfg` and `inc/x.cfg` exist,
 `include_file "x.cfg"` in `inc/a.cfg` reads the main directory's.
-Both were checked against `kamailio -c` 6.1.4. Finding the main config
+Both were checked against `kamailio -c` 6.1.5. Finding the main config
 for an open fragment works before that order is known, so there the
 fragment's own directory is tried first and then the three above it;
 the two answers differ only when both candidate files exist.
@@ -602,7 +602,7 @@ built in and used when nothing is configured:
   like `debug`, `log_facility`, `children`, harvested from the
   Kamailio 6.1.x cookbook;
 - **every documented module** — 254 of them with their exported
-  functions and parameters, harvested from the 6.1.4 source tree, so
+  functions and parameters, harvested from the 6.1.5 source tree, so
   `loadmodule "` offers real names and a call like `is_method`
   completes and hovers.
 
@@ -630,7 +630,7 @@ things keep it honest:
   diagnostic on the `loadmodule` line itself.
 
 What the built-ins cannot tell you is whether a module is installed on
-*your* system: the name list is what 6.1.4 documents, not what you
+*your* system: the name list is what 6.1.5 documents, not what you
 compiled.
 
 

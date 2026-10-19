@@ -60,7 +60,7 @@ fn every_route_kind_in_the_real_lexer_is_recognised() {
 
     // POSITIVE CONTROL. Every assertion below is "for each kind the
     // lexer declares"; if the extraction stopped matching, the loop
-    // would run over nothing and pass having proved nothing. 6.1.4
+    // would run over nothing and pass having proved nothing. 6.1.5
     // declares eight.
     assert!(
         kinds.len() >= 8,

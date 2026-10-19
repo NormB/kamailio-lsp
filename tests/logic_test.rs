@@ -252,7 +252,7 @@ fn definition_resolves_dotted_route_names() {
 fn valid_route_name_gate_is_the_unquoted_id_charset() {
     // kamailio's unquoted route_name is ID = [A-Za-z_][A-Za-z0-9_]*
     // (cfg.lex; verified: route[a.b]/route[a:b]/route[a-b]/route[1ab]
-    // are all rejected by the 6.0.1 and 6.1.4 binaries unless quoted) — rename
+    // are all rejected by the 6.0.1 and 6.1.5 binaries unless quoted) — rename
     // must only ever produce names that are legal WITHOUT quotes,
     // because definitions are commonly written unquoted
     assert!(valid_route_name("RELAY"));
@@ -922,7 +922,7 @@ fn catalog_diagnostics_flag_undocumented_modparams() {
     let cat = catalog(); // tm documents fr_timer; htable documents htable
     // unknown param of a KNOWN module → warning at the param
     let text = "modparam(\"tm\", \"fr_tmer\", 5)\n";
-    let origin = kamailio_lsp::catalog::CatalogOrigin::BuiltIn("6.1.4".to_string());
+    let origin = kamailio_lsp::catalog::CatalogOrigin::BuiltIn("6.1.5".to_string());
     let ds = catalog_diagnostics(&cat, &origin, text);
     assert_eq!(ds.len(), 1, "{ds:?}");
     assert!(ds[0].message.contains("fr_tmer") && ds[0].message.contains("tm"));
@@ -1026,7 +1026,7 @@ fn semantic_tokens_range_filters_and_reencodes() {
 
 /// A route reached through a `#!define` alias is not undefined — the
 /// preprocessor expands it before the parser ever sees it.  All three
-/// shapes below are accepted by the 6.1.4 binary (rc=0), so warning on
+/// shapes below are accepted by the 6.1.5 binary (rc=0), so warning on
 /// any of them is the analyzer being wrong in the user's face.
 #[test]
 fn a_route_reached_through_a_define_is_not_undefined() {
@@ -1483,7 +1483,7 @@ fn a_module_documenting_nothing_at_all_stays_silent() {
     use kamailio_lsp::catalog::{CatalogOrigin, Item, ModuleDoc};
     use kamailio_lsp::logic::catalog_diagnostics;
 
-    let origin = CatalogOrigin::BuiltIn("6.1.4".to_string());
+    let origin = CatalogOrigin::BuiltIn("6.1.5".to_string());
     let nothing = vec![ModuleDoc {
         name: "unharvested".into(),
         params: Vec::new(),

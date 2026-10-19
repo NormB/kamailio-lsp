@@ -20,12 +20,12 @@
 # is affordable precisely because the older ones are never built.
 set -euo pipefail
 
-TAG="${KAMAILIO_TAG:-6.1.4}"
+TAG="${KAMAILIO_TAG:-6.1.5}"
 # The releases the versioned catalogue covers: the newest of each live
 # line, oldest first. Only $TAG is ever BUILT — the older ones are
 # harvested from source alone, which is all the catalogue needs, so
 # adding a release costs a shallow clone rather than a compile.
-OLDER_TAGS="${KAMAILIO_OLDER_TAGS:-5.8.8 6.0.7}"
+OLDER_TAGS="${KAMAILIO_OLDER_TAGS:-5.8.8 6.0.8}"
 ROOT="${PROOF_ROOT:-${PWD}/.proof}"
 SRC="$ROOT/kamailio-$TAG"
 WIKI="$ROOT/kamailio-wiki"

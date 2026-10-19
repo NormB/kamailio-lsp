@@ -96,7 +96,7 @@ fn check_remaps_include_errors_onto_the_root() {
     )
     .unwrap();
     // stub echoes the include path AS WRITTEN (the real 6.0.1 and
-    // 6.1.4 shape)
+    // 6.1.5 shape)
     let stub = dir.join("stub.sh");
     std::fs::write(
         &stub,
@@ -307,9 +307,9 @@ fn check_runs_the_catalogue_check_and_names_the_catalogue() {
 /// The release checked against is selectable, and selecting one the
 /// catalogue really covers changes the answer.
 ///
-/// `rr::ignore_user` exists in 5.8.8 and 6.0.7 and was dropped by
+/// `rr::ignore_user` exists in 5.8.8 and 6.0.8 and was dropped by
 /// 6.1: on the newest release it warns and says where it exists, and
-/// on 6.0.7 it is simply correct. A test that only checked the header
+/// on 6.0.8 it is simply correct. A test that only checked the header
 /// would pass even if the selection changed nothing.
 #[test]
 fn the_checked_release_is_selectable() {
@@ -341,14 +341,14 @@ fn the_checked_release_is_selectable() {
         newest_out.contains("it exists in"),
         "a parameter another release exports must say so; stdout: {newest_out}"
     );
-    assert!(newest_err.contains("6.1.4"), "stderr: {newest_err}");
+    assert!(newest_err.contains("6.1.5"), "stderr: {newest_err}");
 
     // a release that really exports it: silent
-    let (older_out, older_err) = run("6.0.7");
-    assert!(older_err.contains("6.0.7"), "stderr: {older_err}");
+    let (older_out, older_err) = run("6.0.8");
+    assert!(older_err.contains("6.0.8"), "stderr: {older_err}");
     assert!(
         !older_out.contains("ignore_user"),
-        "6.0.7 exports it, so there is nothing to warn about; stdout: {older_out}"
+        "6.0.8 exports it, so there is nothing to warn about; stdout: {older_out}"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }

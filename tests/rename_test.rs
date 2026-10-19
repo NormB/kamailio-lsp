@@ -1,7 +1,7 @@
 //! What rename, references and highlights treat as an occurrence of a
 //! route name, and when a rename must be refused.
 //!
-//! Ground truth, Kamailio 6.1.4:
+//! Ground truth, Kamailio 6.1.5:
 //!
 //! - `t_on_failure`, `t_on_reply` and `t_on_branch` take one string
 //!   that `fixup_routes` looks up in the failure, onreply or branch

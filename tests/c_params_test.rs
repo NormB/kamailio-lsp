@@ -1,6 +1,6 @@
 //! The C parameter table is the list `modparam()` is checked against
 //! when Kamailio starts, so it decides which parameters exist. These
-//! prove the extraction against the shapes the 6.1.4 tree actually
+//! prove the extraction against the shapes the 6.1.5 tree actually
 //! uses: five declaration spellings, tables assembled entirely from
 //! macros, conditional entries, and the terminator and comment forms
 //! that must not be read as names.

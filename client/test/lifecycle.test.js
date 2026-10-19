@@ -297,10 +297,10 @@ const lastInit = () => clients[clients.length - 1].clientOptions.initializationO
         'nothing is shown until the server names its catalogue',
     );
 
-    announce({ describe: 'Kamailio 6.1.4 (built in)', version: '6.1.4' });
+    announce({ describe: 'Kamailio 6.1.5 (built in)', version: '6.1.5' });
     assert.strictEqual(statusItem.shown, true, 'it appears once announced');
     assert.ok(
-        statusItem.text.includes('Kamailio 6.1.4'),
+        statusItem.text.includes('Kamailio 6.1.5'),
         `the release must be visible: ${statusItem.text}`,
     );
 

@@ -10,8 +10,8 @@
 //!
 //! So this asserts the CONSEQUENCE rather than the header.
 //! `rr::ignore_user` exists in 5.8.8 and
-//! 6.0.7 and was dropped by 4.0: on the newest release it must warn
-//! and say where the name still exists, and on 6.0.7 it must be
+//! 6.0.8 and was dropped by 6.1: on the newest release it must warn
+//! and say where the name still exists, and on 6.0.8 it must be
 //! silent, because that release really does export it.
 
 mod common;
@@ -135,7 +135,7 @@ fn the_editor_checks_against_the_release_the_user_asked_for() {
             panic!("the newest release does not export it, so it must warn: {newest:?}")
         });
     assert!(
-        hit.contains("6.1.4"),
+        hit.contains("6.1.5"),
         "the diagnostic must name the release it judged against: {hit:?}"
     );
     assert!(
@@ -146,10 +146,10 @@ fn the_editor_checks_against_the_release_the_user_asked_for() {
     // the consequence: a release that really exports it is silent.
     // A test that only read the header would pass even if choosing a
     // release changed nothing about the answer.
-    let older = diagnostics_for("older", Some("6.0.7"));
+    let older = diagnostics_for("older", Some("6.0.8"));
     assert!(
         !older.iter().any(|m| m.contains("ignore_user")),
-        "6.0.7 exports it, so the editor must not warn: {older:?}"
+        "6.0.8 exports it, so the editor must not warn: {older:?}"
     );
 }
 
@@ -162,7 +162,7 @@ fn an_unsupported_release_still_produces_a_working_server() {
         .find(|m| m.contains("ignore_user"))
         .unwrap_or_else(|| panic!("the fallback release must still check: {msgs:?}"));
     assert!(
-        hit.contains("6.1.4"),
+        hit.contains("6.1.5"),
         "it falls back to the newest, and says so in the message: {hit:?}"
     );
 }
@@ -181,23 +181,23 @@ fn the_server_announces_the_catalogue_it_uses() {
     let d = ANNOUNCED.with(|a| a.borrow().clone());
     assert_eq!(
         d["version"].as_str(),
-        Some("6.1.4"),
+        Some("6.1.5"),
         "the newest release must be announced: {d}"
     );
     assert!(
         d["describe"]
             .as_str()
             .unwrap_or_default()
-            .contains("Kamailio 6.1.4"),
+            .contains("Kamailio 6.1.5"),
         "and named as it reads in a sentence: {d}"
     );
 
     // and it follows the setting, not just the default
-    let _ = diagnostics_for("announce-older", Some("6.0.7"));
+    let _ = diagnostics_for("announce-older", Some("6.0.8"));
     let d = ANNOUNCED.with(|a| a.borrow().clone());
     assert_eq!(
         d["version"].as_str(),
-        Some("6.0.7"),
+        Some("6.0.8"),
         "the announcement must follow the chosen release: {d}"
     );
 
@@ -208,7 +208,7 @@ fn the_server_announces_the_catalogue_it_uses() {
     let d = ANNOUNCED.with(|a| a.borrow().clone());
     assert_eq!(
         d["version"].as_str(),
-        Some("6.1.4"),
+        Some("6.1.5"),
         "the announcement must name what is in use, not what was asked: {d}"
     );
 }

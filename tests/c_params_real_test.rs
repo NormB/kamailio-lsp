@@ -29,7 +29,7 @@ fn module_dirs(root: &Path) -> Vec<std::path::PathBuf> {
 /// the C tables means X". Were the extraction to quietly stop
 /// matching, every such rule would pass while proving nothing.
 ///
-/// Measured against 6.1.4: 255 module directories, 227 of which export
+/// Measured against 6.1.5: 255 module directories, 227 of which export
 /// at least one parameter. The 28 that export none are the
 /// function-only modules — `textops`, `ipops`, `math`, `jansson` and
 /// the like.
@@ -305,7 +305,7 @@ fn harvesting_the_tree_directly_reconciles_against_c() {
 
 /// The completeness guard, on a fixture that can actually violate it.
 ///
-/// No module in the 6.1.4 tree parses incompletely, so nothing there
+/// No module in the 6.1.5 tree parses incompletely, so nothing there
 /// exercises this branch: a test reading only the real tree passes
 /// whether the guard is right or wrong. `matrix` is why the guard
 /// exists — a table that is entirely macros yields a short name list

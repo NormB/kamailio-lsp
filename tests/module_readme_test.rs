@@ -480,14 +480,14 @@ fn the_next_chapter_ends_a_parameter_chapter() {
 
 /// Parameters after the chapter's numbering restarts.
 ///
-/// `rtpengine` documents 85 parameters as `5.1.`…`5.86.` and then,
-/// for the last nine, drops back to `6.`, `7.`, … — an upstream
-/// numbering glitch, but `ping_interval` and `enable_dmq` are real
-/// parameters and every configuration setting one of them was warned
-/// about it.  A heading at the chapter's own depth normally ENDS the
-/// chapter, so what saves this from swallowing `15. Functions` is
-/// that a renumbered item still carries its type and a chapter title
-/// does not.
+/// `rtpengine` in 6.1.4 documents 86 parameters as `5.1.`…`5.86.` and
+/// then, for the last nine, drops back to `6.`, `7.`, … — an upstream
+/// numbering glitch (6.1.5 numbers them `5.87.`…`5.95.`), but
+/// `ping_interval` and `enable_dmq` are real parameters and every
+/// configuration setting one of them was warned about it.  A heading
+/// at the chapter's own depth normally ENDS the chapter, so what saves
+/// this from swallowing `15. Functions` is that a renumbered item
+/// still carries its type and a chapter title does not.
 #[test]
 fn parameters_after_the_numbering_restarts_are_harvested() {
     let txt = "RTPEngine Module\n\n5. Parameters\n\n5.1. rtpengine_sock (string)\n\n   The socket.\n\n6. ping_interval (integer)\n\n   Seconds between pings.\n\n7. enable_dmq (integer)\n\n   DMQ replication.\n\n15. Functions\n\n15.1. rtpengine_offer([flags])\n\n   Offer.\n\n16. Exported Pseudo Variables\n\n16.1. $rtpstat\n\n   Not a function.\n";

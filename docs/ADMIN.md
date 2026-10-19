@@ -28,8 +28,10 @@ plain-text `README` of every module in a Kamailio source tree
 [kamailio-wiki](https://github.com/kamailio/kamailio-wiki) checkout
 (`docs/cookbooks/<version>/{core,pseudovariables}.md` — the newest
 stable cookbook is picked automatically). Version-proven: Kamailio
-6.1.x (binary 6.1.4, tag 6.1.4 tree, 6.1.x cookbook) and 6.0.x
-(binary 6.0.1, branch 6.0 tree).
+6.1.5 (the 6.1.5 tag's source tree, a binary built from it, and the
+wiki's 6.1.x cookbook). For 6.0.8 and 5.8.8 only the built-in module
+catalogue is proven, against each release's source tree; no binary of
+either is run.
 
 ### Dependencies
 
@@ -118,7 +120,7 @@ In VS Code and VSCodium this is a dropdown listing exactly the
 releases the shipped catalogue can answer for, so the value cannot
 be mistyped. Editing settings as JSON, it accepts any release the
 built-in catalogue covers — currently
-`5.8.8`, `6.0.7` and `6.1.4`. An unrecognised value is reported and
+`5.8.8`, `6.0.8` and `6.1.5`. An unrecognised value is reported and
 the newest is used, rather than silently checking against a release
 you did not ask for.
 
@@ -129,7 +131,7 @@ build, and this is a choice among the ones shipped here.
 Environment fallback: `KAMAILIO_LSP_VERSION`.*
 
 ```json title="Set kamailioVersion parameter"
-{ "kamailioVersion": "6.0.7" }
+{ "kamailioVersion": "6.0.8" }
 ```
 
 #### kamailioWiki (string)

@@ -1525,6 +1525,11 @@
         "doc": "**Alias name:** **dns_cache_delete_nonexpired**\n\n``` c\ndns_cache_del_nonexp = yes | no (default: no)\n```"
       },
       {
+        "name": "dns_cache_mode",
+        "detail": "core parameter",
+        "doc": "The grammar accepts `dns_cache_mode`. The cookbook does not describe it."
+      },
+      {
         "name": "dst_blocklist_ttl",
         "detail": "core parameter — the cookbook spells it `dst_blocklist_expire`",
         "doc": "**Alias name:** **dst_blocklist_ttl**\n\n``` c\ndst_blocklist_expire = time in s (default 60 s)\n```"

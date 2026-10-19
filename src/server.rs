@@ -24,7 +24,7 @@ pub struct AnalysisRootParams {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CatalogueStatus {
     /// The catalogue named as it reads in a sentence, e.g.
-    /// `Kamailio 6.1.4 (built in)` or `the configured source tree`.
+    /// `Kamailio 6.1.5 (built in)` or `the configured source tree`.
     pub describe: String,
     /// The release, when it is a built-in one. Absent for a
     /// configured tree, which is exact for the user's own build and

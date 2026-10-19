@@ -3,7 +3,7 @@
 //!
 //! Every directive here is one kamailio 6.1's `src/core/cfg.lex`
 //! actually recognises (`PREP_START` is `#!` or `!!`), and the
-//! route-target behaviour is what the 6.1.4 binary accepts.
+//! route-target behaviour is what the 6.1.5 binary accepts.
 
 mod common;
 use kamailio_lsp::analyze::defines;

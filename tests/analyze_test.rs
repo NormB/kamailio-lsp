@@ -331,7 +331,7 @@ fn preproc_adversarial_do_not_panic() {
 #[test]
 fn paren_and_x_load_forms_are_collected() {
     // cfg.y: LOADMODULE LPAREN STRING [COMMA STRING] RPAREN and
-    // loadmodulex are all legal (verified rc=0 on 6.0.1 and 6.1.4)
+    // loadmodulex are all legal (verified rc=0 on 6.0.1 and 6.1.5)
     let text = "loadmodule(\"tm.so\")\nloadmodule(\"htable.so\", \"opts\")\nloadmodulex \"pv.so\"\nloadmodulex(\"sl.so\")\nmyloadmodule \"no.so\"\n";
     let mods: Vec<String> = loaded_modules(text).into_iter().map(|m| m.name).collect();
     assert_eq!(mods, vec!["tm", "htable", "pv", "sl"]);
@@ -547,7 +547,7 @@ fn active_includes_skips_what_the_preprocessor_compiles_out() {
 
 /// Kamailio block comments nest: cfg.lex counts `comment_nest` up on
 /// every `/*` inside a comment and leaves the comment only when it
-/// returns to zero.  `kamailio -c` 6.1.4 accepts this config, so
+/// returns to zero.  `kamailio -c` 6.1.5 accepts this config, so
 /// neither `route(GHOST)` nor `route[GONE]` exists.
 #[test]
 fn block_comments_nest() {
@@ -586,7 +586,7 @@ fn the_cursor_is_in_a_comment_only_before_the_comment_ends() {
 /// rule (`<PVAR_P>.  { yymore(); }`).  Reading `//`, `#` or a quote in
 /// there as code ran a route to the end of the file in three of the
 /// shipped IMS examples.  `tests/grammar/pvar_transformations.cfg`
-/// holds the same constructs to `kamailio -c` 6.1.4.
+/// holds the same constructs to `kamailio -c` 6.1.5.
 #[test]
 fn a_pseudo_variable_body_opens_no_comment_or_string() {
     use kamailio_lsp::analyze::{in_comment, route_blocks};

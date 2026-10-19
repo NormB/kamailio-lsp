@@ -16,7 +16,9 @@ fn diagnostics_flow_over_stdio() {
     std::fs::create_dir_all(&dir).unwrap();
 
     // deterministic stub standing in for the kamailio binary: one
-    // range error and one spanning error, in the real 6.0.1/6.1.4 shapes
+    // range error and one spanning error, in the 6.0.1/6.1.5 shapes (the
+    // range form as the binary prints it, the spanning form as
+    // yyerror_at in cfg.y formats it)
     let stub = dir.join("kamailio-stub.sh");
     std::fs::write(
         &stub,

@@ -227,8 +227,8 @@ bottom-right status bar (it will say **Plain Text**) and pick
 | No red squiggles | Set **Kamailio Path** (step above), save the file, and make sure you trusted the folder. |
 | Squiggles on a correct file | The checker uses *your* Kamailio version — a config written for another version can legitimately fail. |
 | Completion has no documentation | Core and module entries both carry built-in documentation, so an entry with none is one the pinned version does not document: set **Kamailio Src** (and **Kamailio Wiki**) to sources matching your build. |
-| A module I have is not offered | The built-in list is what 6.1.4 documents, not what you compiled. Set **Kamailio Src** to your own tree. |
-| Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (254 documented modules, 43 core functions, core docs built in from 6.1.x, module docs built in from 6.1.4)"). |
+| A module I have is not offered | The built-in list is what 6.1.5 documents, not what you compiled. Set **Kamailio Src** to your own tree. |
+| Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (254 documented modules, 65 core functions, core docs built in from 6.1.x, module docs built in from 6.1.5)"). |
 
 ## Checking against a specific Kamailio release
 
@@ -238,12 +238,12 @@ names against ONE release, and tells you which — it is on the status
 bar the whole time a config is open, and every warning names it:
 
 ```
-parameter 'x' is not exported by module 'y' in Kamailio 6.1.4 (built in)
+parameter 'x' is not exported by module 'y' in Kamailio 6.1.5 (built in)
 ```
 
 ### Pick one of the built-in releases
 
-The extension ships catalogues for `5.8.8`, `6.0.7`, `6.1.4`. In VS Code or VSCodium,
+The extension ships catalogues for `5.8.8`, `6.0.8`, `6.1.5`. In VS Code or VSCodium,
 open Settings, search for `kamailioVersion`, and choose from the
 dropdown — it lists exactly the releases that are shipped, so it
 cannot be set to one the server would reject.
@@ -251,7 +251,7 @@ cannot be set to one the server would reject.
 Editing `settings.json` directly:
 
 ```json
-{ "kamailioLsp.kamailioVersion": "6.1.4" }
+{ "kamailioLsp.kamailioVersion": "6.1.5" }
 ```
 
 Leave it empty for the newest. An unrecognised release is reported in
@@ -262,7 +262,7 @@ Outside the editor, `kamailio-lsp check` reads the same choice from
 `KAMAILIO_LSP_VERSION`:
 
 ```sh
-KAMAILIO_LSP_VERSION=6.1.4 kamailio-lsp check /etc/kamailio/kamailio.cfg
+KAMAILIO_LSP_VERSION=6.1.5 kamailio-lsp check /etc/kamailio/kamailio.cfg
 ```
 
 ### Or point at your own build

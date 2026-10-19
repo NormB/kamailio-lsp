@@ -126,14 +126,14 @@ fn with_the_setting_on_a_hover_names_the_release_and_the_escape_hatch() {
 fn a_core_entry_names_its_own_release_not_the_selected_one() {
     let text = hover_text(
         "selected",
-        serde_json::json!({"versionInHints": true, "kamailioVersion": "6.0.7"}),
+        serde_json::json!({"versionInHints": true, "kamailioVersion": "6.0.8"}),
     );
     assert!(
         text.contains("Built-in core documentation from Kamailio 6.1.x"),
         "core docs are pinned; the note must say where they came from: {text:?}"
     );
     assert!(
-        !text.contains("core documentation from Kamailio 6.0.7"),
+        !text.contains("core documentation from Kamailio 6.0.8"),
         "the chosen release does not apply to core docs: {text:?}"
     );
 }
@@ -154,12 +154,12 @@ fn a_module_entry_follows_the_selected_release_while_core_does_not() {
     // module entry wins — which is precisely the confusion this test
     // exists to pin down.
     let body = "advertised_address=\"1.2.3.4\"\nloadmodule \"usrloc.so\"\nmodparam(\"usrloc\", \"db_mode\", 0)\n";
-    let opts = serde_json::json!({"versionInHints": true, "kamailioVersion": "6.0.7"});
+    let opts = serde_json::json!({"versionInHints": true, "kamailioVersion": "6.0.8"});
 
     // the module parameter: follows the selection
     let module = hover_text_at("kinds-mod", opts.clone(), body, 2, 22);
     assert!(
-        module.contains("module documentation from Kamailio 6.0.7"),
+        module.contains("module documentation from Kamailio 6.0.8"),
         "a module entry must name the release in use: {module:?}"
     );
 
@@ -172,8 +172,8 @@ fn a_module_entry_follows_the_selected_release_while_core_does_not() {
 
     // and they must genuinely differ, or this proves nothing
     assert_ne!(
-        module.contains("6.0.7"),
-        core.contains("6.0.7"),
+        module.contains("6.0.8"),
+        core.contains("6.0.8"),
         "the two catalogues are pinned differently and must read differently"
     );
 }

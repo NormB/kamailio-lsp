@@ -149,7 +149,9 @@ fn the_vendored_module_catalogue_matches_a_fresh_harvest_of_every_pinned_tree() 
 /// harvester could not read: `kazoo` groups its parameters into
 /// sub-sections, `carrierroute` and `matrix` put theirs in a chapter
 /// of their own, `ims_qos` writes the type with no parentheses, and
-/// `rtpengine` restarts its numbering partway through the chapter.
+/// `rtpengine` restarts its numbering partway through the chapter (in
+/// 6.1.4; 6.1.5 no longer does, and `module_readme_test.rs` keeps that
+/// shape covered).
 /// Sixty-one parameters were missing between them, and a
 /// configuration setting any of them was told, in a warning, that the
 /// parameter does not exist.
