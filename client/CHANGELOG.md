@@ -2,6 +2,34 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.21.2] — 2026-10-19
+
+**Pseudo-variables with `//`, `#`, quotes or braces inside them no
+longer break the outline, and the built-in catalog moves to Kamailio
+6.1.5 and 6.0.8.**
+
+- **A `$(...)` or `$name(...)` pseudo-variable is read the way Kamailio
+  reads it.** Inside its parentheses, `//` and `#` do not start a
+  comment, a quote does not start a string and a brace does not open a
+  block. Before, a line such as `$ru = $(ru{re.subst,/;t=[a-z]*//g});`
+  made its route run to the end of the file: the outline listed the
+  routes after it inside that route, beside an invented block named
+  `$ru = $(ru`.
+- **The built-in module catalog is harvested from Kamailio 6.1.5, and
+  the `kamailioVersion` choices are now `5.8.8`, `6.0.8` and `6.1.5`.**
+  A setting of `6.0.7` or `6.1.4` is reported as unrecognized and the
+  newest release (`6.1.5`) is used. `topoh`'s new `mask_cookie`
+  parameter is known; on `6.0.8` it is reported as existing only in
+  6.1.5.
+- **Core docs come from the current kamailio-wiki 6.1.x cookbook.** The
+  core parameter `dns_cache_mode`, new in 6.1.5, completes; its hover
+  says the cookbook does not describe it yet.
+- **The documentation states what the tests prove.** The real-binary
+  proof runs against Kamailio 6.1.5; 6.0.8 and 5.8.8 are checked
+  against their source trees, and no binary of either is run. The
+  readiness message example now shows 65 core functions, as the server
+  reports.
+
 ## [0.21.1] — 2026-10-15
 
 **A release with no behavior change in this project's code: the weekly
