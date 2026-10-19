@@ -2,6 +2,16 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.21.3] — 2026-10-19
+
+**A release with no behavior change: one correction to the extension's
+README.**
+
+- **"an `kamailio` binary" now reads "a `kamailio` binary"** in the
+  extension's README, the page shown on Open VSX and in the editor's
+  extension view. The language server and the extension's code are
+  unchanged from 0.21.2.
+
 ## [0.21.2] — 2026-10-19
 
 **Pseudo-variables with `//`, `#`, quotes or braces inside them no
