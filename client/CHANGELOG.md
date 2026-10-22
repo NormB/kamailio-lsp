@@ -2,6 +2,15 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.21.4] — 2026-10-22
+
+**A release with no behavior change: the language server is rebuilt
+against tokio 1.53.3.**
+
+- **tokio, the async runtime the language server runs on, moves from
+  1.53.2 to 1.53.3**, an upstream patch release. The language server's
+  own code and the extension's code are unchanged from 0.21.3.
+
 ## [0.21.3] — 2026-10-19
 
 **A release with no behavior change: one correction to the extension's
