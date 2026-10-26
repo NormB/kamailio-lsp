@@ -103,3 +103,209 @@ fn no_ms_marketplace_publish_logic_exists() {
         }
     }
 }
+
+/// Every workflow file, by name and text. Enumerated rather than
+/// listed, so a workflow added later is held to the same rules.
+fn all_workflows() -> Vec<(String, String)> {
+    let dir = format!("{}/.github/workflows", env!("CARGO_MANIFEST_DIR"));
+    let mut out: Vec<(String, String)> = std::fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("{dir}: {e}"))
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "yml" || x == "yaml"))
+        .map(|p| {
+            let name = p.file_name().unwrap().to_string_lossy().into_owned();
+            (name, std::fs::read_to_string(&p).unwrap())
+        })
+        .collect();
+    out.sort();
+    assert!(!out.is_empty(), "no workflows under {dir}");
+    out
+}
+
+/// A `uses:` line's action reference, if the line has one.
+fn uses_ref(line: &str) -> Option<&str> {
+    let t = line.trim_start().trim_start_matches("- ");
+    t.strip_prefix("uses:").map(str::trim)
+}
+
+/// The rule [`every_third_party_action_is_pinned_to_a_commit`] holds
+/// each `uses:` value to: a local action, or `owner/repo[/path]@SHA`
+/// with the 40-hex commit and a `# <version>` comment naming the ref
+/// it was resolved from. A tag or branch can be moved to different
+/// code after review; a commit cannot.
+fn pinned(value: &str) -> bool {
+    if value.starts_with("./") {
+        return true;
+    }
+    let (action, rest) = match value.split_once('@') {
+        Some(x) => x,
+        None => return false,
+    };
+    let (sha, comment) = match rest.split_once(char::is_whitespace) {
+        Some((s, c)) => (s, c.trim()),
+        None => (rest, ""),
+    };
+    action.split('/').count() >= 2
+        && sha.len() == 40
+        && sha
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        && comment
+            .strip_prefix('#')
+            .is_some_and(|v| !v.trim().is_empty())
+}
+
+#[test]
+fn the_pin_rule_accepts_a_commit_and_refuses_a_movable_ref() {
+    let sha = "3d3c42e5aac5ba805825da76410c181273ba90b1";
+    assert!(pinned(&format!("actions/checkout@{sha} # v7.0.1")));
+    assert!(pinned(&format!(
+        "github/codeql-action/init@{sha} # v4.39.1"
+    )));
+    assert!(pinned("./.github/actions/local"));
+    // negative controls: each is a ref that can be moved after review
+    assert!(!pinned("actions/checkout@v7"), "a tag");
+    assert!(!pinned("dtolnay/rust-toolchain@stable"), "a branch");
+    assert!(
+        !pinned(&format!("actions/checkout@{sha}")),
+        "no version comment"
+    );
+    assert!(
+        !pinned(&format!("actions/checkout@{}", &sha[..39])),
+        "39 hex"
+    );
+    assert!(
+        !pinned(&format!("actions/checkout@{} # v7", sha.to_uppercase())),
+        "upper"
+    );
+    assert!(
+        !pinned("checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7"),
+        "no owner"
+    );
+}
+
+#[test]
+fn every_third_party_action_is_pinned_to_a_commit() {
+    let mut bad = Vec::new();
+    let mut seen = 0usize;
+    for (name, y) in all_workflows() {
+        for (n, line) in y.lines().enumerate() {
+            if let Some(v) = uses_ref(line) {
+                seen += 1;
+                if !pinned(v) {
+                    bad.push(format!("{name}:{}: {v}", n + 1));
+                }
+            }
+        }
+    }
+    assert!(seen > 0, "no `uses:` lines were found: the scan is broken");
+    assert!(
+        bad.is_empty(),
+        "not pinned to a commit:\n{}",
+        bad.join("\n")
+    );
+}
+
+/// The value of a top-level `permissions:` key: the block under it, or
+/// the inline value after the colon.
+fn top_level_permissions(y: &str) -> Option<String> {
+    let mut lines = y.lines();
+    while let Some(l) = lines.next() {
+        if let Some(inline) = l.strip_prefix("permissions:") {
+            let inline = inline.trim();
+            if !inline.is_empty() {
+                return Some(inline.to_string());
+            }
+            let block: Vec<&str> = lines
+                .by_ref()
+                .take_while(|l| l.starts_with(' ') || l.trim().is_empty())
+                .filter(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
+                .map(str::trim)
+                .collect();
+            return Some(block.join(", "));
+        }
+    }
+    None
+}
+
+#[test]
+fn every_workflow_starts_from_a_read_only_token() {
+    // the default GITHUB_TOKEN can write on a push event; a top-level
+    // block caps every job, and the one job that needs write asks for
+    // it on its own
+    for (name, y) in all_workflows() {
+        let p = top_level_permissions(&y)
+            .unwrap_or_else(|| panic!("{name}: no top-level `permissions:`"));
+        assert!(
+            p == "{}" || p == "contents: read",
+            "{name}: top-level permissions are `{p}`; grant write per job instead"
+        );
+    }
+    assert_eq!(
+        top_level_permissions("on: push\npermissions:\n  contents: write\njobs:\n"),
+        Some("contents: write".to_string()),
+        "negative control: the reader must see a write grant"
+    );
+}
+
+#[test]
+fn the_release_job_alone_may_write_contents() {
+    let y = workflow("release.yml").expect("release.yml");
+    let publish = y.split("\n  publish:").nth(1).expect("a `publish` job");
+    assert!(
+        publish.contains("permissions:") && publish.contains("contents: write"),
+        "`gh release create` needs contents: write on the publish job"
+    );
+    let before = y.split("\n  publish:").next().unwrap();
+    let jobs = before.split("\njobs:").nth(1).expect("jobs");
+    assert!(
+        !jobs.contains("contents: write"),
+        "only the publish job writes"
+    );
+}
+
+#[test]
+fn code_scanning_covers_every_language_in_the_repo() {
+    let y = workflow("codeql.yml").expect(".github/workflows/codeql.yml");
+    // Rust in src/, TypeScript in client/, and the workflows themselves
+    for lang in ["rust", "javascript-typescript", "actions"] {
+        assert!(
+            y.contains(&format!("language: {lang}")),
+            "codeql.yml does not analyze {lang}"
+        );
+    }
+    assert!(y.contains("github/codeql-action/init@"));
+    assert!(y.contains("github/codeql-action/analyze@"));
+    assert!(y.contains("security-events: write"));
+    // pushes to main, and a clock: new queries find old code
+    assert!(y.contains("branches: [main]") && y.contains("schedule:"));
+}
+
+#[test]
+fn the_openssf_scorecard_runs_and_reports_to_code_scanning() {
+    let y = workflow("scorecard.yml").expect(".github/workflows/scorecard.yml");
+    assert!(y.contains("ossf/scorecard-action@"));
+    assert!(y.contains("results_format: sarif"));
+    assert!(y.contains("github/codeql-action/upload-sarif@"));
+    assert!(y.contains("id-token: write") && y.contains("publish_results: true"));
+    assert!(y.contains("schedule:") && y.contains("branch_protection_rule:"));
+}
+
+#[test]
+fn dependabot_watches_cargo_npm_and_actions() {
+    let path = format!("{}/.github/dependabot.yml", env!("CARGO_MANIFEST_DIR"));
+    let y = std::fs::read_to_string(&path).expect(".github/dependabot.yml");
+    for (eco, dir) in [("cargo", "/"), ("npm", "/client"), ("github-actions", "/")] {
+        let entry = y
+            .split("- package-ecosystem:")
+            .find(|s| s.trim_start().starts_with(&format!("\"{eco}\"")))
+            .unwrap_or_else(|| panic!("dependabot.yml has no {eco} entry"));
+        assert!(
+            entry.contains(&format!("directory: \"{dir}\"")),
+            "{eco} should watch {dir}"
+        );
+    }
+    // the floor rule: `@types/vscode` is the API surface, not a version
+    // to keep current (`vsce package` refuses a range above engines.vscode)
+    assert!(y.contains("dependency-name: \"@types/vscode\""));
+}
