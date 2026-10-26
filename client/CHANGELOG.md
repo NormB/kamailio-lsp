@@ -2,6 +2,29 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.21.5] — 2026-10-26
+
+**Two corrections to how the analyzer follows Kamailio's preprocessor,
+and dependency updates.**
+
+- **An included file is treated as part of a configuration only when
+  Kamailio reads it.** An `include_file` inside `#!ifdef NAME` counts
+  as read only when `NAME` is defined above it. A `#!define NAME` in a
+  branch the preprocessor skips, in the dead `#!else` of a satisfied
+  `#!ifdef`, or inside a `/* */` comment no longer counts. Before, such
+  a file was checked through a configuration that never opens it, and
+  `kamailio -c` reported none of its errors. `#!defexp`, `#!defexps`,
+  `#!defenv`, `#!defenvs`, `#!substdef` and `#!substdefs` now count as
+  defining the name, as they do for Kamailio.
+- **A `#!ifdef`, `#!else` or `#!endif` inside a `/* */` comment or a
+  string outside every conditional is read as comment or string
+  text.** Before, a route commented out together with its `#!ifdef`
+  was reported as "defined more than once", appeared in the outline,
+  was the target of go-to-definition and opened a fold.
+- **Dependencies.** The language server is built with tokio 1.54.1.
+  The extension uses vscode-languageclient 11.0.0; the minimum VS Code
+  version is unchanged (1.91).
+
 ## [0.21.4] — 2026-10-22
 
 **A release with no behavior change: the language server is rebuilt
