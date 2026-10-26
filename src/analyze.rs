@@ -113,10 +113,11 @@ fn directive_at(b: &[u8], i: usize) -> bool {
 /// keyword (`ifdef`, `ifndef`, `ifexp`, `else`, `endif`).
 pub(crate) fn conditional_lines(text: &str) -> Vec<(u32, &'static str)> {
     let b = text.as_bytes();
+    let class = classify(text);
     let mut out = Vec::new();
     let mut start = 0;
     for (n, line) in text.split_inclusive('\n').enumerate() {
-        if let Some(k) = conditional_at(b, start) {
+        if let Some(k) = directive_conditional_at(b, &class, start) {
             out.push((n as u32, k));
         }
         start += line.len();
@@ -129,8 +130,23 @@ pub(crate) fn conditional_lines(text: &str) -> Vec<(u32, &'static str)> {
 /// switched off, the lexer never saw the opening quote or `/*`, and
 /// the directive is where it starts listening again.  Kamailio's own
 /// `misc/examples/pkg/sipcapture.cfg` cuts a string off that way.
+///
+/// Only for an opener that sat inside a conditional. Code outside every
+/// conditional is always read, so there the lexer really is in its
+/// comment or string state at the directive and does not match it:
+/// `kamailio -c` 6.1.5 reads an `include_file` placed between a
+/// commented-out `#!ifdef` and its `#!endif`.
 fn breaks_at(b: &[u8], i: usize) -> bool {
     b[i] == b'\n' && conditional_at(b, i + 1).is_some()
+}
+
+/// [`conditional_at`] for a line the scanner reads as a directive: a
+/// conditional keyword that [`classify`] places inside a comment or a
+/// string is text there, not a level.
+fn directive_conditional_at(b: &[u8], class: &[Class], start: usize) -> Option<&'static str> {
+    let k = conditional_at(b, start)?;
+    let first = (start..b.len()).find(|&j| b[j] != b' ' && b[j] != b'\t')?;
+    (class.get(first) == Some(&Class::Preproc)).then_some(k)
 }
 
 /// For each line of `text`, the conditional branches it sits in: one
@@ -139,13 +155,14 @@ fn breaks_at(b: &[u8], i: usize) -> bool {
 /// directive line itself belongs to the level around it.
 pub fn cond_paths(text: &str) -> Vec<Vec<(u32, u32)>> {
     let b = text.as_bytes();
+    let class = classify(text);
     let mut out = Vec::new();
     let mut stack: Vec<(u32, u32)> = Vec::new();
     let mut next_id = 0u32;
     let mut start = 0usize;
     loop {
         out.push(stack.clone());
-        match conditional_at(b, start) {
+        match directive_conditional_at(b, &class, start) {
             Some("else") => {
                 if let Some(top) = stack.last_mut() {
                     top.1 += 1;
@@ -201,10 +218,24 @@ fn scan(text: &str) -> (Vec<Class>, Class) {
     let b = text.as_bytes();
     let mut out = vec![Class::Code; b.len()];
     let mut open = Class::Code;
+    // how many conditionals enclose the scan position: a comment or
+    // string opened at depth 0 is always read (see [`breaks_at`])
+    let mut depth = 0usize;
     let mut i = 0;
     while i < b.len() {
         match b[i] {
             b'#' | b'!' if directive_at(b, i) => {
+                let line_start = b[..i]
+                    .iter()
+                    .rposition(|&c| c == b'\n')
+                    .map_or(0, |n| n + 1);
+                match conditional_at(b, line_start)
+                    .filter(|_| b[line_start..i].iter().all(|&c| c == b' ' || c == b'\t'))
+                {
+                    Some("endif") => depth = depth.saturating_sub(1),
+                    Some("else") | None => {}
+                    Some(_) => depth += 1,
+                }
                 // directive: to EOL, following backslash continuations
                 loop {
                     while i < b.len() && b[i] != b'\n' {
@@ -241,12 +272,13 @@ fn scan(text: &str) -> (Vec<Class>, Class) {
             // block comments NEST: cfg.lex counts `comment_nest` up on
             // every `/*` inside one and leaves only back at zero
             b'/' if i + 1 < b.len() && b[i + 1] == b'*' => {
-                let mut depth = 0usize;
-                while i < b.len() && !breaks_at(b, i) {
+                let breakable = depth > 0;
+                let mut nest = 0usize;
+                while i < b.len() && !(breakable && breaks_at(b, i)) {
                     if b[i] == b'/' && b.get(i + 1) == Some(&b'*') {
-                        depth += 1;
+                        nest += 1;
                     } else if b[i] == b'*' && b.get(i + 1) == Some(&b'/') {
-                        depth -= 1;
+                        nest -= 1;
                     } else {
                         out[i] = Class::Comment;
                         i += 1;
@@ -255,12 +287,12 @@ fn scan(text: &str) -> (Vec<Class>, Class) {
                     out[i] = Class::Comment;
                     out[i + 1] = Class::Comment;
                     i += 2;
-                    if depth == 0 {
+                    if nest == 0 {
                         break;
                     }
                 }
                 // a conditional directive line ends it as well
-                if depth > 0 && i == b.len() {
+                if nest > 0 && i == b.len() {
                     open = Class::Comment;
                 }
             }
@@ -295,9 +327,10 @@ fn scan(text: &str) -> (Vec<Class>, Class) {
             b'"' => {
                 // opening quote counts as code; interior as string
                 i += 1;
-                while i < b.len() && b[i] != b'"' && !breaks_at(b, i) {
+                let breakable = depth > 0;
+                while i < b.len() && b[i] != b'"' && !(breakable && breaks_at(b, i)) {
                     out[i] = Class::Str;
-                    if b[i] == b'\\' && i + 1 < b.len() && !breaks_at(b, i + 1) {
+                    if b[i] == b'\\' && i + 1 < b.len() && !(breakable && breaks_at(b, i + 1)) {
                         out[i + 1] = Class::Str;
                         i += 1;
                     }
@@ -313,7 +346,8 @@ fn scan(text: &str) -> (Vec<Class>, Class) {
                 // single-quoted string (cfg.lex STRING2): no escape
                 // processing, may span lines
                 i += 1;
-                while i < b.len() && b[i] != b'\'' && !breaks_at(b, i) {
+                let breakable = depth > 0;
+                while i < b.len() && b[i] != b'\'' && !(breakable && breaks_at(b, i)) {
                     out[i] = Class::Str;
                     i += 1;
                 }
@@ -1235,13 +1269,20 @@ pub fn active_includes(text: &str) -> Vec<Located> {
     let mut holds: Vec<bool> = Vec::new();
     let mut known: Vec<bool> = Vec::new();
     let mut live: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    // the conditional lines the scanner reads as directives: one inside
+    // a comment or string opened in always-read code is text
+    let conds: std::collections::HashMap<u32, &str> = conditional_lines(text).into_iter().collect();
     for (n, line) in text.lines().enumerate() {
         let n = n as u32;
-        let t = line.trim_start();
-        if let Some(rest) = t.strip_prefix("#!").or_else(|| t.strip_prefix("!!")) {
-            let mut w = rest.split_whitespace();
-            let word = w.next().unwrap_or("");
-            let arg = w.next().unwrap_or("");
+        if let Some(&word) = conds.get(&n) {
+            // `#!` or `!!`, the keyword, then its argument
+            let arg = line
+                .trim_start()
+                .get(2 + word.len()..)
+                .unwrap_or("")
+                .split_whitespace()
+                .next()
+                .unwrap_or("");
             match word {
                 "ifdef" => {
                     // only a SATISFIED ifdef is knowable: an unmet one

@@ -316,3 +316,90 @@ fn a_define_makes_an_include_live_only_where_the_preprocessor_reads_it() {
     }
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
 }
+
+/// A conditional directive inside a block comment or a string that
+/// opened outside every conditional is text, not a directive.
+///
+/// Code outside every conditional is always read, so cfg.lex is in its
+/// COMMENT or STRING state when it reaches the `#!ifdef` line and never
+/// matches it there. Measured with `kamailio -c --all-errors` 6.1.5:
+///
+/// - `dup` below is accepted with and without `-A X`: the second
+///   `route[R]` is commented out, so it is not a duplicate.
+/// - in `ghost`, `route[GHOST]` is commented out (`-c` accepts the file
+///   either way, since an undefined route is not a parse error), so the
+///   call names a route nothing defines.
+/// - an `include_file` between two commented-out conditionals is read:
+///   the syntax error in the included file is reported (rc 255).
+/// - a multi-line string holding `#!ifdef X` is accepted (rc 0), with no
+///   `#!endif` anywhere in the file, in double and in single quotes.
+///
+/// The tree-sitter grammar agrees: it parses each `/* ... */` above as
+/// one `block_comment`. A comment or string opened INSIDE a conditional
+/// still ends at the next conditional line, since that region may be
+/// switched off and its opener never seen
+/// (`an_unterminated_block_comment_in_a_switched_off_region_ends_at_its_endif`).
+#[test]
+fn a_conditional_in_a_comment_or_string_that_is_always_read_is_text() {
+    let mut wrong: Vec<String> = Vec::new();
+    let mut check = |ok: bool, what: String| {
+        if !ok {
+            wrong.push(what);
+        }
+    };
+
+    let dup = "route[R] {\n    exit;\n}\n/*\n#!ifdef X\nroute[R] {\n    exit;\n}\n#!endif\n*/\nrequest_route {\n    route(R);\n}\n";
+    let w = warnings(dup);
+    check(w.is_empty(), format!("dup warns: {w:?}"));
+    let f: Vec<(u32, u32)> = kamailio_lsp::outline::folds(dup)
+        .iter()
+        .map(|f| (f.start_line, f.end_line))
+        .collect();
+    check(
+        !f.iter().any(|(s, _)| *s == 4),
+        format!("a fold for the commented-out #!ifdef: {f:?}"),
+    );
+
+    let ghost = "/*\n#!ifdef X\nroute[GHOST] {\n    exit;\n}\n#!endif\n*/\nrequest_route {\n    route(GHOST);\n}\n";
+    check(
+        !route_blocks(ghost).iter().any(|b| b.name == "GHOST"),
+        "route[GHOST] inside the comment read as a definition".to_string(),
+    );
+    let w = warnings(ghost);
+    check(
+        w == vec!["8: route 'GHOST' is not defined here or in included files"],
+        format!("ghost warnings: {w:?}"),
+    );
+
+    let inc: Vec<String> =
+        active_includes("/*\n#!ifdef NEVER\n*/\ninclude_file \"broken.cfg\"\n/*\n#!endif\n*/\n")
+            .into_iter()
+            .map(|i| i.name)
+            .collect();
+    check(inc == vec!["broken.cfg"], format!("includes: {inc:?}"));
+
+    let s = "request_route {\n    $var(s) = \"a\n#!ifdef X\nb\";\n    exit;\n}\n";
+    let paths = kamailio_lsp::analyze::cond_paths(s);
+    check(
+        paths.iter().all(|p| p.is_empty()),
+        format!("a conditional level inside a string: {paths:?}"),
+    );
+    let s = "request_route {\n    $var(s) = 'a\n#!ifdef X\nb';\n    exit;\n}\n";
+    let paths = kamailio_lsp::analyze::cond_paths(s);
+    check(
+        paths.iter().all(|p| p.is_empty()),
+        format!("a conditional level inside a single-quoted string: {paths:?}"),
+    );
+
+    // negative control: opened inside a conditional, the comment still
+    // ends at the conditional line, and the #!else branch is code
+    let inside = "#!ifdef NEVER\n/* never closed\n#!else\nroute[STORE] { exit; }\n#!endif\nrequest_route { route(STORE); }\n";
+    check(
+        route_blocks(inside).iter().any(|b| b.name == "STORE"),
+        "control: route[STORE] after #!else".to_string(),
+    );
+    let w = warnings(inside);
+    check(w.is_empty(), format!("control warns: {w:?}"));
+
+    assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+}
