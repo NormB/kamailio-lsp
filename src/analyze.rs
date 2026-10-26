@@ -1218,7 +1218,19 @@ pub fn byte_to_utf16(line: &str, byte_col: usize) -> u32 {
 /// way costs this feature for that file — the behaviour before it
 /// existed.  Wrong the other way hides real errors.
 pub fn active_includes(text: &str) -> Vec<Located> {
-    let mut defined: Vec<(u32, String)> = Vec::new();
+    // The names each line binds, read by [`defines`]: the same reader
+    // hover and go-to-definition use, so a `#!define` inside a comment
+    // or a string is not one, and every defining spelling cfg.lex has
+    // is seen (`defexp`, `defenv NAME=VAR`, `substdef`, ...). A
+    // `#!trydefenv[s]` binds only when its variable is set, which the
+    // file cannot tell, so it never makes a conditional hold.
+    let mut binds: std::collections::HashMap<u32, Vec<String>> = std::collections::HashMap::new();
+    for d in defines(text) {
+        if !d.directive.starts_with("trydefenv") {
+            binds.entry(d.line).or_default().push(d.name);
+        }
+    }
+    let mut defined: std::collections::HashSet<String> = std::collections::HashSet::new();
     // (this level holds, this level is knowable)
     let mut holds: Vec<bool> = Vec::new();
     let mut known: Vec<bool> = Vec::new();
@@ -1231,16 +1243,10 @@ pub fn active_includes(text: &str) -> Vec<Located> {
             let word = w.next().unwrap_or("");
             let arg = w.next().unwrap_or("");
             match word {
-                // every spelling cfg.lex accepts (DEFINE, TRYDEF, REDEF)
-                "define" | "def" | "trydef" | "trydefine" | "redefine" | "redef" => {
-                    if !arg.is_empty() {
-                        defined.push((n, arg.to_string()));
-                    }
-                }
                 "ifdef" => {
-                    let seen = defined.iter().any(|(l, name)| name == arg && *l < n);
                     // only a SATISFIED ifdef is knowable: an unmet one
                     // may be met by something this file cannot see
+                    let seen = defined.contains(arg);
                     holds.push(seen);
                     known.push(seen);
                     continue;
@@ -1269,6 +1275,11 @@ pub fn active_includes(text: &str) -> Vec<Located> {
             }
         }
         if holds.iter().all(|h| *h) {
+            // a definition in a region the preprocessor discards
+            // (state IFDEF_SKIP) binds nothing
+            if let Some(names) = binds.get(&n) {
+                defined.extend(names.iter().cloned());
+            }
             live.insert(n);
         }
     }

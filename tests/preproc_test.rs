@@ -232,3 +232,87 @@ fn a_directive_needs_its_keyword_and_the_tail_its_rule_takes() {
         .collect();
     assert_eq!(refs, vec!["R"]);
 }
+
+/// Which `#!define`s make a later `#!ifdef` hold, for the include
+/// graph: the ones the preprocessor actually reads.
+///
+/// Each case is a root of the shape `<directive>`, `#!ifdef FOO`,
+/// `include_file "broken.cfg"`, `#!endif`, with a syntax error in
+/// `broken.cfg`, run through `kamailio -c --all-errors` 6.1.5. Where
+/// `-c` reported the error in `broken.cfg` (rc 255) the file is read
+/// and must be claimed; where it accepted the root (rc 0) the file is
+/// never opened and claiming it would check the fragment through a
+/// root that hides its errors.
+///
+/// - A `#!define` in a region an `#!ifdef` switched off is discarded
+///   with the rest of the region (state IFDEF_SKIP), and so is one in
+///   the dead `#!else` of a satisfied `#!ifdef`.
+/// - A `#!define` inside a `/* */`, `#` or `//` comment is comment text.
+/// - `#!defexp`, `#!defexps`, `#!defenv`, `#!defenvs`, `#!substdef`,
+///   `#!substdefs` and `#!trydef` all define the name. `#!defenv` of an
+///   unset variable is fatal (`pp_define_env(): env variable not
+///   defined`), so any configuration that runs has the name defined;
+///   `#!defenv HOME` binds `HOME` and `#!defenv FOO=HOME` binds `FOO`.
+/// - `#!trydefenv` of an unset variable defines nothing, and whether a
+///   variable is set is not knowable from the file: never claimed.
+#[test]
+fn a_define_makes_an_include_live_only_where_the_preprocessor_reads_it() {
+    let names =
+        |t: &str| -> Vec<String> { active_includes(t).into_iter().map(|i| i.name).collect() };
+    let guarded = |pre: &str, sym: &str| {
+        format!("{pre}\n#!ifdef {sym}\ninclude_file \"broken.cfg\"\n#!endif\n")
+    };
+    let read = vec!["broken.cfg".to_string()];
+    let never: Vec<String> = Vec::new();
+    let mut wrong = Vec::new();
+
+    for (pre, sym, want, why) in [
+        (
+            "#!ifdef NEVER\n#!define FOO\n#!endif",
+            "FOO",
+            &never,
+            "a define in a switched-off region",
+        ),
+        (
+            "#!define ON\n#!ifdef ON\n#!else\n#!define FOO\n#!endif",
+            "FOO",
+            &never,
+            "a define in the dead #!else of a satisfied #!ifdef",
+        ),
+        (
+            "/*\n#!define FOO\n*/",
+            "FOO",
+            &never,
+            "a define in a block comment",
+        ),
+        ("# #!define FOO", "FOO", &never, "a define in a # comment"),
+        ("// #!define FOO", "FOO", &never, "a define in a // comment"),
+        ("#!defexp FOO 1+1", "FOO", &read, "#!defexp"),
+        ("#!defexps FOO \"a\" + \"b\"", "FOO", &read, "#!defexps"),
+        ("#!defenv FOO=HOME", "FOO", &read, "#!defenv NAME=VAR"),
+        ("#!defenv HOME", "HOME", &read, "#!defenv VAR"),
+        ("#!defenvs FOO=HOME", "FOO", &read, "#!defenvs"),
+        ("#!substdef \"!FOO!bar!g\"", "FOO", &read, "#!substdef"),
+        ("#!substdefs \"/FOO/bar/g\"", "FOO", &read, "#!substdefs"),
+        ("#!trydef FOO", "FOO", &read, "#!trydef"),
+        ("#!define FOO", "FOO", &read, "#!define"),
+        (
+            "#!trydefenv FOO=KLSP_UNSET",
+            "FOO",
+            &never,
+            "#!trydefenv: set only when the variable is",
+        ),
+        (
+            "#!trydefenvs FOO=KLSP_UNSET",
+            "FOO",
+            &never,
+            "#!trydefenvs: set only when the variable is",
+        ),
+    ] {
+        let got = names(&guarded(pre, sym));
+        if &got != want {
+            wrong.push(format!("{why}: got {got:?}, want {want:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+}
