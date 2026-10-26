@@ -297,9 +297,13 @@ file as part of that configuration is worse than treating it as part
 of nothing — it would be analysed against a program it is not in, and
 checked through a root that never reads it, so its own errors would
 never surface. A conditional counts as holding only when the symbol
-is defined earlier in the same file; anything less certain yields
-nothing, which is simply the behaviour from before this feature
-existed. (OpenSIPS differs here — its 4.0.1 parser reads the include
+is defined earlier in the same file, by a directive the preprocessor
+reads: a definition in a branch it skips, or inside a comment or a
+string, does not count. Every defining form listed under
+[Preprocessor symbols](#preprocessor-symbols) counts except
+`trydefenv` and `trydefenvs`, which bind only when the environment
+variable is set. Anything less certain yields nothing, which is
+simply the behaviour from before this feature existed. (OpenSIPS differs here — its 4.0.1 parser reads the include
 either way — so the sibling server deliberately does not do this.)
 
 The scan behind the graph is bounded at 500 configs and **says so in
@@ -341,6 +345,11 @@ consequences follow from how the preprocessor works:
   directives (`#!ifdef`, `#!ifndef`, `#!ifexp`, `#!else`, `#!endif`).
   So a quote or `/*` left open inside a branch ends at that branch's
   next conditional directive instead of hiding the rest of the file.
+- Code outside every conditional is always read. A conditional
+  directive inside a `/* */` comment or a string opened there is
+  comment or string text, as it is for `kamailio -c`: a route
+  commented out together with its `#!ifdef` is neither defined nor a
+  duplicate, and the commented-out `#!ifdef` opens no fold.
 - The same route defined in the `#!ifdef` and the `#!else` branch of
   one conditional is not a duplicate: only one branch is ever read.
   The same name under two separate conditionals still is, since both
