@@ -52,3 +52,20 @@ The real-tree harvest test is opt-in:
   structure is enforced by a test — update it when options change.
 - The VS Code client (`client/`) compiles in CI with `tsc`; keep its
   settings in sync with the server's initialization options.
+
+## Reporting bugs
+
+Report a bug or ask for a feature with the issue forms at
+<https://github.com/NormB/kamailio-lsp/issues/new/choose>. The "Bug report"
+form asks what happened, a minimal `kamailio.cfg` or the steps that show it,
+your editor and LSP client, and the kamailio-lsp and Kamailio versions; remove real
+addresses, domains and credentials from the configuration first. The
+"Feature request" form asks what problem the change would solve. Write
+issues in English. Every report is public and searchable at
+<https://github.com/NormB/kamailio-lsp/issues>.
+
+Do not report a vulnerability in a public issue. Use GitHub's private
+vulnerability reporting at
+<https://github.com/NormB/kamailio-lsp/security/advisories/new>;
+[SECURITY.md](SECURITY.md) says what is in scope and how soon a report
+is answered.

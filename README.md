@@ -215,6 +215,16 @@ setting `kamailioPath` (or `KAMAILIO_LSP_BIN`) to an **empty string**
 `-c` runs are serialized and bounded (10s default,
 `KAMAILIO_LSP_CHECK_TIMEOUT_MS` to tune).
 
+## Reporting bugs
+
+Bugs and feature requests go to the
+[issue forms](https://github.com/NormB/kamailio-lsp/issues/new/choose), and
+vulnerabilities to GitHub's
+[private vulnerability reporting](https://github.com/NormB/kamailio-lsp/security/advisories/new),
+never a public issue.
+[Reporting bugs](https://github.com/NormB/kamailio-lsp/blob/main/CONTRIBUTING.md#reporting-bugs)
+says what a report needs.
+
 ## License
 
 Licensed under either of
