@@ -253,9 +253,9 @@ impl Backend {
                 files
             }
             // The document is not IN the closure built from its root:
-            // the closure is capped (depth 8, 64 files) and a
-            // configuration with one include per carrier passes 64
-            // without trying.  Adding the document alone here would
+            // the closure is capped (10 levels, as Kamailio reads, and
+            // `logic::MAX_CONFIG_FILES` files), and a configuration
+            // can pass the file bound.  Adding the document alone here would
             // drop ITS includes — routes that were in scope before the
             // root was ever consulted.  Analysing in the root's
             // context must only ADD to what the file could already
@@ -738,7 +738,7 @@ impl Backend {
         if let Some(g) = self.include_graph.read().unwrap().clone() {
             return g;
         }
-        let (configs, truncated) = self.workspace_configs(500);
+        let (configs, truncated) = self.workspace_configs(logic::MAX_CONFIG_FILES);
         // A silent bound is the worst of the three options: the
         // fragment stops being recognised and nothing anywhere says
         // why.  `include_graph` is not async, so the line goes out on
@@ -753,9 +753,12 @@ impl Backend {
                 client
                     .log_message(
                         MessageType::WARNING,
-                        "kamailio-lsp: the include graph was built from the first 500 configs \
-                         under the workspace; a file included by a config outside that \
-                         set will not be recognised as part of it",
+                        format!(
+                            "kamailio-lsp: the include graph was built from the first {} configs \
+                             under the workspace; a file included by a config outside that \
+                             set will not be recognised as part of it",
+                            logic::MAX_CONFIG_FILES
+                        ),
                     )
                     .await;
             });
@@ -1826,14 +1829,17 @@ impl LanguageServer for Backend {
         // Which file is a root is the include graph's answer, read the
         // same way the graph and the closures read: two readers would
         // be two answers about which file is a program.
-        let (configs, truncated) = self.workspace_configs(500);
+        let (configs, truncated) = self.workspace_configs(logic::MAX_CONFIG_FILES);
         let graph = self.include_graph();
         if truncated {
             self.client
                 .log_message(
                     MessageType::INFO,
-                    "kamailio-lsp: workspace diagnostics stopped at 500 configs; \
-                     the sweep is incomplete",
+                    format!(
+                        "kamailio-lsp: workspace diagnostics stopped at {} configs; \
+                         the sweep is incomplete",
+                        logic::MAX_CONFIG_FILES
+                    ),
                 )
                 .await;
         }

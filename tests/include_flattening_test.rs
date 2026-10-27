@@ -146,3 +146,93 @@ fn a_block_comment_suppresses_the_directive_unlike_opensips() {
         );
     }
 }
+
+/// How far the include closure follows, against Kamailio's own limits.
+///
+/// `src/core/cfg.lex` at tag 6.1.5, line 102: `#define MAX_INCLUDE_DEPTH
+/// 10`; `sr_push_yy_state` (line 1874) refuses with "too many includes"
+/// once `include_stack_ptr` reaches it. The stack holds only included
+/// files, not the main one. Measured with `kamailio -c` 6.1.5: a route
+/// defined 10 nested includes below the root is read (rc 0), and one
+/// more level fails with "too many includes" (rc 255), for
+/// `include_file` and `import_file` alike. Nothing in cfg.lex counts
+/// files: a root including 600 files is accepted (rc 0).
+///
+/// The closure stopped at 8 levels and 64 files, so a route defined
+/// deeper or later read as "not defined". Kamailio sets no file count;
+/// the closure's bound is the editor's own, the same 500 the workspace
+/// sweep reads, so the closure never sees past what the include graph
+/// can.
+#[test]
+fn the_include_closure_follows_as_far_as_kamailio_reads() {
+    use kamailio_lsp::logic::{analyzer_diagnostics, include_closure};
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
+
+    let run = |files: &HashMap<PathBuf, String>| {
+        let root = Path::new("/t/kamailio.cfg");
+        let loader = |p: &Path| files.get(p).cloned();
+        let text = files[root].clone();
+        let closure = include_closure(root, &text, &loader);
+        let warnings: Vec<String> = analyzer_diagnostics(root, &text, &loader)
+            .into_iter()
+            .map(|d| d.message)
+            .collect();
+        (closure.len(), warnings)
+    };
+    // root -> f1 -> ... -> f{n}; f{n} defines route[DEEP]
+    let chain = |n: usize| {
+        let mut m = HashMap::new();
+        m.insert(
+            PathBuf::from("/t/kamailio.cfg"),
+            "include_file \"f1.cfg\"\nrequest_route {\n    route(DEEP);\n}\n".to_string(),
+        );
+        for i in 1..=n {
+            let body = if i < n {
+                format!("include_file \"f{}.cfg\"\n", i + 1)
+            } else {
+                "route[DEEP] {\n    exit;\n}\n".to_string()
+            };
+            m.insert(PathBuf::from(format!("/t/f{i}.cfg")), body);
+        }
+        m
+    };
+    // root includes w1 .. w{n}; each defines route[W{i}], all called
+    let wide = |n: usize| {
+        let mut root = String::new();
+        let mut calls = String::new();
+        let mut m = HashMap::new();
+        for i in 1..=n {
+            root.push_str(&format!("include_file \"w{i}.cfg\"\n"));
+            calls.push_str(&format!("    route(W{i});\n"));
+            m.insert(
+                PathBuf::from(format!("/t/w{i}.cfg")),
+                format!("route[W{i}] {{\n    exit;\n}}\n"),
+            );
+        }
+        root.push_str(&format!("request_route {{\n{calls}}}\n"));
+        m.insert(PathBuf::from("/t/kamailio.cfg"), root);
+        m
+    };
+
+    let mut wrong = Vec::new();
+    let (n, w) = run(&chain(10));
+    if n != 11 || !w.is_empty() {
+        wrong.push(format!("10 levels: {n} files, warnings {w:?}"));
+    }
+    // negative control: the 11th level is past what Kamailio reads
+    let (n, w) = run(&chain(11));
+    if n != 11 || !w.iter().any(|m| m.contains("DEEP")) {
+        wrong.push(format!("11 levels: {n} files, warnings {w:?}"));
+    }
+    let (n, w) = run(&wide(100));
+    if n != 101 || !w.is_empty() {
+        wrong.push(format!("100 siblings: {n} files, {} warnings", w.len()));
+    }
+    // the editor's bound, shared with the workspace sweep
+    let (n, _) = run(&wide(600));
+    if n != 500 {
+        wrong.push(format!("600 siblings: {n} files, want the 500-file bound"));
+    }
+    assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+}

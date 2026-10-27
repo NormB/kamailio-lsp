@@ -1070,9 +1070,23 @@ pub fn remap_include_diag(
     None
 }
 
-/// Transitive include limits: a hostile config must stay cheap.
-const INCLUDE_MAX_DEPTH: usize = 8;
-const INCLUDE_MAX_FILES: usize = 64;
+/// The most configuration files one analysis reads: the workspace
+/// sweep that builds the include graph, and the include closure of a
+/// single file.
+///
+/// Kamailio has no file-count limit (`src/core/cfg.lex` counts no
+/// files; `kamailio -c` 6.1.5 accepts a root including 600), so this
+/// bound is the editor's own: a hostile tree must stay cheap. One bound
+/// for both readers, because a closure larger than the sweep would see
+/// what the include graph cannot.
+pub const MAX_CONFIG_FILES: usize = 500;
+
+/// Kamailio's `MAX_INCLUDE_DEPTH` (`src/core/cfg.lex` line 102 at tag
+/// 6.1.5): included files nested below the main one, which is not on
+/// the include stack. `sr_push_yy_state` refuses one more with "too many
+/// includes"; measured with `kamailio -c` 6.1.5, a file 10 levels down
+/// is read and the 11th fails.
+const INCLUDE_MAX_DEPTH: usize = 10;
 
 /// Fold `.` and `..` components textually.
 ///
@@ -1419,7 +1433,7 @@ pub fn include_closure(
     while let Some((path, text, depth)) = queue.pop() {
         if depth < INCLUDE_MAX_DEPTH {
             for inc in analyze::includes(&text) {
-                if out.len() + queue.len() + 1 >= INCLUDE_MAX_FILES {
+                if out.len() + queue.len() + 1 >= MAX_CONFIG_FILES {
                     break;
                 }
                 // the first candidate that opens is the file Kamailio

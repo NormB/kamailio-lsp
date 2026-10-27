@@ -252,9 +252,11 @@ showing, and leaving them up until it is next touched makes the fix
 look like it did not work. A deeper change than one level corrects
 itself on save, through the watched-files path.
 
-The closure itself is bounded too — depth 8, 64 files — and a
-configuration with one include per carrier passes 64 without trying.
-A fragment past the bound is not in the closure built from its root,
+The closure follows includes 10 levels below the main config, as
+Kamailio does (`MAX_INCLUDE_DEPTH` in `src/core/cfg.lex`), and reads
+at most 500 files, the same bound as the workspace scan; Kamailio
+itself sets no file limit. A fragment past the bound is not in the
+closure built from its root,
 so its OWN closure leads and the root's follows: analysing a file in
 its parent's context must only ever ADD to what that file could
 already see, never take its own includes away.
@@ -737,8 +739,8 @@ clients that can't pass options.
   flagged. Defines from included files count. If the expansion names
   no route either, the warning says so and names both — the alias and
   what it expands to.
-- Include handling is capped for safety: depth 8, 64 files, 1 MiB per
-  file; a relative path is tried in the main config's directory and
+- Include handling follows Kamailio's depth (10 levels below the main
+  config) and is capped at 500 files and 1 MiB per file; a relative path is tried in the main config's directory and
   then beside the including file, as Kamailio does (see **Where a
   relative include opens**). `KAMAILIO_LSP_ANALYZER_DEBOUNCE_MS` tunes the analyzer
   debounce (default 300).

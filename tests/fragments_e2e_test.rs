@@ -452,8 +452,8 @@ fn call_hierarchy_from_a_fragment_sees_the_whole_closure() {
 
 /// A fragment the ROOT's closure cannot reach.
 ///
-/// The closure is capped for safety — depth 8, 64 files — and a
-/// deployment with one include per carrier passes 64 without trying.
+/// The closure is capped (10 levels, `logic::MAX_CONFIG_FILES` files),
+/// and a deployment with one include per carrier can pass the file bound.
 /// Past the cap the fragment is not IN the closure built from the
 /// root, and answering from that closure alone drops the fragment's
 /// OWN includes: routes that were in scope before the root was ever
@@ -463,23 +463,27 @@ fn call_hierarchy_from_a_fragment_sees_the_whole_closure() {
 fn a_fragment_outside_the_roots_closure_keeps_its_own_includes() {
     let scratch = common::Scratch::new("kamlsp-frag-wide");
     let base = scratch.path().to_path_buf();
-    std::fs::create_dir_all(&base).unwrap();
-    const N: usize = 90;
+    // the fragments live in inc/: the workspace scan takes the root
+    // directory's own files before any subdirectory, so the root is
+    // always among the configs it reads, while the root's closure is
+    // still made to pass its bound
+    std::fs::create_dir_all(base.join("inc")).unwrap();
+    const N: usize = kamailio_lsp::logic::MAX_CONFIG_FILES + 10;
     let mut root = String::from("#!KAMAILIO\n");
     for i in 0..N {
-        root.push_str(&format!("include_file \"c{i}.cfg\"\n"));
+        root.push_str(&format!("include_file \"inc/c{i}.cfg\"\n"));
     }
     root.push_str("route[TOP] {\n    exit;\n}\n");
     std::fs::write(base.join("kamailio.cfg"), &root).unwrap();
     for i in 0..N - 1 {
         std::fs::write(
-            base.join(format!("c{i}.cfg")),
+            base.join(format!("inc/c{i}.cfg")),
             format!("route[C{i}] {{ exit; }}\n"),
         )
         .unwrap();
     }
     std::fs::write(
-        base.join("helpers.cfg"),
+        base.join("inc/helpers.cfg"),
         "route[OWN_HELPER] {\n    exit;\n}\n",
     )
     .unwrap();
@@ -488,11 +492,25 @@ fn a_fragment_outside_the_roots_closure_keeps_its_own_includes() {
         "include_file \"helpers.cfg\"\nroute[C{}] {{\n    route(OWN_HELPER);\n    route(NOWHERE);\n}}\n",
         N - 1
     );
-    let leaf = base.join(format!("c{}.cfg", N - 1));
+    let leaf = base.join(format!("inc/c{}.cfg", N - 1));
     std::fs::write(&leaf, &leaf_text).unwrap();
     let leaf_uri = format!("file://{}", leaf.display());
 
     let (mut child, rx, mut stdin) = start(&base, "");
+    // the precondition: the server knows the leaf's root, so what
+    // follows is analysis in the root's context and not of a lone file
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"kamailio/analysisRoot",
+            "params":{"uri": leaf_uri}}),
+    );
+    let v = wait_for(&rx, |v| v["id"] == 2, "analysisRoot");
+    assert!(
+        v["result"]
+            .as_str()
+            .is_some_and(|s| s.ends_with("kamailio.cfg")),
+        "the leaf's root must be known: {v}"
+    );
     did_open(&mut stdin, &leaf_uri, &leaf_text);
     let v = wait_for(
         &rx,
