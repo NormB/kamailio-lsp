@@ -1561,3 +1561,225 @@ fn a_missing_include_lands_on_the_directive_that_names_it() {
     let plain = d(0, "syntax error");
     assert_eq!(place_missing_include(&files, plain.clone()), plain);
 }
+
+/// A closure the 500-file bound cut short says so: a hostile or very
+/// large tree is still bounded, and the analysis that follows knows it
+/// is incomplete.
+#[test]
+fn a_closure_cut_short_by_the_file_bound_says_so() {
+    use kamailio_lsp::logic::{MAX_CONFIG_FILES, include_closure_bounded};
+    use std::path::Path;
+    // every file includes three more, under fresh names, forever
+    let loader = |p: &Path| -> Option<String> {
+        let s = p.to_str()?;
+        Some(format!(
+            "include_file \"{s}.a\"\ninclude_file \"{s}.b\"\ninclude_file \"{s}.c\"\n"
+        ))
+    };
+    let root = Path::new("/w/kamailio.cfg");
+    let text = loader(root).unwrap();
+    let (files, truncated) = include_closure_bounded(root, &text, &loader);
+    assert_eq!(files.len(), MAX_CONFIG_FILES);
+    assert!(truncated, "files were left out and the closure must say so");
+}
+
+/// The negative control, on both sides of the bound: 500 files in all
+/// is complete, and one more is not.
+#[test]
+fn a_closure_of_exactly_500_files_is_complete_and_501_is_not() {
+    use kamailio_lsp::logic::include_closure_bounded;
+    use std::path::Path;
+    let loader = |p: &Path| -> Option<String> {
+        p.to_str()?.strip_prefix("/w/inc/c")?;
+        Some("route[x] { exit; }\n".into())
+    };
+    for (includes, want_len, want_cut) in [(499usize, 500usize, false), (500, 500, true)] {
+        let mut root = String::new();
+        for i in 0..includes {
+            root.push_str(&format!("include_file \"inc/c{i}.cfg\"\n"));
+        }
+        let (files, truncated) =
+            include_closure_bounded(Path::new("/w/kamailio.cfg"), &root, &loader);
+        assert_eq!(files.len(), want_len, "{includes} includes");
+        assert_eq!(truncated, want_cut, "{includes} includes");
+    }
+}
+
+/// An include past the bound that names a file which does not exist
+/// leaves nothing out: Kamailio could not read it either, so the
+/// closure is complete without it.
+#[test]
+fn a_missing_file_past_the_bound_is_not_a_file_left_out() {
+    use kamailio_lsp::logic::include_closure_bounded;
+    use std::path::Path;
+    let loader = |p: &Path| -> Option<String> {
+        let n: usize = p
+            .to_str()?
+            .strip_prefix("/w/inc/c")?
+            .strip_suffix(".cfg")?
+            .parse()
+            .ok()?;
+        (n < 499).then(|| "route[x] { exit; }\n".to_string())
+    };
+    let mut root = String::new();
+    for i in 0..500 {
+        root.push_str(&format!("include_file \"inc/c{i}.cfg\"\n"));
+    }
+    let (files, truncated) = include_closure_bounded(Path::new("/w/kamailio.cfg"), &root, &loader);
+    assert_eq!(files.len(), 500);
+    assert!(
+        !truncated,
+        "c499.cfg does not exist, so nothing was left out"
+    );
+}
+
+/// Kamailio opens a relative include in the main config's directory
+/// first and beside the including file second: a file past the bound
+/// that exists only in the second place is still a file left out.
+#[test]
+fn a_file_left_out_counts_in_either_place_kamailio_looks() {
+    use kamailio_lsp::logic::include_closure_bounded;
+    use std::path::Path;
+    // /w/inc/c{i}.cfg exist; the last include, from inside inc/, names
+    // "late.cfg", which exists only beside it (/w/inc/late.cfg)
+    let loader = |p: &Path| -> Option<String> {
+        let s = p.to_str()?;
+        if s == "/w/inc/c0.cfg" {
+            return Some("include_file \"late.cfg\"\n".into());
+        }
+        if s == "/w/inc/late.cfg" || s.strip_prefix("/w/inc/c").is_some() {
+            return Some("route[x] { exit; }\n".into());
+        }
+        None
+    };
+    let mut root = String::new();
+    for i in 0..499 {
+        root.push_str(&format!("include_file \"inc/c{i}.cfg\"\n"));
+    }
+    // 500 files in all once c0..c498 are read; late.cfg is the 501st
+    let (files, truncated) = include_closure_bounded(Path::new("/w/kamailio.cfg"), &root, &loader);
+    assert_eq!(files.len(), 500);
+    assert!(
+        truncated,
+        "inc/late.cfg exists beside its includer and was left out"
+    );
+}
+
+/// Where an include path is being typed, by Kamailio's lexer
+/// (`src/core/cfg.lex` at 6.1.5): `include_file` and `import_file`,
+/// bare or after `#!` / `!!`, are matched anywhere in code (lines
+/// 737-741, no start-of-line anchor), and the name is one token up to
+/// a blank (`<INCLF>[^ \t\r\n]+`, line 1512) that must be in double
+/// quotes (`sr_push_yy_state`, line 1885: "included file name must be
+/// between quotes"; `kamailio -c` 6.1.5 refuses `include_file 'r.cfg'`
+/// with exactly that message, rc 255).
+#[test]
+fn the_include_path_context_is_what_kamailio_reads_as_one() {
+    use kamailio_lsp::logic::include_path_context;
+    for (prefix, want) in [
+        ("include_file \"inc/", Some("inc/")),
+        ("import_file \"a", Some("a")),
+        ("#!include_file \"", Some("")),
+        ("!!import_file \"sub/x", Some("sub/x")),
+        ("    include_file \"x", Some("x")),
+        ("exit; include_file \"x", Some("x")),
+        ("include_file\t\"x", Some("x")),
+        // negative controls
+        ("include_file 'x", None),
+        ("include_file \"x\" ", None),
+        ("include_file \"a b", None),
+        ("xinclude_file \"a", None),
+        ("my_include_file \"a", None),
+        ("t_relay(\"", None),
+    ] {
+        assert_eq!(include_path_context(prefix), want, "{prefix:?}");
+    }
+}
+
+/// The entries offered for a path being typed: directories, and the
+/// files the workspace scan reads as configurations, in every
+/// directory Kamailio would open the path from (`include_candidates`:
+/// the main config's directory, then beside the including file).
+#[test]
+fn include_paths_list_every_directory_kamailio_would_look_in() {
+    use kamailio_lsp::logic::{CompKind, include_path_completions};
+    use std::path::Path;
+    let list = |d: &Path| -> Vec<(String, bool)> {
+        let e = |n: &str, dir: bool| (n.to_string(), dir);
+        match d.to_str().unwrap() {
+            "/w" => vec![
+                e("kamailio.cfg", false),
+                e("routes", true),
+                e(".git", true),
+                e("README.md", false),
+            ],
+            "/w/inc" => vec![
+                e("a.cfg", false),
+                e("b.inc", false),
+                e("c.m4", false),
+                e(".hidden.cfg", false),
+            ],
+            "/w/routes" => vec![e("r.cfg", false)],
+            "/w/inc/routes" => vec![e("local.cfg", false)],
+            "/etc/kamailio" => vec![e("tls.cfg", false)],
+            _ => vec![],
+        }
+    };
+    let cur = Path::new("/w/inc/a.cfg");
+    let labels = |root: Option<&Path>, typed: &str| -> Vec<(String, CompKind)> {
+        include_path_completions(root, cur, typed, &list)
+            .into_iter()
+            .map(|c| (c.label, c.kind))
+            .collect()
+    };
+    let f = |n: &str| (n.to_string(), CompKind::File);
+    let d = |n: &str| (n.to_string(), CompKind::Folder);
+    // the main config's directory and the including file's, merged
+    assert_eq!(
+        labels(Some(Path::new("/w")), ""),
+        vec![
+            f("a.cfg"),
+            f("b.inc"),
+            f("c.m4"),
+            f("kamailio.cfg"),
+            d("routes/")
+        ]
+    );
+    // one directory down, in both places
+    assert_eq!(
+        labels(Some(Path::new("/w")), "routes/"),
+        vec![f("local.cfg"), f("r.cfg")]
+    );
+    // an absolute path is the only place
+    assert_eq!(
+        labels(Some(Path::new("/w")), "/etc/kamailio/"),
+        vec![f("tls.cfg")]
+    );
+    // the part after the last `/` does not narrow the list: the editor
+    // filters on it
+    assert_eq!(
+        labels(Some(Path::new("/w")), "routes/lo"),
+        vec![f("local.cfg"), f("r.cfg")]
+    );
+}
+
+/// Inside an include path the code completion engine offers nothing:
+/// keywords and function names there would write code into a file
+/// path. The server lists paths before it calls this engine; this pins
+/// the engine's own contract for every other caller.
+#[test]
+fn code_completion_offers_nothing_inside_an_include_path() {
+    use kamailio_lsp::logic::completions;
+    for prefix in [
+        "include_file \"",
+        "include_file \"inc/",
+        "#!import_file \"a",
+    ] {
+        assert!(completions(&[], "", prefix).is_empty(), "{prefix:?}");
+    }
+    // negative control: in code, the keywords are offered
+    assert!(
+        !completions(&[], "", "    ").is_empty(),
+        "keywords are offered in code"
+    );
+}

@@ -18,6 +18,10 @@ pub enum CompKind {
     Keyword,
     /// A `#!define`-family preprocessor symbol.
     Define,
+    /// A configuration file an include can name.
+    File,
+    /// A directory on the way to one.
+    Folder,
 }
 
 /// One completion candidate.
@@ -87,6 +91,92 @@ static_regex!(
     r#"(?:^|[^A-Za-z0-9_])route\s*\(\s*["']?[A-Za-z0-9_.:-]*$"#
 );
 
+// an `include_file` / `import_file` argument being typed. cfg.lex
+// (6.1.5) matches the directive anywhere in code, bare or after `#!` /
+// `!!` (lines 737-741), reads the name as one token up to a blank
+// (`<INCLF>[^ \t\r\n]+`, line 1512), and `sr_push_yy_state` refuses
+// one that is not in double quotes (line 1885)
+static_regex!(
+    re_include_path_arg,
+    r#"(?:^|[^A-Za-z0-9_])(?:#!|!!)?(?:include_file|import_file)[ \t]*"([^"\s]*)$"#
+);
+
+/// The path typed so far, when the cursor is inside the quoted argument
+/// of an `include_file` or `import_file` directive.
+pub fn include_path_context(line_prefix: &str) -> Option<&str> {
+    re_include_path_arg()
+        .captures(line_prefix)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+}
+
+/// Completion candidates for the include path `typed`, written in the
+/// file at `current`: the directories, and the files the workspace scan
+/// reads as configurations (`.cfg`, `.inc`, `.m4`), in every directory
+/// Kamailio opens the path from ([`include_candidates`]: the main
+/// config's directory `root_dir` first, then beside the including
+/// file), merged.
+///
+/// `list` returns a directory's entries as (name, is_directory), so
+/// this can be tested without a filesystem. Names starting with `.` are
+/// left out, as the workspace scan leaves them out. The part after the
+/// last `/` does not narrow the list; the editor filters on it.
+pub fn include_path_completions(
+    root_dir: Option<&std::path::Path>,
+    current: &std::path::Path,
+    typed: &str,
+    list: &dyn Fn(&std::path::Path) -> Vec<(String, bool)>,
+) -> Vec<Comp> {
+    let dir_part = typed.rfind('/').map_or("", |i| &typed[..=i]);
+    let dirs = if dir_part.is_empty() {
+        // the directories themselves: `include_candidates` of "" would
+        // name them through an empty path component
+        let mut v: Vec<std::path::PathBuf> = Vec::new();
+        if let Some(r) = root_dir {
+            v.push(lexically_normal(r));
+        }
+        if let Some(p) = current.parent() {
+            let p = lexically_normal(p);
+            if !v.contains(&p) {
+                v.push(p);
+            }
+        }
+        v
+    } else {
+        include_candidates(root_dir, current, dir_part)
+    };
+    let mut out: Vec<Comp> = Vec::new();
+    for dir in dirs {
+        for (name, is_dir) in list(&dir) {
+            if name.starts_with('.') {
+                continue;
+            }
+            let c = if is_dir {
+                Comp {
+                    label: format!("{name}/"),
+                    detail: "directory".into(),
+                    doc: String::new(),
+                    kind: CompKind::Folder,
+                }
+            } else if is_config_candidate(std::path::Path::new(&name)) {
+                Comp {
+                    label: name,
+                    detail: "configuration file".into(),
+                    doc: String::new(),
+                    kind: CompKind::File,
+                }
+            } else {
+                continue;
+            };
+            if !out.iter().any(|o| o.label == c.label) {
+                out.push(c);
+            }
+        }
+    }
+    out.sort_by(|a, b| a.label.cmp(&b.label));
+    out
+}
+
 /// Is the cursor inside the name argument of a `route(...)` call?
 fn route_call_context(line_prefix: &str) -> bool {
     re_route_call_arg().is_match(line_prefix)
@@ -113,6 +203,11 @@ fn complete_files(
     files: &[(std::path::PathBuf, String)],
     line_prefix: &str,
 ) -> Vec<Comp> {
+    // inside an include path only paths complete, and those need the
+    // file system: see [`include_path_completions`]
+    if include_path_context(line_prefix).is_some() {
+        return Vec::new();
+    }
     // "$" prefix → pseudo-variables, nothing else
     if pvar_tail(line_prefix).is_some() {
         return core
@@ -1424,28 +1519,52 @@ pub fn include_closure(
     root_text: &str,
     loader: &dyn Fn(&std::path::Path) -> Option<String>,
 ) -> Vec<(std::path::PathBuf, String)> {
+    include_closure_bounded(root_path, root_text, loader).0
+}
+
+/// [`include_closure`], and whether [`MAX_CONFIG_FILES`] left out a
+/// file it would otherwise have read: one that exists in a place
+/// Kamailio opens it from ([`include_candidates`]). An include past the
+/// bound that names no existing file leaves nothing out.
+pub fn include_closure_bounded(
+    root_path: &std::path::Path,
+    root_text: &str,
+    loader: &dyn Fn(&std::path::Path) -> Option<String>,
+) -> (Vec<(std::path::PathBuf, String)>, bool) {
     let mut out: Vec<(std::path::PathBuf, String)> = Vec::new();
     let mut seen: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
     let root_dir = root_path.parent();
     let mut queue: Vec<(std::path::PathBuf, String, usize)> =
         vec![(root_path.to_path_buf(), root_text.to_string(), 0)];
     seen.insert(root_path.to_path_buf());
+    let mut truncated = false;
     while let Some((path, text, depth)) = queue.pop() {
         if depth < INCLUDE_MAX_DEPTH {
             for inc in analyze::includes(&text) {
-                if out.len() + queue.len() + 1 >= MAX_CONFIG_FILES {
-                    break;
+                let full = out.len() + queue.len() + 1 >= MAX_CONFIG_FILES;
+                if full && truncated {
+                    // already known to be cut short: reading more
+                    // files would only say so again
+                    continue;
                 }
                 // the first candidate that opens is the file Kamailio
                 // reads, even when it was already visited
                 let found = include_candidates(root_dir, &path, &inc.name)
                     .into_iter()
                     .find_map(|c| loader(&c).map(|t| (c, t)));
-                if let Some((target, t)) = found
-                    && seen.insert(target.clone())
-                {
-                    queue.push((target, t, depth + 1));
+                let Some((target, t)) = found else {
+                    continue;
+                };
+                if seen.contains(&target) {
+                    continue;
                 }
+                if full {
+                    // this file exists and is not read
+                    truncated = true;
+                    continue;
+                }
+                seen.insert(target.clone());
+                queue.push((target, t, depth + 1));
             }
         }
         out.push((path, text));
@@ -1456,7 +1575,23 @@ pub fn include_closure(
             .cmp(&(b.0 != *root_path))
             .then(a.0.cmp(&b.0))
     });
-    out
+    (out, truncated)
+}
+
+/// The warning a document carries when its include closure stopped at
+/// [`MAX_CONFIG_FILES`]: what was not read cannot be checked, and a
+/// route defined only there reads as undefined.
+pub fn closure_bound_diagnostic() -> AnalyzerDiag {
+    AnalyzerDiag {
+        line: 0,
+        col_start: 0,
+        col_end: 0,
+        message: format!(
+            "the include closure stopped at {MAX_CONFIG_FILES} files: files it includes \
+             past that bound are not read, and a route defined only in them is \
+             reported as undefined"
+        ),
+    }
 }
 
 /// Module names loaded anywhere in the closure, deduplicated.
@@ -2060,7 +2195,8 @@ fn dedup_completions(items: Vec<Comp>) -> Vec<Comp> {
             CompKind::Param => 3,
             CompKind::Route => 2,
             CompKind::Module => 1,
-            CompKind::Keyword => 0,
+            // paths are never mixed with code items
+            CompKind::Keyword | CompKind::File | CompKind::Folder => 0,
         }
     }
     let mut best: std::collections::HashMap<String, usize> = std::collections::HashMap::new();

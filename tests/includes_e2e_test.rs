@@ -243,3 +243,89 @@ fn references_and_rename_cross_the_include_closure() {
     assert_eq!(inc_edit["range"]["start"]["line"], 0);
     child.kill().ok();
 }
+
+/// The editor shows the same warning: a root whose include closure
+/// stopped at the 500-file bound carries it on its first line.
+#[test]
+fn a_root_whose_closure_stops_at_the_bound_is_told_so() {
+    let base_scratch = common::Scratch::new("kamlsp-inc-bound");
+    let base = base_scratch.path().to_path_buf();
+    std::fs::create_dir_all(base.join("inc")).unwrap();
+    let mut text = String::new();
+    for i in 0..500 {
+        text.push_str(&format!("include_file \"inc/c{i}.cfg\"\n"));
+        std::fs::write(
+            base.join(format!("inc/c{i}.cfg")),
+            "route[x] {\n    exit;\n}\n",
+        )
+        .unwrap();
+    }
+    let main = base.join("kamailio.cfg");
+    std::fs::write(&main, &text).unwrap();
+    let uri = format!("file://{}", main.display());
+    let (mut child, rx, mut stdin) = start(&base, serde_json::json!({"kamailioPath":""}));
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    let v = wait_for(
+        &rx,
+        |v| v["method"] == "textDocument/publishDiagnostics" && v["params"]["uri"] == uri,
+        "diagnostics on the root",
+    );
+    let hit = v["params"]["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| {
+            d["message"]
+                .as_str()
+                .is_some_and(|m| m.starts_with("the include closure stopped at 500 files"))
+        })
+        .cloned();
+    let d = hit.unwrap_or_else(|| panic!("no bound warning: {v}"));
+    assert_eq!(d["range"]["start"]["line"], 0, "{d}");
+    let _ = child.kill();
+}
+
+/// Completion inside `include_file "inc/` offers the files in `inc/`,
+/// and the edit replaces only the part typed after the last `/`.
+#[test]
+fn include_paths_complete_inside_the_quotes() {
+    let base_scratch = common::Scratch::new("kamlsp-inc-paths");
+    let base = base_scratch.path().to_path_buf();
+    std::fs::create_dir_all(base.join("inc/routes")).unwrap();
+    std::fs::write(base.join("inc/globals.cfg"), "debug = 2\n").unwrap();
+    std::fs::write(base.join("inc/notes.txt"), "not a config\n").unwrap();
+    let text = "include_file \"inc/gl\"\n";
+    let main = base.join("kamailio.cfg");
+    std::fs::write(&main, text).unwrap();
+    let uri = format!("file://{}", main.display());
+    let (mut child, rx, mut stdin) = start(&base, serde_json::json!({"kamailioPath":""}));
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+        "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
+    );
+    // the cursor after `inc/gl`
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
+        "textDocument":{"uri":uri},"position":{"line":0,"character":20}}}),
+    );
+    let v = wait_for(&rx, |v| v["id"] == 2, "completion");
+    let items = v["result"].as_array().unwrap_or_else(|| panic!("{v}"));
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert_eq!(labels, vec!["globals.cfg", "routes/"], "{v}");
+    let globals = &items[0];
+    assert_eq!(globals["kind"], 17, "CompletionItemKind.File: {globals}");
+    assert_eq!(items[1]["kind"], 19, "CompletionItemKind.Folder");
+    assert_eq!(
+        globals["textEdit"]["range"],
+        serde_json::json!({"start":{"line":0,"character":18},"end":{"line":0,"character":20}}),
+        "only `gl` is replaced: {globals}"
+    );
+    assert_eq!(globals["textEdit"]["newText"], "globals.cfg");
+    let _ = child.kill();
+}
