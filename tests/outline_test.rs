@@ -221,3 +221,51 @@ fn a_pseudo_variable_with_slashes_does_not_swallow_the_next_route() {
         ]
     );
 }
+
+/// A top-level parameter after a blank line is listed once, with a
+/// range that ends after it starts.
+///
+/// On a line holding only `\n`, `trim_start` removed the newline too, so
+/// the scan's start landed on the NEXT line's first byte and read that
+/// line's assignment a second time, with the statement end taken from
+/// the blank line: an end before its start. The default `kamailio.cfg`
+/// separates its global parameters with blank lines.
+#[test]
+fn a_parameter_after_a_blank_line_is_listed_once_with_a_valid_range() {
+    for (t, want) in [
+        (
+            "listen = udp:127.0.0.1:5060\n\nchildren = 4\n",
+            vec![("listen", 0), ("children", 2)],
+        ),
+        ("\nchildren = 4\n", vec![("children", 1)]),
+        ("\r\n\r\nchildren = 4\r\n", vec![("children", 2)]),
+        (
+            "\n\n\nchildren = 4\n\n\ndebug = 2\n",
+            vec![("children", 3), ("debug", 6)],
+        ),
+        // negative control: no blank line, no change
+        (
+            "children = 4\ndebug = 2\n",
+            vec![("children", 0), ("debug", 1)],
+        ),
+    ] {
+        let vars: Vec<Sym> = outline(t)
+            .into_iter()
+            .filter(|s| s.kind == SymKind::Variable)
+            .collect();
+        let got: Vec<(&str, u32)> = vars
+            .iter()
+            .map(|s| (s.name.as_str(), s.span.start_line))
+            .collect();
+        assert_eq!(got, want, "{t:?}");
+        for s in &vars {
+            for (what, sp) in [("span", &s.span), ("sel", &s.sel)] {
+                assert!(
+                    (sp.start_line, sp.start_col) <= (sp.end_line, sp.end_col),
+                    "{t:?}: {} {what} ends before it starts: {sp:?}",
+                    s.name
+                );
+            }
+        }
+    }
+}

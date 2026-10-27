@@ -356,7 +356,10 @@ fn assignments(
     for line in text.split_inclusive('\n') {
         let at = line_start;
         line_start += line.len();
-        let lead = line.len() - line.trim_start().len();
+        // indentation is cfg.lex's EAT_ABLE (` `, tab, backspace, CR);
+        // `trim_start` would also eat the `\n` of a blank line and land
+        // on the next line, reading its statement twice
+        let lead = line.len() - line.trim_start_matches([' ', '\t', '\x08', '\r']).len();
         let s = at + lead;
         if classes.get(s) != Some(&Class::Code) || !b[s].is_ascii_alphabetic() {
             continue;
