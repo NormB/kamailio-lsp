@@ -431,3 +431,22 @@ fn upstreams_switch_is_left_as_it_is() {
         .collect();
     assert_eq!(moved, Vec::<u32>::new());
 }
+
+/// Formatting is a fixed point: a formatted document formats to itself.
+/// Found by the `cfg` fuzz target, minimized to ` #!def `: the first pass
+/// and the second read the same directive line differently.
+#[test]
+fn formatting_a_formatted_document_changes_nothing() {
+    for text in [
+        " #!def ",
+        " #!def",
+        "\t#!define X 1\n",
+        " #!ifdef A\n#!endif\n",
+    ] {
+        for opts in [tabs(), spaces(2)] {
+            let once = format(text, &opts);
+            let twice = format(&once, &opts);
+            assert_eq!(twice, once, "{text:?} -> {once:?} -> {twice:?}");
+        }
+    }
+}

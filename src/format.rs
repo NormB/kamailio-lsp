@@ -201,8 +201,16 @@ fn formatted_lines(text: &str, opts: &Options) -> Vec<String> {
         }
 
         let is_directive = class.get(line.start + leading_ws) == Some(&Class::Preproc);
+        if is_directive {
+            // the preprocessor reads a directive line as it stands: its
+            // trailing whitespace can be what makes it one (cfg.lex reads
+            // `#!def` as a directive only when whitespace follows), so the
+            // whole line is left as it is
+            out.push(line.text.to_string());
+            continue;
+        }
         let label = code_at(leading_ws) && is_label(trimmed);
-        let indent = if is_directive || !prev_ended {
+        let indent = if !prev_ended {
             // not ours to move: the preprocessor reads these line-wise
             body[..leading_ws].to_string()
         } else {
