@@ -287,3 +287,20 @@ fn a_missing_include_in_an_included_file_names_that_file() {
         "cannot open included file: inc/b.cfg (/tmp/kamtest/inc/inc/b.cfg)"
     );
 }
+
+/// A failed check whose last error line has nothing after its prefix
+/// still reports a message: the editor shows an empty diagnostic as
+/// nothing at all, and the positioned path already says "parse error".
+#[test]
+fn a_failed_check_never_reports_an_empty_message() {
+    for tail in ["", " ", "\t"] {
+        let output = format!(" 0(1) ERROR: <core> [main.c:1]: main(): {tail}\n");
+        let d = parse_check_output(&output, 1);
+        assert_eq!(d.len(), 1, "{output:?}");
+        assert!(
+            !d[0].message.trim().is_empty(),
+            "{output:?} gave {:?}",
+            d[0].message
+        );
+    }
+}
