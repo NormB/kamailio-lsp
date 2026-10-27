@@ -308,6 +308,17 @@ fn dependabot_watches_cargo_npm_and_actions() {
     // the floor rule: `@types/vscode` is the API surface, not a version
     // to keep current (`vsce package` refuses a range above engines.vscode)
     assert!(y.contains("dependency-name: \"@types/vscode\""));
+    // the fuzz package keeps its own Cargo.lock, and ClusterFuzzLite's
+    // builder image is pinned by digest: both go stale unless watched
+    for (eco, dir) in [("cargo", "/fuzz"), ("docker", "/.clusterfuzzlite")] {
+        assert!(
+            y.split("- package-ecosystem:").any(|s| {
+                s.trim_start().starts_with(&format!("\"{eco}\""))
+                    && s.contains(&format!("directory: \"{dir}\""))
+            }),
+            "dependabot.yml should watch {dir} for {eco}"
+        );
+    }
 }
 
 /// The registry serves each platform build separately. After every
