@@ -2,6 +2,21 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.21.6] — 2026-10-27
+
+**Includes are followed as deep as Kamailio reads them, and the
+outline lists a parameter after a blank line once.**
+
+- **The analyzer follows includes 10 levels below the main config, as
+  Kamailio does** (`MAX_INCLUDE_DEPTH` in Kamailio's `cfg.lex`), and
+  reads up to 500 files, the same bound as the workspace scan. It
+  stopped at 8 levels and 64 files, so a route defined deeper, or in a
+  later file of a configuration with many includes, was reported as
+  "not defined here or in included files".
+- **A top-level `name = value` that follows a blank line is listed once
+  in the outline.** It was listed twice, the second entry with a range
+  that ended before it started.
+
 ## [0.21.5] — 2026-10-26
 
 **Two corrections to how the analyzer follows Kamailio's preprocessor,
