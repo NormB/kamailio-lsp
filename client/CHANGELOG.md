@@ -2,6 +2,55 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.22.0] — 2026-10-27
+
+**Completion inside include paths, a warning when the include closure
+stops at its file bound, and a function catalog that lists only
+functions a script can call.**
+
+- **Completion inside `include_file "` and `import_file "`.** It lists
+  the directories and the `.cfg`, `.inc` and `.m4` files in each place
+  Kamailio opens the path from: the main config's directory, then the
+  including file's. Typing `/` opens the next directory. Before, the
+  list offered keywords and function names, which wrote a function name
+  into a file path. Kamailio refuses an include name in single quotes,
+  so `include_file '` offers nothing.
+- **A warning when the include closure stops at 500 files.** A route
+  defined only in a file past the bound was reported as undefined with
+  nothing to say why. The analyzed file now carries "the include
+  closure stopped at 500 files" on its first line, in the editor and in
+  `kamailio-lsp check`. A configuration of exactly 500 files, or one
+  whose next include names a missing file, gets no warning.
+- **Functions that are not script functions are no longer listed.**
+  Completion and hover offered names no script can call:
+  - `tm`'s C API (`int t_suspend`, `register_tmcb`);
+  - `textops`' and `xprint`'s Developer Guide functions;
+  - `app_java`'s "Common requirements";
+  - `db2_ops`'s `@db.query...` selects.
+- **Functions that were missing are now listed:**
+  - every function of `auth_web3`, whose 6.1.5 README is not valid
+    UTF-8 and was skipped whole;
+  - `rtpengine_subscribe_request`, whose heading wraps onto a second
+    line in the 6.1.5 README;
+  - `crypto_netio_in`, whose heading lost its `(`.
+- **Second names the C sources export are listed as aliases.** An
+  export that shares a documented function's handler and parameter
+  count, under a name the README does not use, gets that function's
+  documentation with an "Alias of" note: `sl_reply` (`sl_send_reply`),
+  `t_disable_e2e_cancel_reason`, `ds_list_exist`, `avp_printf` (kex),
+  `set_attr`, `pv_www_authorize`, `pv_proxy_authorize`,
+  `www_authenticate` and `proxy_authenticate` (`uid_auth_db`).
+- **Formatting leaves a directive line exactly as it stands.** The
+  formatter trimmed trailing whitespace on `#!` lines, and that
+  whitespace is part of some directives: Kamailio reads `#!def ` as a
+  directive and `#!def` as a comment. A directive line is no longer
+  changed.
+- **A failed check never shows an empty message.** When `kamailio -c`
+  failed with no positioned error and its last error line had nothing
+  after the prefix, the diagnostic had no text. The nearest earlier
+  error line with a reason is used, or a fixed message when there is
+  none.
+
 ## [0.21.6] — 2026-10-27
 
 **Includes are followed as deep as Kamailio reads them, and the
