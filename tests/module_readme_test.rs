@@ -511,3 +511,156 @@ fn a_chapter_title_never_continues_the_parameter_chapter() {
     let params: Vec<&str> = m.params.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(params, vec!["p"], "{params:?}");
 }
+
+/// A script function's heading starts with its name. Measured against
+/// the 5.8.8 tree, the harvester took the text before the first `(` of
+/// every heading in a "Functions" section and so catalogued names no
+/// script can call:
+///
+/// - `tm` documents its C API under "7. TM Module API", in its own
+///   "7.2. Functions" (`int t_suspend(struct sip_msg *msg, ...)`,
+///   `register_tmcb(cb_type, cb_func)`), and `textops` and `xprint`
+///   under "Chapter 2. Developer Guide" (`load_textops`, `int
+///   xprint(...)`). Those are C functions for other modules, not
+///   script functions.
+/// - `app_java`'s "5.1. Common requirements" is prose inside its
+///   Functions chapter, and `db2_ops`'s `@db.query.query_id` entries
+///   are selects, not functions.
+/// - `crypto`'s heading `4.4. crypto_netio_in)` lost its `(`; the name
+///   before it is the function `crypto.c` exports.
+#[test]
+fn only_script_function_headings_name_functions() {
+    let txt = "\
+   Table of Contents
+
+1. Admin Guide
+
+4. Functions
+
+4.1.  good(a, b)
+
+   A real function.
+
+4.2.  Common requirements
+
+   Prose about every function.
+
+4.3.  crypto_netio_in)
+
+   A heading that lost its parenthesis.
+
+4.4.  @db.query.query_id
+
+   A select.
+
+4.5.  t_relay_to_udp(ip, port)
+
+   Another real function.
+
+7. TM Module API
+
+7.2. Functions
+
+7.2.1.  register_tmcb(cb_type, cb_func)
+
+   A C function.
+
+7.2.3.  int t_suspend(struct sip_msg *msg, unsigned int *hash_index)
+
+   Another C function.
+
+Chapter 2. Developer Guide
+
+1. Functions
+
+1.1.  load_textops(*import_structure)
+
+   A C function for other modules.
+";
+    let m = parse_readme_txt("demo", txt).unwrap();
+    let names: Vec<&str> = m.functions.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(names, vec!["good", "crypto_netio_in", "t_relay_to_udp"]);
+}
+
+/// A heading whose title lynx wrapped onto the next line. `rtpengine`'s
+/// 6.1.5 README writes `6.11.` alone on its line and
+/// `rtpengine_subscribe_request(flags,sdp_avp,to_tag_avp,stream_xavp[,via-branch]`
+/// and `)` on the lines after it; the heading pattern needs a title on
+/// the number's own line, so the function was not harvested.
+#[test]
+fn a_heading_wrapped_onto_the_next_line_is_one_heading() {
+    let txt = "\
+6. Functions
+
+6.10. rtpengine_manage([flags][,via-branch])
+
+   Manages.
+
+6.11.
+rtpengine_subscribe_request(flags,sdp_avp,to_tag_avp,stream_xavp[,via-branch]
+)
+
+   Generates SDP body for forking the current RTP stream.
+
+6.12. rtpengine_unsubscribe(to_tag[,via-branch])
+
+   Unsubscribes.
+";
+    let m = parse_readme_txt("rtpengine", txt).unwrap();
+    let got: Vec<(&str, &str)> = m
+        .functions
+        .iter()
+        .map(|f| (f.name.as_str(), f.detail.as_str()))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            ("rtpengine_manage", "rtpengine_manage([flags][,via-branch])"),
+            (
+                "rtpengine_subscribe_request",
+                "rtpengine_subscribe_request(flags,sdp_avp,to_tag_avp,stream_xavp[,via-branch])"
+            ),
+            (
+                "rtpengine_unsubscribe",
+                "rtpengine_unsubscribe(to_tag[,via-branch])"
+            ),
+        ]
+    );
+    assert_eq!(
+        m.functions[1].doc,
+        "Generates SDP body for forking the current RTP stream."
+    );
+}
+
+/// A heading that lost its `(` gets it back in the signature.
+/// `crypto`'s 6.1.5 heading is `4.4. crypto_netio_in)`; `crypto_mod.c`
+/// exports `crypto_netio_in` with 0 parameters and the README's own
+/// example calls `crypto_netio_in()`. Hover and signature help showed
+/// `crypto_netio_in)`.
+#[test]
+fn a_heading_that_lost_its_parenthesis_gets_it_back_in_the_signature() {
+    let txt = "\
+4. Functions
+
+4.3.  crypto_aes_decrypt(text, key, res)
+
+   Decrypts.
+
+4.4.  crypto_netio_in)
+
+   Return 1 (true) if it is an incoming net message.
+";
+    let m = parse_readme_txt("crypto", txt).unwrap();
+    let got: Vec<(&str, &str)> = m
+        .functions
+        .iter()
+        .map(|f| (f.name.as_str(), f.detail.as_str()))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            ("crypto_aes_decrypt", "crypto_aes_decrypt(text, key, res)"),
+            ("crypto_netio_in", "crypto_netio_in()"),
+        ]
+    );
+}

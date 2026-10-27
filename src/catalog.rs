@@ -118,8 +118,62 @@ fn split_bare_type(title: &str) -> Option<(&str, &str)> {
 /// value` under one of its functions.  The two are the same shape
 /// upside down, and this is what tells them apart: an item carries a
 /// signature or a type, a grouping or prose heading does not.
+/// The script function a Functions-section heading names: the
+/// identifier that starts it, followed by nothing, `(` or `)`.
+///
+/// What else sits in a Functions section is not a script function: a C
+/// prototype (`int t_suspend(struct sip_msg *msg, ...)`, where a type
+/// precedes the name), prose (`Common requirements`) and `db2_ops`'s
+/// selects (`@db.query.query_id`). A `)` is accepted because `crypto`'s
+/// 6.1.5 heading `crypto_netio_in)` lost its `(`; `crypto.c` exports
+/// that name.
+fn function_heading_name(title: &str) -> Option<&str> {
+    let end = title
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .unwrap_or(title.len());
+    let name = &title[..end];
+    if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
+        return None;
+    }
+    let rest = title[end..].trim_start();
+    (rest.is_empty() || rest.starts_with('(') || rest.starts_with(')')).then_some(name)
+}
+
 fn heading_is_item(title: &str) -> bool {
     title.contains('(') || split_bare_type(title).is_some()
+}
+
+/// The README's lines, with each heading whose title lynx wrapped onto
+/// the following lines joined back into one: a column-0 line holding
+/// only a number (`6.11.`) and the column-0 lines after it, up to a
+/// blank line. `rtpengine`'s 6.1.5 README writes
+/// `rtpengine_subscribe_request(...)` that way, the only such heading
+/// in the three pinned releases.
+fn join_wrapped_headings(txt: &str) -> Vec<String> {
+    static NUMBER: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let number = NUMBER.get_or_init(|| {
+        regex::Regex::new(r"^(?:\d+\.)+\s*$").expect("the heading-number pattern is a valid regex")
+    });
+    let src: Vec<&str> = txt.lines().collect();
+    let mut out = Vec::with_capacity(src.len());
+    let mut i = 0;
+    while i < src.len() {
+        let line = src[i];
+        i += 1;
+        if number.is_match(line) {
+            let mut title = String::new();
+            while i < src.len() && !src[i].trim().is_empty() && !src[i].starts_with([' ', '\t']) {
+                title.push_str(src[i].trim());
+                i += 1;
+            }
+            if !title.is_empty() {
+                out.push(format!("{} {title}", line.trim_end()));
+                continue;
+            }
+        }
+        out.push(line.to_string());
+    }
+    out
 }
 
 /// Parse one generated plain-text module `README`.
@@ -170,6 +224,12 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
     let mut cur_nums = String::new();
     let mut cur_depth = 0usize;
     let mut cur_is_item = false;
+    // a Developer Guide chapter documents the C API other modules
+    // call (`textops`' `load_textops`, `xprint`'s `int xprint(...)`)
+    let mut developer_chapter = false;
+    // each heading's title by its number, within the current chapter:
+    // `tm` documents its C API as "7. TM Module API" / "7.2. Functions"
+    let mut titles: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     let flush = |cur: &mut Option<(bool, String, String, Vec<String>, bool)>,
                  out: &mut ModuleDoc| {
@@ -193,7 +253,8 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
         }
     };
 
-    for line in txt.lines() {
+    let lines = join_wrapped_headings(txt);
+    for line in lines.iter().map(String::as_str) {
         // `Chapter N. <title>` is not a numbered heading, so a chapter
         // was invisible here — and `carrierroute` and `matrix` put
         // their database parameters in one of their own, items
@@ -205,6 +266,8 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
         {
             flush(&mut cur, &mut out);
             let title = rest.split_once(". ").map_or("", |(_, t)| t);
+            developer_chapter = title.to_ascii_lowercase().contains("developer");
+            titles.clear();
             if title.to_ascii_lowercase().contains("parameter") {
                 section = Section::Params;
                 sec_prefix = String::new();
@@ -218,12 +281,24 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
             let nums = c[1].to_string();
             let depth = nums.bytes().filter(|b| *b == b'.').count();
             let title = c[2].trim();
+            titles.insert(nums.clone(), title.to_string());
             let lowered = title.to_ascii_lowercase();
             let bare = lowered.strip_prefix("exported ").unwrap_or(&lowered);
             if bare == "parameters" || bare == "functions" {
                 flush(&mut cur, &mut out);
+                // the heading this section sits under: `7.` for `7.2.`
+                let parent = nums
+                    .trim_end_matches('.')
+                    .rsplit_once('.')
+                    .map(|(p, _)| format!("{p}."));
+                let under_api = parent
+                    .and_then(|p| titles.get(&p))
+                    .is_some_and(|t| t.split_whitespace().any(|w| w == "API"));
                 section = if bare == "parameters" {
                     Section::Params
+                } else if developer_chapter || under_api {
+                    // C functions for other modules, not script functions
+                    Section::Other
                 } else {
                     Section::Functions
                 };
@@ -286,8 +361,21 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
                         cur = Some((true, name, detail, Vec::new(), false));
                     }
                     Section::Functions => {
-                        let name = title.split('(').next().unwrap_or(title).trim().to_string();
-                        cur = Some((false, name, title.to_string(), Vec::new(), false));
+                        // a heading that names no script function is
+                        // kept as an unnamed item, which flush drops,
+                        // so the section's structure is unchanged
+                        let name = function_heading_name(title).unwrap_or("").to_string();
+                        // a heading that lost its `(` (`crypto_netio_in)`)
+                        // gets it back in the signature
+                        let detail = match title.strip_prefix(name.as_str()) {
+                            Some(rest)
+                                if !name.is_empty() && rest.trim_start().starts_with(')') =>
+                            {
+                                format!("{name}({}", rest.trim_start())
+                            }
+                            _ => title.to_string(),
+                        };
+                        cur = Some((false, name, detail, Vec::new(), false));
                     }
                     Section::Other => {}
                 }
@@ -579,7 +667,7 @@ fn collect_entry_macros(
 ) -> std::collections::BTreeMap<String, String> {
     let mut out = std::collections::BTreeMap::new();
     for f in files {
-        let Ok(text) = std::fs::read_to_string(f) else {
+        let Some(text) = read_lossy(f) else {
             continue;
         };
         let stripped = strip_c_comments(&text);
@@ -609,6 +697,20 @@ fn collect_entry_macros(
         }
     }
     out
+}
+
+/// Read a harvested file, decoding it lossily.
+///
+/// Upstream files are not all UTF-8: `auth_web3`'s 6.1.5 README spells
+/// `©` as the Latin-1 byte 0xA9, and two `permissions` headers in 5.8.8
+/// are not UTF-8 either. `read_to_string` refuses such a file whole,
+/// which dropped the module from the catalogue; a replaced character in
+/// prose or a comment changes nothing this harvester reads. The same
+/// reasoning as `logic::read_config`.
+fn read_lossy(path: &Path) -> Option<String> {
+    std::fs::read(path)
+        .ok()
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
 }
 
 /// Every C source under `root`, plus its headers when asked.
@@ -660,12 +762,95 @@ pub fn param_names_from_c(module_dir: &Path, tree_root: &Path) -> ModuleCParams 
     let mut names = Vec::new();
     let mut complete = true;
     for f in c_sources(module_dir, false) {
-        let Ok(src) = std::fs::read_to_string(&f) else {
+        let Some(src) = read_lossy(&f) else {
             continue;
         };
         scan_param_tables(&src, &macros, &mut names, &mut complete);
     }
     ModuleCParams { names, complete }
+}
+
+/// Functions a module's C sources export under a second name: an entry
+/// of a `cmd_export_t` table whose handler and parameter count are a
+/// documented function's, under a name the documentation does not use.
+///
+/// Kamailio writes an entry as `{"name", handler, nparams, fixup, ...}`,
+/// the handler with or without a `(cmd_function)` cast, and may export
+/// one name several times with different parameter counts and handlers
+/// (`auth`'s `pv_www_authenticate`, 3 and 4 parameters), so the count
+/// is part of the match. Comments are stripped first, so a
+/// commented-out entry is not an export.
+pub fn function_aliases_from_c(c_src: &str, documented: &[Item]) -> Vec<Item> {
+    static TABLE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static ENTRY: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let table = TABLE.get_or_init(|| {
+        regex::Regex::new(r"(?s)cmd_export_t\s+\w+\s*\[\s*\]\s*=\s*\{(.*?)\}\s*;")
+            .expect("the cmd_export_t table pattern is a valid regex")
+    });
+    let entry = ENTRY.get_or_init(|| {
+        regex::Regex::new(
+            r#"\{\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*(?:\(\s*cmd_function\s*\)\s*)?&?\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([0-9A-Za-z_]+)\s*,"#,
+        )
+        .expect("the cmd_export_t entry pattern is a valid regex")
+    });
+    let src = strip_c_comments(c_src);
+    let exports: Vec<(&str, &str, &str)> = table
+        .captures_iter(&src)
+        .flat_map(|t| {
+            let body = t.get(1).expect("the table pattern has one group").as_str();
+            entry.captures_iter(body).map(|c| {
+                (
+                    c.get(1)
+                        .expect("the entry pattern captures the name")
+                        .as_str(),
+                    c.get(2)
+                        .expect("the entry pattern captures the handler")
+                        .as_str(),
+                    c.get(3)
+                        .expect("the entry pattern captures the parameter count")
+                        .as_str(),
+                )
+            })
+        })
+        .collect();
+    let mut out: Vec<Item> = Vec::new();
+    for (name, handler, count) in &exports {
+        if documented.iter().any(|d| d.name == *name) || out.iter().any(|a| a.name == *name) {
+            continue;
+        }
+        let Some(of) = exports
+            .iter()
+            .filter(|(n, h, k)| h == handler && k == count && n != name)
+            .find_map(|(n, _, _)| documented.iter().find(|d| d.name == *n))
+        else {
+            continue;
+        };
+        let detail = match of.detail.strip_prefix(of.name.as_str()) {
+            Some(rest) => format!("{name}{rest}"),
+            None => name.to_string(),
+        };
+        out.push(Item {
+            name: name.to_string(),
+            detail,
+            doc: format!(
+                "Alias of `{}`: the C sources export both names with the same handler \
+                 and {count} parameters. {}",
+                of.name, of.doc
+            ),
+        });
+    }
+    out
+}
+
+/// Add the aliases a module's C sources define to its functions.
+fn reconcile_function_aliases(doc: &mut ModuleDoc, module_dir: &Path) {
+    let src: String = c_sources(module_dir, false)
+        .iter()
+        .filter_map(|p| read_lossy(p))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let aliases = function_aliases_from_c(&src, &doc.functions);
+    doc.functions.extend(aliases);
 }
 
 /// Reconcile a README harvest against the module's C parameter tables.
@@ -712,10 +897,11 @@ pub fn harvest_tree(tree_root: &Path) -> Vec<ModuleDoc> {
         }
         let name = e.file_name().to_string_lossy().into_owned();
         let readme = e.path().join("README");
-        if let Ok(txt) = std::fs::read_to_string(&readme)
+        if let Some(txt) = read_lossy(&readme)
             && let Ok(mut m) = parse_readme_txt(&name, &txt)
         {
             reconcile_params_with_c(&mut m, &e.path(), tree_root);
+            reconcile_function_aliases(&mut m, &e.path());
             out.push(m);
         }
     }
@@ -1204,7 +1390,7 @@ fn reconcile_core_with_grammar(core: &mut CoreDocs, cfg_y: &str, cfg_lex: &str) 
 
 /// Fill in the grammar's own names, given a source tree.
 pub fn reconcile_with_tree(core: &mut CoreDocs, src_root: &Path) {
-    let read = |p: &str| std::fs::read_to_string(src_root.join(p)).unwrap_or_default();
+    let read = |p: &str| read_lossy(&src_root.join(p)).unwrap_or_default();
     reconcile_core_with_grammar(core, &read("src/core/cfg.y"), &read("src/core/cfg.lex"));
 }
 
@@ -1329,7 +1515,7 @@ pub fn parse_socket_attrs_md(md: &str) -> Vec<Item> {
 
 /// The cookbook's `core.md` for a wiki checkout.
 pub fn cookbook_core_md(wiki_root: &Path) -> Option<String> {
-    std::fs::read_to_string(cookbook_dir(wiki_root)?.join("core.md")).ok()
+    read_lossy(&cookbook_dir(wiki_root)?.join("core.md"))
 }
 
 /// Reconcile one set of names against the cookbook's descriptions.
@@ -1356,7 +1542,7 @@ fn describe(accepted: Vec<String>, documented: &[Item], detail: &str) -> Vec<Ite
 
 /// Both socket syntaxes a source tree accepts, described by the wiki.
 pub fn harvest_socket_syntax(src_root: &Path, wiki_root: &Path) -> (Vec<Item>, Vec<Item>) {
-    let read = |p: &str| std::fs::read_to_string(src_root.join(p)).unwrap_or_default();
+    let read = |p: &str| read_lossy(&src_root.join(p)).unwrap_or_default();
     let y = read("src/core/cfg.y");
     let lex = read("src/core/cfg.lex");
     let documented = cookbook_core_md(wiki_root)
@@ -1428,7 +1614,7 @@ const LEVEL_SOURCES: &[&str] = &["src/modules/xlog/xlog.c"];
 pub fn harvest_log_levels(src_root: &Path) -> Vec<String> {
     LEVEL_SOURCES
         .iter()
-        .map(|f| std::fs::read_to_string(src_root.join(f)).unwrap_or_default())
+        .map(|f| read_lossy(&src_root.join(f)).unwrap_or_default())
         .map(|src| parse_log_levels_c(&src))
         .find(|v| !v.is_empty())
         .unwrap_or_default()
@@ -1907,7 +2093,7 @@ pub fn harvest_core(wiki_root: &Path) -> CoreDocs {
     let Some(dir) = cookbook_dir(wiki_root) else {
         return CoreDocs::default();
     };
-    let read = |f: &str| std::fs::read_to_string(dir.join(f)).unwrap_or_default();
+    let read = |f: &str| read_lossy(&dir.join(f)).unwrap_or_default();
     let (params, functions) = parse_core_cookbook_md(&read("core.md")).unwrap_or_default();
     let pvars = parse_pvars_md(&read("pseudovariables.md")).unwrap_or_default();
     let (routes, statements) = parse_core_blocks_md(&read("core.md")).unwrap_or_default();
