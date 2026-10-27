@@ -8,7 +8,7 @@ configuration file language (`kamailio.cfg`).
 | Feature | How |
 |---|---|
 | **Diagnostics** | Runs `kamailio -c --all-errors -Y <tmpdir> -f <file>` on open/save and maps the parser's errors (line, column, column ranges, multi-line spans) to LSP diagnostics — full-fidelity, version-exact semantic validation by the real parser. A fast analyzer layer warns between saves (debounced on change): undefined `route()` targets and duplicate route definitions. |
-| **Completion** | Context-sensitive: module names after `loadmodule "` / `modparam("`, the module's parameters inside the second `modparam` argument, exported functions of *loaded* modules plus core functions/parameters, route names inside `route(` and in route bodies, keywords, and pseudo-variables after `$` (replacing the typed token). Duplicate labels collapse; `include_file`/`import_file` closures count. |
+| **Completion** | Context-sensitive: module names after `loadmodule "` / `modparam("`, the module's parameters inside the second `modparam` argument, exported functions of *loaded* modules plus core functions/parameters, route names inside `route(` and in route bodies, keywords, pseudo-variables after `$` (replacing the typed token), and file and directory names inside `include_file "` / `import_file "`, where Kamailio opens the path. Duplicate labels collapse; `include_file`/`import_file` closures count. |
 | **Signature help** | The innermost unclosed call's signature with the active parameter, on `(` and `,`. |
 | **Hover** | Documentation for module functions, parameters, and modules, harvested from Kamailio's own docs. |
 | **Go to definition** | `route(NAME)` references resolve to their `route[NAME]` block — in this file or any included file. |
@@ -64,7 +64,7 @@ Via LSP `initializationOptions` (or environment fallback):
 |---|---|---|---|
 | `kamailioPath` | `KAMAILIO_LSP_BIN` | `kamailio` | Binary used for `-c` diagnostics. |
 | `kamailioSrc` | `KAMAILIO_LSP_SRC` | *(none)* | Source tree to harvest module docs from. |
-| `kamailioWiki` | `KAMAILIO_LSP_WIKI` | *(none)* | kamailio-wiki checkout for core-language docs. Not needed to get started: the core language and all 254 documented modules are built in, harvested from 6.1.x and 6.1.5, and used whenever nothing is configured — so `debug`, `loadmodule "` and `is_method` all complete on a fresh install. A configured source wins and replaces the matching catalogue wholesale. |
+| `kamailioWiki` | `KAMAILIO_LSP_WIKI` | *(none)* | kamailio-wiki checkout for core-language docs. Not needed to get started: the core language and all 255 documented modules are built in, harvested from 6.1.x and 6.1.5, and used whenever nothing is configured — so `debug`, `loadmodule "` and `is_method` all complete on a fresh install. A configured source wins and replaces the matching catalogue wholesale. |
 | `modulesPath` | — | *(none)* | Module search path for the checker (`-L`). |
 
 Diagnostics fidelity note: `-c` loads the modules the cfg references,

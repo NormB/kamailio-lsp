@@ -37,6 +37,7 @@ source tree (result cached per tree):
 | letters in a route | exported functions of **loaded** modules, core functions, core parameters, route names, keywords (documented ones carry their text) |
 | `route(` | route names (this file and its includes) |
 | `$` | pseudo-variables with descriptions (the typed `$word` is replaced, never doubled) |
+| `include_file "` or `import_file "` | the directories and the `.cfg`, `.inc` and `.m4` files in each place Kamailio opens the path from: the main config's directory, then the including file's. Typing `/` opens the next directory. Hidden names are left out. Kamailio refuses a name in single quotes, so `include_file '` offers nothing |
 | `listen=udp:… ` | the three modifiers a `listen` line takes — `advertise`, `name`, `virtual` |
 | inside `socket = { ` | the seven attributes the brace form takes — `bind`, `advertise`, `name`, `agname`, `workers`, `virtual`, `vrf`. Membership comes from the grammar, so `workers` is offered even though the cookbook's attribute list omits it, and says so |
 | `xlog(` | the log levels, quoted — `"L_INFO"`, because the fixup takes a string there. Type `xlog("` and they come unquoted instead. `xlogl` and `xlogm` too; `xdbg`, `xinfo`, `xerr`, `xnotice` and `xwarn` carry their level in the name and take a format alone. The set is read from the `switch` in your tree's `src/modules/xlog/xlog.c`, so it is the set *your* release accepts — kamailio takes `L_BUG`, and the three-argument `xlog(facility, level, format)` form is not offered at its level position |
@@ -255,8 +256,12 @@ itself on save, through the watched-files path.
 The closure follows includes 10 levels below the main config, as
 Kamailio does (`MAX_INCLUDE_DEPTH` in `src/core/cfg.lex`), and reads
 at most 500 files, the same bound as the workspace scan; Kamailio
-itself sets no file limit. A fragment past the bound is not in the
-closure built from its root,
+itself sets no file limit. When the bound leaves out a file the
+configuration includes, the file being analyzed carries a warning on
+its first line, "the include closure stopped at 500 files", because a
+route defined only in a file that was not read is reported as
+undefined; `kamailio-lsp check` reports the same warning. A fragment
+past the bound is not in the closure built from its root,
 so its OWN closure leads and the root's follows: analysing a file in
 its parent's context must only ever ADD to what that file could
 already see, never take its own includes away.
@@ -612,10 +617,18 @@ built in and used when nothing is configured:
 - **the core language** — parameters, functions and pseudo-variables
   like `debug`, `log_facility`, `children`, harvested from the
   Kamailio 6.1.x cookbook;
-- **every documented module** — 254 of them with their exported
+- **every documented module** — 255 of them with their exported
   functions and parameters, harvested from the 6.1.5 source tree, so
   `loadmodule "` offers real names and a call like `is_method`
   completes and hovers.
+
+A module's functions are the ones its README documents as script
+functions. A C API documented in an "API" chapter or a Developer Guide
+(`tm`'s `t_suspend`, `textops`' `load_textops`) is not listed, nor is a
+heading that names no function. A second name the module's C export
+table gives a documented function, with the same handler and parameter
+count, is listed as an alias with that function's documentation:
+`sl_reply` carries `sl_send_reply`'s.
 
 Both are clearly labelled: hover any built-in entry and it says which
 version the documentation came from and that setting `kamailioSrc` (or

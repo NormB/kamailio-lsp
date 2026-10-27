@@ -114,7 +114,7 @@ found in module <tm>`). Squiggles refresh every time you save.
 
 This all works before you configure anything. The extension ships
 documentation for the core language (`debug`, `log_facility` and the
-other globals, core functions, pseudo-variables) and for all 254
+other globals, core functions, pseudo-variables) and for all 255
 documented modules with their functions and parameters, and hover
 tells you which version an entry came from.
 
@@ -228,7 +228,7 @@ bottom-right status bar (it will say **Plain Text**) and pick
 | Squiggles on a correct file | The checker uses *your* Kamailio version — a config written for another version can legitimately fail. |
 | Completion has no documentation | Core and module entries both carry built-in documentation, so an entry with none is one the pinned version does not document: set **Kamailio Src** (and **Kamailio Wiki**) to sources matching your build. |
 | A module I have is not offered | The built-in list is what 6.1.5 documents, not what you compiled. Set **Kamailio Src** to your own tree. |
-| Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (254 documented modules, 65 core functions, core docs built in from 6.1.x, module docs built in from 6.1.5)"). |
+| Still stuck | **View → Output**, pick **Kamailio LSP** in the dropdown — the server explains what it is doing (e.g. "ready (255 documented modules, 65 core functions, core docs built in from 6.1.x, module docs built in from 6.1.5)"). |
 
 ## Checking against a specific Kamailio release
 

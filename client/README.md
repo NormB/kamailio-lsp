@@ -20,6 +20,9 @@ extension and it just works.
   - inside a route → exported functions of the modules you loaded,
     plus core functions, parameters, route names, and keywords
   - `$` → pseudo-variables (`$ru`, `$si`, …) with descriptions
+  - `include_file "` → the configuration files and directories where
+    Kamailio opens the path: the main config's directory, then the
+    including file's
   - functions insert as snippets — the cursor lands between the
     parentheses
 - **Hover documentation** for functions, parameters, modules, and
@@ -89,7 +92,7 @@ extension and it just works.
   the server.
 - **Core language and every module, out of the box** — parameters,
   functions and pseudo-variables (`debug`, `log_facility`, `children`)
-  and the exported functions and parameters of 254 modules
+  and the exported functions and parameters of 255 modules
   (`is_method`, `t_relay`, …) complete before you configure anything,
   from catalogues shipped with the extension. Module functions still
   appear only in a config that loads the module. Hover says which
