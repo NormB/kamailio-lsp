@@ -309,3 +309,59 @@ fn dependabot_watches_cargo_npm_and_actions() {
     // to keep current (`vsce package` refuses a range above engines.vscode)
     assert!(y.contains("dependency-name: \"@types/vscode\""));
 }
+
+/// The registry serves each platform build separately. After every
+/// target logged "Published", single targets returned 404 for the new
+/// version for up to about an hour (0.19.7, 0.21.4, 0.21.5), while the
+/// readiness step asked only for the universal build and gave up after
+/// 30 minutes. It now waits for every target the `vsix` job packages,
+/// each at its own endpoint, for up to 90 minutes.
+#[test]
+fn openvsx_readiness_waits_for_every_platform_build() {
+    let y = workflow("release.yml").expect("release.yml");
+    let vsix = y
+        .split("\n  vsix:")
+        .nth(1)
+        .and_then(|s| s.split("\n  openvsx:").next())
+        .expect("a vsix job");
+    let re = regex::Regex::new(r#""([a-z0-9]+-[a-z0-9]+) (?:x86_64|aarch64) [a-z-]+""#).unwrap();
+    let mut targets: Vec<String> = re.captures_iter(vsix).map(|c| c[1].to_string()).collect();
+    assert_eq!(targets.len(), 6, "platform builds packaged: {targets:?}");
+    targets.push("universal".to_string());
+
+    let ready = y
+        .split("Uploaded is not installable")
+        .nth(1)
+        .and_then(|s| s.split("\n  publish:").next())
+        .expect("the readiness step");
+    let pending = ready
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("pending=\""))
+        .and_then(|l| l.strip_suffix('"'))
+        .expect("a `pending=\"...\"` list of targets");
+    let mut listed: Vec<&str> = pending.split_whitespace().collect();
+    listed.sort();
+    targets.sort();
+    assert_eq!(listed, targets, "every packaged target is waited for");
+    assert!(
+        ready.contains("open-vsx.org/api/$NS/$NAME/$target/$VERSION"),
+        "each target is asked for at its own endpoint"
+    );
+    let rounds: u64 = regex::Regex::new(r"seq 1 (\d+)")
+        .unwrap()
+        .captures(ready)
+        .expect("seq")[1]
+        .parse()
+        .unwrap();
+    let pause: u64 = regex::Regex::new(r"sleep (\d+)")
+        .unwrap()
+        .captures(ready)
+        .expect("sleep")[1]
+        .parse()
+        .unwrap();
+    assert!(
+        rounds * pause >= 90 * 60,
+        "waits {}s, want 90 min",
+        rounds * pause
+    );
+}
