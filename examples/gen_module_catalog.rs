@@ -17,5 +17,9 @@ fn main() {
         .expect("usage: gen_module_catalog <tree> <version>");
     let modules = kamailio_lsp::catalog::harvest_tree(std::path::Path::new(&tree));
     let out = kamailio_lsp::catalog::BuiltinModules { version, modules };
-    println!("{}", serde_json::to_string(&out).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string(&out)
+            .expect("derived Serialize on structs, strings and lists cannot fail")
+    );
 }

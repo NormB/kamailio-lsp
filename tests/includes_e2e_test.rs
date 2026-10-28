@@ -7,11 +7,12 @@ use common::*;
 use std::process::{Command, Stdio};
 
 fn setup(base: &std::path::Path) -> (String, String) {
-    std::fs::create_dir_all(base).unwrap();
-    std::fs::write(base.join("inc.cfg"), "route[HELPER] {\n    exit;\n}\n").unwrap();
+    std::fs::create_dir_all(base).expect("the test can create its directory");
+    std::fs::write(base.join("inc.cfg"), "route[HELPER] {\n    exit;\n}\n")
+        .expect("the test can write its file");
     let main_text = "include_file \"inc.cfg\"\nrequest_route {\n    route(HELPER);\n}\n";
     let main = base.join("main.cfg");
-    std::fs::write(&main, main_text).unwrap();
+    std::fs::write(&main, main_text).expect("the test can write its file");
     (format!("file://{}", main.display()), main_text.to_string())
 }
 
@@ -35,11 +36,14 @@ fn start(
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         base,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{

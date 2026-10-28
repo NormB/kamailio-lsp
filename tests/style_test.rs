@@ -38,6 +38,7 @@ const DENIED_LINTS: &[&str] = &[
     "clippy.new_without_default",
     "clippy.len_without_is_empty",
     "clippy.undocumented_unsafe_blocks",
+    "clippy.unwrap_used",
 ];
 
 /// Crates that run code before `main`, which the guide forbids.

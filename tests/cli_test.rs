@@ -8,7 +8,7 @@ use std::process::Command;
 
 fn setup(tag: &str) -> common::Scratch {
     let dir = common::Scratch::new(&format!("kamlsp-cli-{tag}"));
-    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::create_dir_all(&dir).expect("the test can create its directory");
     dir
 }
 

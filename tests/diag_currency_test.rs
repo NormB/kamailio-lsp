@@ -26,15 +26,17 @@ exit 255
 fn setup(tag: &str) -> (common::Scratch, std::path::PathBuf, String) {
     let scratch = common::Scratch::new(&format!("kamlsp-cur-{tag}"));
     let dir = scratch.path().to_path_buf();
-    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::create_dir_all(&dir).expect("the test can create its directory");
     let stub = dir.join("stub.sh");
-    std::fs::write(&stub, STUB).unwrap();
+    std::fs::write(&stub, STUB).expect("the test can write its file");
     use std::os::unix::fs::PermissionsExt;
-    let mut p = std::fs::metadata(&stub).unwrap().permissions();
+    let mut p = std::fs::metadata(&stub)
+        .expect("the stub was just written")
+        .permissions();
     p.set_mode(0o755);
-    std::fs::set_permissions(&stub, p).unwrap();
+    std::fs::set_permissions(&stub, p).expect("the test can make its stub executable");
     let cfg = dir.join("t.cfg");
-    std::fs::write(&cfg, "request_route { exit; }\n").unwrap();
+    std::fs::write(&cfg, "request_route { exit; }\n").expect("the test can write its file");
     let uri = format!("file://{}", cfg.display());
     (scratch, stub, uri)
 }

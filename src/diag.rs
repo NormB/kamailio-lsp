@@ -48,17 +48,19 @@ pub fn parse_check_output(output: &str, rc: i32) -> Vec<Diag> {
     let single = regex::Regex::new(
         r"(CRITICAL|ERROR|WARNING): .*(parse error|warning) in config file (.*?), line (\d+), column (\d+)(?:-(\d+))?: ?(.*)",
     )
-    .unwrap();
+    .expect("a regex literal compiles");
     // spanning variant: `from line N, column C to line M, column D: msg`
     let spanning = regex::Regex::new(
         r"(CRITICAL|ERROR|WARNING): .*(parse error|warning) in config file (.*?), from line (\d+), column (\d+) to line (\d+), column (\d+): ?(.*)",
     )
-    .unwrap();
+    .expect("a regex literal compiles");
     // a missing include: the lexer names the file, then the line it
     // was reading on a line of its own, with no file
-    let missing = regex::Regex::new(r"cannot open included file: (.+)$").unwrap();
+    let missing =
+        regex::Regex::new(r"cannot open included file: (.+)$").expect("a regex literal compiles");
     // `error at %s line %d`: the file being read, `cfg` for the main one
-    let at_line = regex::Regex::new(r"error at (.+) line (\d+)\s*$").unwrap();
+    let at_line =
+        regex::Regex::new(r"error at (.+) line (\d+)\s*$").expect("a regex literal compiles");
     let mut pending_include: Option<String> = None;
     let mut out = Vec::new();
 
@@ -171,7 +173,7 @@ pub fn parse_check_output(output: &str, rc: i32) -> Vec<Diag> {
         // create runtime dir /var/run/kamailio/, ...`
         let generic =
             regex::Regex::new(r"(?:ERROR|CRITICAL): \S+ \[[^\]]*\]: [A-Za-z0-9_]+\(\): (.+)")
-                .unwrap();
+                .expect("a regex literal compiles");
         let msg = output
             .lines()
             .rev()

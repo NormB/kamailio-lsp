@@ -44,8 +44,9 @@ fn git(dir: &Path, args: &[&str]) -> String {
 
 fn commit_cookbook(upstream: &Path, text: &str) -> String {
     let page = upstream.join("docs/cookbooks/6.1.x/core.md");
-    std::fs::create_dir_all(page.parent().unwrap()).unwrap();
-    std::fs::write(&page, text).unwrap();
+    std::fs::create_dir_all(page.parent().expect("the path has a parent directory"))
+        .expect("the test can create its directory");
+    std::fs::write(&page, text).expect("the test can write its file");
     git(upstream, &["add", "-A"]);
     git(upstream, &["commit", "-q", "-m", text]);
     git(upstream, &["rev-parse", "HEAD"])

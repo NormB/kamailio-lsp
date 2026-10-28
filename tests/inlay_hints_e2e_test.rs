@@ -10,8 +10,9 @@ use std::process::{Command, Stdio};
 
 fn mk_tree(root: &std::path::Path) {
     let w = |p: std::path::PathBuf, c: &str| {
-        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
-        std::fs::write(p, c).unwrap();
+        std::fs::create_dir_all(p.parent().expect("the path has a parent directory"))
+            .expect("the test can create its directory");
+        std::fs::write(p, c).expect("the test can write its file");
     };
     w(
         root.join("src/modules/tm/README"),
@@ -47,7 +48,7 @@ fn boot(
     let tree = base.join("tree");
     mk_tree(&tree);
     let cfg = base.join("t.cfg");
-    std::fs::write(&cfg, CFG).unwrap();
+    std::fs::write(&cfg, CFG).expect("the test can write its file");
     let uri = format!("file://{}", cfg.display());
 
     let mut child = Server::new(
@@ -58,11 +59,14 @@ fn boot(
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         &base,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{

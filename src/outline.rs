@@ -305,7 +305,9 @@ pub fn outline(text: &str) -> Vec<Sym> {
     // already placed that contains it
     let mut stack: Vec<(usize, Sym)> = Vec::new();
     let finish = |stack: &mut Vec<(usize, Sym)>, top: &mut Vec<(usize, Sym)>| {
-        let (_, sym) = stack.pop().unwrap();
+        let (_, sym) = stack
+            .pop()
+            .expect("finish is called only while the stack is not empty");
         match stack.last_mut() {
             Some((_, parent)) => parent.children.push(sym),
             None => top.push((offset_of(&lines, sym.span), sym)),

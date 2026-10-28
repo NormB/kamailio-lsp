@@ -23,9 +23,9 @@ const FRAG_TEXT: &str = "route[ENTRY] {\n    route(HELPER);\n    route(GHOST);\n
 fn setup(tag: &str) -> (common::Scratch, String, String) {
     let scratch = common::Scratch::new(&format!("kamlsp-frag-{tag}"));
     let base = scratch.path().to_path_buf();
-    std::fs::create_dir_all(base.join("inc")).unwrap();
-    std::fs::write(base.join("kamailio.cfg"), ROOT_TEXT).unwrap();
-    std::fs::write(base.join("inc/routes.cfg"), FRAG_TEXT).unwrap();
+    std::fs::create_dir_all(base.join("inc")).expect("the test can create its directory");
+    std::fs::write(base.join("kamailio.cfg"), ROOT_TEXT).expect("the test can write its file");
+    std::fs::write(base.join("inc/routes.cfg"), FRAG_TEXT).expect("the test can write its file");
     let root_uri = format!("file://{}", base.join("kamailio.cfg").display());
     let frag_uri = format!("file://{}", base.join("inc/routes.cfg").display());
     (scratch, root_uri, frag_uri)
@@ -63,11 +63,14 @@ fn start_in(
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         base,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     let folders = with_workspace_folder
         .then(|| serde_json::json!([{"uri": format!("file://{}", base.display()), "name":"w"}]));
     write_msg(

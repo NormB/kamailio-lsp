@@ -19,9 +19,9 @@ fn boot(
 ) {
     let scratch = common::Scratch::new(&format!("kamlsp-rf-{tag}"));
     let dir = scratch.path().to_path_buf();
-    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::create_dir_all(&dir).expect("the test can create its directory");
     let cfg = dir.join("t.cfg");
-    std::fs::write(&cfg, text).unwrap();
+    std::fs::write(&cfg, text).expect("the test can write its file");
     let uri = format!("file://{}", cfg.display());
 
     let mut child = Server::new(
@@ -31,11 +31,14 @@ fn boot(
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         &dir,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
@@ -83,12 +86,26 @@ fn apply(text: &str, action: &serde_json::Value, uri: &str) -> String {
         .expect("edits")
         .iter()
         .collect();
-    edits.sort_by_key(|e| std::cmp::Reverse(e["range"]["start"]["line"].as_u64().unwrap()));
+    edits.sort_by_key(|e| {
+        std::cmp::Reverse(
+            e["range"]["start"]["line"]
+                .as_u64()
+                .expect("an LSP position field is a number"),
+        )
+    });
     for e in edits {
-        let s = e["range"]["start"]["line"].as_u64().unwrap() as usize;
-        let el = e["range"]["end"]["line"].as_u64().unwrap() as usize;
-        let ec = e["range"]["end"]["character"].as_u64().unwrap();
-        let new = e["newText"].as_str().unwrap();
+        let s = e["range"]["start"]["line"]
+            .as_u64()
+            .expect("an LSP position field is a number") as usize;
+        let el = e["range"]["end"]["line"]
+            .as_u64()
+            .expect("an LSP position field is a number") as usize;
+        let ec = e["range"]["end"]["character"]
+            .as_u64()
+            .expect("an LSP position field is a number");
+        let new = e["newText"]
+            .as_str()
+            .expect("a text edit carries its new text");
         if ec == 0 && el > s {
             // a whole-line range: replace those lines outright
             lines.splice(s..el, new.lines().map(str::to_string));

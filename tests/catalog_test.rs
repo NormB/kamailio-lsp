@@ -6,8 +6,9 @@ mod common;
 use kamailio_lsp::catalog::harvest_tree;
 
 fn write(path: &std::path::Path, content: &str) {
-    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(path, content).unwrap();
+    std::fs::create_dir_all(path.parent().expect("the path has a parent directory"))
+        .expect("the test can create its directory");
+    std::fs::write(path, content).expect("the test can write its file");
 }
 
 const MINI_README: &str = r#"Mini Module

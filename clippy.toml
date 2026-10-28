@@ -1,0 +1,4 @@
+# The tests may panic: a failed unwrap in a #[test] function is a failed
+# test. Everything else (src/, examples/, fuzz/ and the tests' helper
+# functions) uses expect with the reason the value must be there.
+allow-unwrap-in-tests = true

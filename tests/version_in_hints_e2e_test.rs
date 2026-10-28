@@ -24,9 +24,9 @@ fn hover_text(tag: &str, opts: serde_json::Value) -> String {
 fn hover_text_at(tag: &str, opts: serde_json::Value, body: &str, line: u32, ch: u32) -> String {
     let scratch = common::Scratch::new(&format!("kamlsp-vhints-{tag}"));
     let dir = scratch.path().to_path_buf();
-    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::create_dir_all(&dir).expect("the test can create its directory");
     let cfg = dir.join("t.cfg");
-    std::fs::write(&cfg, body).unwrap();
+    std::fs::write(&cfg, body).expect("the test can write its file");
     let uri = format!("file://{}", cfg.display());
 
     let mut child = Server::new(
@@ -38,11 +38,14 @@ fn hover_text_at(tag: &str, opts: serde_json::Value, body: &str, line: u32, ch: 
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         &dir,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{

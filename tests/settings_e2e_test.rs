@@ -10,8 +10,9 @@ use std::process::{Command, Stdio};
 
 fn mk_tree(root: &std::path::Path) {
     let w = |p: std::path::PathBuf, c: &str| {
-        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
-        std::fs::write(p, c).unwrap();
+        std::fs::create_dir_all(p.parent().expect("the path has a parent directory"))
+            .expect("the test can create its directory");
+        std::fs::write(p, c).expect("the test can write its file");
     };
     w(
         root.join("src/modules/mymod/README"),
@@ -35,7 +36,8 @@ fn boot(
     let tree = base.join("tree");
     mk_tree(&tree);
     let cfg = base.join("t.cfg");
-    std::fs::write(&cfg, "loadmodule \"mymod.so\"\nrequest_route { exit; }\n").unwrap();
+    std::fs::write(&cfg, "loadmodule \"mymod.so\"\nrequest_route { exit; }\n")
+        .expect("the test can write its file");
     let uri = format!("file://{}", cfg.display());
 
     let stub = base.join("stub.sh");
@@ -48,18 +50,23 @@ fn boot(
         ));
     }
     lines.push_str("exit 255\n");
-    std::fs::write(&stub, lines).unwrap();
+    std::fs::write(&stub, lines).expect("the test can write its file");
     use std::os::unix::fs::PermissionsExt;
-    let mut perm = std::fs::metadata(&stub).unwrap().permissions();
+    let mut perm = std::fs::metadata(&stub)
+        .expect("the stub was just written")
+        .permissions();
     perm.set_mode(0o755);
-    std::fs::set_permissions(&stub, perm).unwrap();
+    std::fs::set_permissions(&stub, perm).expect("the test can make its stub executable");
 
     let mut opts = serde_json::json!({
         "kamailioPath": if stub_errors > 0 { stub.display().to_string() } else { String::new() },
         "kamailioSrc": tree.display().to_string(),
         "cacheDir": base.join("cache").display().to_string(),
     });
-    for (k, v) in extra_opts.as_object().unwrap() {
+    for (k, v) in extra_opts
+        .as_object()
+        .expect("the extra options are a JSON object")
+    {
         opts[k] = v.clone();
     }
 
@@ -73,11 +80,14 @@ fn boot(
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         &base,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
@@ -111,7 +121,7 @@ fn boot(
 fn completion_item<'a>(v: &'a serde_json::Value, label: &str) -> Option<&'a serde_json::Value> {
     v["result"]
         .as_array()
-        .unwrap()
+        .expect("the field is a JSON array")
         .iter()
         .find(|i| i["label"] == label)
 }

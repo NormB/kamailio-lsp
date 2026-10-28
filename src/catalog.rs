@@ -65,9 +65,11 @@ pub struct ModuleDoc {
 fn sanitize_doc(text: &str) -> String {
     static HTML: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     static LINK: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let html = HTML.get_or_init(|| regex::Regex::new(r"</?[A-Za-z][^>]*>").unwrap());
+    let html = HTML
+        .get_or_init(|| regex::Regex::new(r"</?[A-Za-z][^>]*>").expect("a regex literal compiles"));
     let link = LINK.get_or_init(|| {
-        regex::Regex::new(r"\[([^\]]*)\]\(([A-Za-z][A-Za-z0-9+.-]*):[^)]*\)").unwrap()
+        regex::Regex::new(r"\[([^\]]*)\]\(([A-Za-z][A-Za-z0-9+.-]*):[^)]*\)")
+            .expect("a regex literal compiles")
     });
     let no_html = html.replace_all(text, "");
     link.replace_all(&no_html, |c: &regex::Captures| {
@@ -199,7 +201,9 @@ pub fn parse_readme_txt(module: &str, txt: &str) -> Result<ModuleDoc, String> {
         return Err("empty input".into());
     }
     static HEADING: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let heading = HEADING.get_or_init(|| regex::Regex::new(r"^((?:\d+\.)+)\s+(\S.*)$").unwrap());
+    let heading = HEADING.get_or_init(|| {
+        regex::Regex::new(r"^((?:\d+\.)+)\s+(\S.*)$").expect("a regex literal compiles")
+    });
 
     #[derive(PartialEq, Clone, Copy)]
     enum Section {
@@ -1188,7 +1192,8 @@ fn is_spelling(w: &str) -> bool {
 /// one spelling.
 pub fn lexer_spellings(pattern: &str) -> Vec<String> {
     static GROUP: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let group = GROUP.get_or_init(|| regex::Regex::new(r"\(([^()]*)\)").unwrap());
+    let group =
+        GROUP.get_or_init(|| regex::Regex::new(r"\(([^()]*)\)").expect("a regex literal compiles"));
     let words = |t: &str| -> Vec<String> {
         let quoted: Vec<String> = t
             .split('"')
@@ -1253,7 +1258,8 @@ fn production<'a>(cfg_y: &'a str, name: &str) -> Option<&'a str> {
     let start = cfg_y.find(&format!("\n{name}:"))? + 1;
     let rest = &cfg_y[start..];
     static NEXT: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let next = NEXT.get_or_init(|| regex::Regex::new(r"\n[a-z_]+:").unwrap());
+    let next =
+        NEXT.get_or_init(|| regex::Regex::new(r"\n[a-z_]+:").expect("a regex literal compiles"));
     Some(match next.find(&rest[name.len() + 1..]) {
         Some(m) => &rest[..name.len() + 1 + m.start()],
         None => rest,
@@ -1580,7 +1586,8 @@ pub fn harvest_socket_syntax(src_root: &Path, wiki_root: &Path) -> (Vec<Item>, V
 pub fn parse_log_levels_c(src: &str) -> Vec<String> {
     static CASE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let case = CASE.get_or_init(|| {
-        regex::Regex::new(r"case\s*'([A-Z])'\s*:[^;{}]*?(L_[A-Z][A-Z0-9_]*)").unwrap()
+        regex::Regex::new(r"case\s*'([A-Z])'\s*:[^;{}]*?(L_[A-Z][A-Z0-9_]*)")
+            .expect("a regex literal compiles")
     });
     let Some(end) = src.find("unknown log level") else {
         return Vec::new();
@@ -1626,7 +1633,9 @@ pub fn harvest_log_levels(src_root: &Path) -> Vec<String> {
 /// `$avp(id)`); the full heading form survives in the detail.
 pub fn parse_pvars_md(md: &str) -> Result<Vec<Item>, String> {
     static NAME: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let name_re = NAME.get_or_init(|| regex::Regex::new(r"^\$([A-Za-z0-9_]+)").unwrap());
+    let name_re = NAME.get_or_init(|| {
+        regex::Regex::new(r"^\$([A-Za-z0-9_]+)").expect("a regex literal compiles")
+    });
     let mut out: Vec<Item> = Vec::new();
     let push = |heading: &str, doc: String, out: &mut Vec<Item>| {
         // wiki markdown escapes some specials in headings: `$\_s(...)`

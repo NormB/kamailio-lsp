@@ -27,5 +27,9 @@ fn main() {
         kamailio_lsp::catalog::reconcile_with_tree(&mut core, src);
     }
     let out = kamailio_lsp::catalog::BuiltinCore { version, core };
-    println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&out)
+            .expect("derived Serialize on structs, strings and lists cannot fail")
+    );
 }

@@ -21,12 +21,13 @@ fn boot(
 ) {
     let scratch = common::Scratch::new(&format!("kamlsp-watch-{tag}"));
     let base = scratch.path().to_path_buf();
-    std::fs::create_dir_all(base.join("tree/src/modules/mymod")).unwrap();
+    std::fs::create_dir_all(base.join("tree/src/modules/mymod"))
+        .expect("the test can create its directory");
     std::fs::write(
         base.join("tree/src/modules/mymod/README"),
         "MyMod Module\n\n2. Functions\n\n2.1.  first_fn()\n\n   One.\n",
     )
-    .unwrap();
+    .expect("the test can write its file");
 
     let mut child = Server::new(
         Command::new(env!("CARGO_BIN_EXE_kamailio-lsp"))
@@ -36,11 +37,14 @@ fn boot(
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         &base,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{

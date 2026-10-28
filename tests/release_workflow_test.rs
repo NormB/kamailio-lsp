@@ -113,8 +113,15 @@ fn all_workflows() -> Vec<(String, String)> {
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.extension().is_some_and(|x| x == "yml" || x == "yaml"))
         .map(|p| {
-            let name = p.file_name().unwrap().to_string_lossy().into_owned();
-            (name, std::fs::read_to_string(&p).unwrap())
+            let name = p
+                .file_name()
+                .expect("a directory entry has a file name")
+                .to_string_lossy()
+                .into_owned();
+            (
+                name,
+                std::fs::read_to_string(&p).expect("the file is readable UTF-8"),
+            )
         })
         .collect();
     out.sort();

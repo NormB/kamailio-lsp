@@ -32,14 +32,16 @@ fn find_pii(text: &str) -> Vec<String> {
         // overkill; emulate it: match /home/<name> and allow "user".
         if pat.starts_with("/home/") {
             static HOME_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-            let re = HOME_RE.get_or_init(|| regex::Regex::new(r"/home/([a-z][a-z0-9]*)").unwrap());
+            let re = HOME_RE.get_or_init(|| {
+                regex::Regex::new(r"/home/([a-z][a-z0-9]*)").expect("a regex literal compiles")
+            });
             for c in re.captures_iter(text) {
                 if &c[1] != "user" {
                     hits.push(format!("{} ({})", &c[0], why));
                 }
             }
         } else {
-            let re = regex::Regex::new(pat).unwrap();
+            let re = regex::Regex::new(pat).expect("every BANNED pattern is a valid regex");
             if let Some(m) = re.find(text) {
                 hits.push(format!("{} ({})", m.as_str(), why));
             }

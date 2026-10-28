@@ -19,9 +19,9 @@ fn boot(
 ) {
     let scratch = common::Scratch::new(&format!("kamlsp-fmt-{tag}"));
     let dir = scratch.path().to_path_buf();
-    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::create_dir_all(&dir).expect("the test can create its directory");
     let cfg = dir.join("t.cfg");
-    std::fs::write(&cfg, text).unwrap();
+    std::fs::write(&cfg, text).expect("the test can write its file");
     let uri = format!("file://{}", cfg.display());
 
     let mut child = Server::new(
@@ -31,11 +31,14 @@ fn boot(
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         &dir,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
@@ -137,10 +140,21 @@ fn range_formatting_edits_only_the_requested_lines() {
 fn apply(text: &str, edits: &[serde_json::Value]) -> String {
     let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
     for e in edits {
-        let l = e["range"]["start"]["line"].as_u64().unwrap() as usize;
-        let s = e["range"]["start"]["character"].as_u64().unwrap() as usize;
-        let en = e["range"]["end"]["character"].as_u64().unwrap() as usize;
-        lines[l].replace_range(s..en, e["newText"].as_str().unwrap());
+        let l = e["range"]["start"]["line"]
+            .as_u64()
+            .expect("an LSP position field is a number") as usize;
+        let s = e["range"]["start"]["character"]
+            .as_u64()
+            .expect("an LSP position field is a number") as usize;
+        let en = e["range"]["end"]["character"]
+            .as_u64()
+            .expect("an LSP position field is a number") as usize;
+        lines[l].replace_range(
+            s..en,
+            e["newText"]
+                .as_str()
+                .expect("a text edit carries its new text"),
+        );
     }
     lines.join("\n")
 }

@@ -7,14 +7,15 @@ use kamailio_lsp::catalog::{CoreDocs, Item, ModuleDoc, load_cached, save_cache, 
 
 fn mk_tree(tag: &str) -> common::Scratch {
     let root = common::Scratch::new(&format!("kamlsp-cache-tree-{tag}"));
-    std::fs::create_dir_all(root.join("src").join("modules").join("m")).unwrap();
+    std::fs::create_dir_all(root.join("src").join("modules").join("m"))
+        .expect("the test can create its directory");
     root
 }
 
 fn mk_wiki(tag: &str) -> common::Scratch {
     let root = common::Scratch::new(&format!("kamlsp-cache-wiki-{tag}"));
-    std::fs::create_dir_all(&root).unwrap();
-    std::fs::write(root.join("core.md"), "# Core Cookbook\n").unwrap();
+    std::fs::create_dir_all(&root).expect("the test can create its directory");
+    std::fs::write(root.join("core.md"), "# Core Cookbook\n").expect("the test can write its file");
     root
 }
 

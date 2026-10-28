@@ -31,9 +31,9 @@ const CFG: &str = "request_route {\n    xlog(\"x\");\n}\nmodparam(\"rr\", \"igno
 fn diagnostics_for(tag: &str, version: Option<&str>) -> Vec<String> {
     let scratch = common::Scratch::new(&format!("kamlsp-vsel-{tag}"));
     let base = scratch.path().to_path_buf();
-    std::fs::create_dir_all(&base).unwrap();
+    std::fs::create_dir_all(&base).expect("the test can create its directory");
     let cfg = base.join("v.cfg");
-    std::fs::write(&cfg, CFG).unwrap();
+    std::fs::write(&cfg, CFG).expect("the test can write its file");
     let uri = format!("file://{}", cfg.display());
 
     let mut opts = serde_json::json!({
@@ -56,11 +56,14 @@ fn diagnostics_for(tag: &str, version: Option<&str>) -> Vec<String> {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         &base,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
@@ -113,7 +116,7 @@ fn diagnostics_for(tag: &str, version: Option<&str>) -> Vec<String> {
         if v["method"] == "textDocument/publishDiagnostics" && v["params"]["uri"] == uri {
             msgs = v["params"]["diagnostics"]
                 .as_array()
-                .unwrap()
+                .expect("the field is a JSON array")
                 .iter()
                 .filter_map(|d| d["message"].as_str().map(str::to_string))
                 .collect();

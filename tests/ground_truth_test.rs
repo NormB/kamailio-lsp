@@ -43,7 +43,7 @@ fn accepts(bin: &str, f: &std::path::Path) -> bool {
         .arg(common::check_rundir())
         .arg("-f")
         .arg(f)
-        .current_dir(f.parent().unwrap())
+        .current_dir(f.parent().expect("the path has a parent directory"))
         .output()
         .map(|o| o.status.code() == Some(0))
         .unwrap_or(false)

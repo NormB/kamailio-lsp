@@ -67,8 +67,8 @@ fn a_scratch_path_written_as_a_plain_file_is_removed() {
 }
 
 fn rust_files(dir: &Path, skip: &Path, out: &mut Vec<PathBuf>) {
-    for entry in std::fs::read_dir(dir).unwrap() {
-        let p = entry.unwrap().path();
+    for entry in std::fs::read_dir(dir).expect("the directory is readable") {
+        let p = entry.expect("a directory entry is readable").path();
         if p == skip {
             continue;
         }

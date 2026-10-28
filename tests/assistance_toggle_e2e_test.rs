@@ -22,12 +22,13 @@ use std::process::{Command, Stdio};
 
 fn manifest() -> serde_json::Value {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("client/package.json");
-    serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap()
+    serde_json::from_str(&std::fs::read_to_string(p).expect("the file is readable UTF-8"))
+        .expect("the file holds valid JSON")
 }
 
 fn extension_ts() -> String {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("client/src/extension.ts");
-    std::fs::read_to_string(p).unwrap()
+    std::fs::read_to_string(p).expect("the file is readable UTF-8")
 }
 
 #[test]
@@ -129,10 +130,10 @@ fn boot(
 ) {
     let scratch = common::Scratch::new(&format!("kamlsp-assist-{tag}"));
     let base = scratch.path().to_path_buf();
-    std::fs::create_dir_all(&base).unwrap();
+    std::fs::create_dir_all(&base).expect("the test can create its directory");
     let cfg = base.join("t.cfg");
     let text = "request_route {\n    xlog(\"L_INFO\", \"x\");\n}\n";
-    std::fs::write(&cfg, text).unwrap();
+    std::fs::write(&cfg, text).expect("the test can write its file");
     let uri = format!("file://{}", cfg.display());
 
     let mut opts = serde_json::json!({ "kamailioPath": "" });
@@ -148,11 +149,14 @@ fn boot(
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .unwrap(),
+            .expect("the server binary starts"),
         &base,
     );
     let rx = spawn_reader(&mut child);
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdin = child
+        .stdin
+        .take()
+        .expect("the server was spawned with a piped stdin");
     write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{

@@ -1,11 +1,34 @@
 //! The tower-lsp-server language server.
 
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
 use dashmap::DashMap;
 use tower_lsp_server::jsonrpc::Result;
 use tower_lsp_server::ls_types::*;
 use tower_lsp_server::{Client, LanguageServer};
 
 use crate::{analyze, catalog, diag, logic};
+
+/// Reads a setting or cache that a handler may be writing.
+///
+/// # Panics
+///
+/// Panics when the lock is poisoned: a handler panicked while it wrote the
+/// value, so the value may be half-written and is never read.
+fn read_lock<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
+    lock.read()
+        .expect("poisoned: a handler panicked while holding it")
+}
+
+/// Writes a setting or cache that other handlers read.
+///
+/// # Panics
+///
+/// Panics when the lock is poisoned, as [`read_lock`] does.
+fn write_lock<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
+    lock.write()
+        .expect("poisoned: a handler panicked while holding it")
+}
 
 /// Parameters of the `kamailio/analysisRoot` request.
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -135,9 +158,9 @@ impl Backend {
     /// unrelated setting.
     fn apply_assistance(&self, opts: &serde_json::Value) {
         if let Some(b) = opts.get("assistance").and_then(|v| v.as_bool()) {
-            *self.assistance.write().unwrap() = b;
+            *write_lock(&self.assistance) = b;
         } else if let Ok(v) = std::env::var("KAMAILIO_LSP_ASSISTANCE") {
-            *self.assistance.write().unwrap() = !(v == "0" || v.eq_ignore_ascii_case("false"));
+            *write_lock(&self.assistance) = !(v == "0" || v.eq_ignore_ascii_case("false"));
         }
     }
 
@@ -331,9 +354,9 @@ impl Backend {
             check_diags: self.check_diags.clone(),
             catalog: self.catalog.clone(),
             catalog_origin: self.catalog_origin.clone(),
-            pushing: !*self.diagnostics_pulled.read().unwrap(),
-            analyzer_enabled: *self.analyzer_enabled.read().unwrap(),
-            cap: *self.max_diagnostics.read().unwrap(),
+            pushing: !*read_lock(&self.diagnostics_pulled),
+            analyzer_enabled: *read_lock(&self.analyzer_enabled),
+            cap: *read_lock(&self.max_diagnostics),
         }
     }
 
@@ -523,7 +546,7 @@ impl Backend {
     /// The bound is announced rather than silent: a truncated sweep
     /// that looks complete is worse than one that says it stopped.
     fn workspace_configs(&self, limit: usize) -> (Vec<std::path::PathBuf>, bool) {
-        logic::scan_configs(&self.workspace_roots.read().unwrap(), limit)
+        logic::scan_configs(&read_lock(&self.workspace_roots), limit)
     }
 
     /// Ask the client to watch the files whose contents this server
@@ -541,7 +564,7 @@ impl Backend {
     async fn register_watchers(&self) {
         // registering against a client that never declared support is
         // a request that may never be answered
-        if !*self.watched_files_dynamic.read().unwrap() {
+        if !*read_lock(&self.watched_files_dynamic) {
             return;
         }
         let mut watchers = vec![FileSystemWatcher {
@@ -563,11 +586,8 @@ impl Backend {
                 }
             }
         };
-        relative(self.src.read().unwrap().clone(), &["src/modules/*/README"]);
-        relative(
-            self.wiki.read().unwrap().clone(),
-            &["docs/cookbooks/*/*.md"],
-        );
+        relative(read_lock(&self.src).clone(), &["src/modules/*/README"]);
+        relative(read_lock(&self.wiki).clone(), &["docs/cookbooks/*/*.md"]);
         let reg = Registration {
             id: "kamailio-lsp/watched-files".into(),
             method: "workspace/didChangeWatchedFiles".into(),
@@ -595,15 +615,15 @@ impl Backend {
     /// content-aware, so a changed file misses it by construction
     /// rather than by any special casing here.
     async fn harvest(&self, with_progress: bool) -> bool {
-        let src = self.src.read().unwrap().clone();
-        let wiki = self.wiki.read().unwrap().clone();
+        let src = read_lock(&self.src).clone();
+        let wiki = read_lock(&self.wiki).clone();
         let mut cached = false;
         if let Some(src) = src {
             // progress reporting: only for clients that advertised
             // window.workDoneProgress, and only if create succeeds
             let token = NumberOrString::String("kamailio-lsp/harvest".into());
             let progress_active = with_progress
-                && *self.work_done_progress.read().unwrap()
+                && *read_lock(&self.work_done_progress)
                 && self
                     .client
                     .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
@@ -640,7 +660,7 @@ impl Backend {
             }
             // the harvest runs off the executor thread and outside the
             // handshake; results are cached per (tree, wiki) fingerprint
-            let cache_opt = self.cache_dir_opt.read().unwrap().clone();
+            let cache_opt = read_lock(&self.cache_dir_opt).clone();
             let src_for_task = src.clone();
             let wiki_for_task = wiki.clone();
             let (harvested, core, hit) = tokio::task::spawn_blocking(move || {
@@ -697,13 +717,13 @@ impl Backend {
             // a tree the user configured is exact for their build,
             // so its diagnostics name the tree rather than a version
             if !harvested.is_empty() {
-                *self.catalog_origin.write().unwrap() = catalog::CatalogOrigin::ConfiguredTree;
+                *write_lock(&self.catalog_origin) = catalog::CatalogOrigin::ConfiguredTree;
             }
-            *self.catalog.write().unwrap() = harvested;
-            *self.core.write().unwrap() = core;
+            *write_lock(&self.catalog) = harvested;
+            *write_lock(&self.core) = core;
             cached = hit;
             if progress_active {
-                let n = self.catalog.read().unwrap().len();
+                let n = read_lock(&self.catalog).len();
                 self.client
                     .send_notification::<notification::Progress>(ProgressParams {
                         token,
@@ -717,7 +737,7 @@ impl Backend {
             }
             // a CONFIGURED tree that yields nothing deserves a visible
             // warning, not just a quiet log line
-            if self.catalog.read().unwrap().is_empty() {
+            if read_lock(&self.catalog).is_empty() {
                 self.client
                     .show_message(
                         MessageType::WARNING,
@@ -729,7 +749,7 @@ impl Backend {
             }
             if let Some(w) = &wiki {
                 let empty = {
-                    let core = self.core.read().unwrap();
+                    let core = read_lock(&self.core);
                     core.functions.is_empty() && core.params.is_empty() && core.pvars.is_empty()
                 };
                 if empty {
@@ -755,7 +775,7 @@ impl Backend {
     /// fragment to a parent it no longer has.  The invalidation points
     /// are [`Self::invalidate_include_graph`]'s callers.
     fn include_graph(&self) -> std::sync::Arc<logic::IncludeGraph> {
-        if let Some(g) = self.include_graph.read().unwrap().clone() {
+        if let Some(g) = read_lock(&self.include_graph).clone() {
             return g;
         }
         let (configs, truncated) = self.workspace_configs(logic::MAX_CONFIG_FILES);
@@ -833,7 +853,7 @@ impl Backend {
             });
         }
         let g = std::sync::Arc::new(logic::IncludeGraph::build(&scanned));
-        *self.include_graph.write().unwrap() = Some(g.clone());
+        *write_lock(&self.include_graph) = Some(g.clone());
         g
     }
 
@@ -856,7 +876,7 @@ impl Backend {
 
     /// Drop the cached include graph; the next question rebuilds it.
     fn invalidate_include_graph(&self) {
-        *self.include_graph.write().unwrap() = None;
+        *write_lock(&self.include_graph) = None;
     }
 
     /// The config `uri` must be analysed as part of, or `None` when it
@@ -1010,13 +1030,13 @@ impl Backend {
         let ctx = CheckCtx {
             diag: self.diagnostics(),
             check_gate: self.check_gate.clone(),
-            bin: self.kamailio_bin.read().unwrap().clone(),
-            modules_path: self.modules_path.read().unwrap().clone(),
-            check_timeout: *self.check_timeout.read().unwrap(),
+            bin: read_lock(&self.kamailio_bin).clone(),
+            modules_path: read_lock(&self.modules_path).clone(),
+            check_timeout: *read_lock(&self.check_timeout),
             uri: uri.clone(),
             root: self.analysis_root_of(uri),
-            refresh_after: *self.diagnostics_pulled.read().unwrap()
-                && *self.diagnostics_refresh.read().unwrap(),
+            refresh_after: *read_lock(&self.diagnostics_pulled)
+                && *read_lock(&self.diagnostics_refresh),
             quiet_when_clean,
         };
         if let Some((_, old)) = self.check_tasks.remove(uri) {
@@ -1341,9 +1361,9 @@ impl Diagnostics {
             && let Some(path) = uri.to_file_path()
         {
             let loader = Backend::make_loader(open);
-            let cat = self.catalog.read().unwrap().clone();
+            let cat = read_lock(&self.catalog).clone();
             let (files, truncated) = Backend::closure_rooted_at_bounded(root, &path, text, &loader);
-            let origin = self.catalog_origin.read().unwrap().clone();
+            let origin = read_lock(&self.catalog_origin).clone();
             merged.extend(Backend::analyzer_lsp_diags(
                 &files, truncated, &path, text, &cat, &origin,
             ));
@@ -1404,7 +1424,7 @@ struct CheckCtx {
 impl LanguageServer for Backend {
     async fn initialize(&self, p: InitializeParams) -> Result<InitializeResult> {
         // progress is only sent to clients that can render it
-        *self.work_done_progress.write().unwrap() = p
+        *write_lock(&self.work_done_progress) = p
             .capabilities
             .window
             .as_ref()
@@ -1416,37 +1436,37 @@ impl LanguageServer for Backend {
             opts.get("kamailioPath").and_then(|v| v.as_str()),
             std::env::var("KAMAILIO_LSP_BIN").ok(),
         );
-        *self.kamailio_bin.write().unwrap() = bin;
+        *write_lock(&self.kamailio_bin) = bin;
 
         if let Some(b) = opts.get("snippetCompletions").and_then(|v| v.as_bool()) {
-            *self.snippet_completions.write().unwrap() = b;
+            *write_lock(&self.snippet_completions) = b;
         }
         if let Some(b) = opts.get("analyzerDiagnostics").and_then(|v| v.as_bool()) {
-            *self.analyzer_enabled.write().unwrap() = b;
+            *write_lock(&self.analyzer_enabled) = b;
         }
         if let Some(b) = opts
             .get("inlayHintParameterNames")
             .and_then(|v| v.as_bool())
         {
-            *self.inlay_parameter_names.write().unwrap() = b;
+            *write_lock(&self.inlay_parameter_names) = b;
         }
         if let Some(b) = opts.get("inlayHintDefineValues").and_then(|v| v.as_bool()) {
-            *self.inlay_define_values.write().unwrap() = b;
+            *write_lock(&self.inlay_define_values) = b;
         }
         if let Some(b) = opts.get("codeLensReferences").and_then(|v| v.as_bool()) {
-            *self.code_lens_refs.write().unwrap() = b;
+            *write_lock(&self.code_lens_refs) = b;
         }
         self.apply_assistance(&opts);
         if let Some(n) = opts.get("maxDiagnostics").and_then(|v| v.as_u64()) {
-            *self.max_diagnostics.write().unwrap() = (n as usize).max(1);
+            *write_lock(&self.max_diagnostics) = (n as usize).max(1);
         }
         if let Some(d) = opts.get("cacheDir").and_then(|v| v.as_str())
             && !d.is_empty()
         {
-            *self.cache_dir_opt.write().unwrap() = Some(d.to_string());
+            *write_lock(&self.cache_dir_opt) = Some(d.to_string());
         }
         if let Some(ms) = opts.get("checkTimeoutMs").and_then(|v| v.as_u64()) {
-            *self.check_timeout.write().unwrap() = logic::resolve_timeout(
+            *write_lock(&self.check_timeout) = logic::resolve_timeout(
                 Some(ms),
                 std::env::var("KAMAILIO_LSP_CHECK_TIMEOUT_MS").ok(),
             );
@@ -1460,9 +1480,9 @@ impl LanguageServer for Backend {
             .filter(|s| !s.is_empty());
         // the harvest happens in `initialized` so a large tree never
         // delays the initialize handshake
-        *self.src.write().unwrap() = src;
+        *write_lock(&self.src) = src;
 
-        *self.version_in_hints.write().unwrap() = opts
+        *write_lock(&self.version_in_hints) = opts
             .get("versionInHints")
             .and_then(|v| v.as_bool())
             .unwrap_or_else(|| {
@@ -1471,13 +1491,13 @@ impl LanguageServer for Backend {
                     .unwrap_or(false)
             });
 
-        *self.wanted_version.write().unwrap() = opts
+        *write_lock(&self.wanted_version) = opts
             .get("kamailioVersion")
             .and_then(|v| v.as_str())
             .map(str::to_string)
             .or_else(|| std::env::var("KAMAILIO_LSP_VERSION").ok())
             .filter(|s| !s.is_empty());
-        *self.watched_files_dynamic.write().unwrap() = p
+        *write_lock(&self.watched_files_dynamic) = p
             .capabilities
             .workspace
             .as_ref()
@@ -1486,20 +1506,20 @@ impl LanguageServer for Backend {
             .unwrap_or(false);
         // a client that pulls must not also be pushed to: it would
         // show every diagnostic twice
-        *self.diagnostics_pulled.write().unwrap() = p
+        *write_lock(&self.diagnostics_pulled) = p
             .capabilities
             .text_document
             .as_ref()
             .and_then(|t| t.diagnostic.as_ref())
             .is_some();
-        *self.diagnostics_refresh.write().unwrap() = p
+        *write_lock(&self.diagnostics_refresh) = p
             .capabilities
             .workspace
             .as_ref()
             .and_then(|w| w.diagnostics.as_ref())
             .and_then(|d| d.refresh_support)
             .unwrap_or(false);
-        *self.workspace_roots.write().unwrap() = p
+        *write_lock(&self.workspace_roots) = p
             .workspace_folders
             .iter()
             .flatten()
@@ -1511,11 +1531,11 @@ impl LanguageServer for Backend {
             .map(str::to_string)
             .or_else(|| std::env::var("KAMAILIO_LSP_WIKI").ok())
             .filter(|s| !s.is_empty());
-        *self.wiki.write().unwrap() = wiki;
+        *write_lock(&self.wiki) = wiki;
         if let Some(mp) = opts.get("modulesPath").and_then(|v| v.as_str())
             && !mp.is_empty()
         {
-            *self.modules_path.write().unwrap() = Some(mp.to_string());
+            *write_lock(&self.modules_path) = Some(mp.to_string());
         }
 
         Ok(InitializeResult {
@@ -1620,18 +1640,18 @@ impl LanguageServer for Backend {
         // that in; a real checkout always wins, because only that is
         // exact for the user's version.
         let builtin = {
-            let core = self.core.read().unwrap();
+            let core = read_lock(&self.core);
             core.functions.is_empty() && core.params.is_empty() && core.pvars.is_empty()
         };
         if builtin {
             let mut core = catalog::builtin_core().core.clone();
-            if *self.version_in_hints.read().unwrap() {
+            if *read_lock(&self.version_in_hints) {
                 // the core catalogue is one vendored artefact: it names
                 // its OWN release, not the module release in use
                 let note = catalog::version_note("core", &catalog::builtin_core().version);
                 catalog::note_core(&mut core, &note);
             }
-            *self.core.write().unwrap() = core;
+            *write_lock(&self.core) = core;
         }
         // The same argument one level up: `is_method` is a textops
         // function, so a core-only fallback still left every module
@@ -1639,9 +1659,9 @@ impl LanguageServer for Backend {
         // a module exports moves between releases, so a harvested tree
         // REPLACES this rather than merging — blending two versions
         // would be wrong in a way neither is alone.
-        let builtin_mods = self.catalog.read().unwrap().is_empty();
+        let builtin_mods = read_lock(&self.catalog).is_empty();
         if builtin_mods {
-            let wanted = self.wanted_version.read().unwrap().clone();
+            let wanted = read_lock(&self.wanted_version).clone();
             // An unsupported release must not silently become the
             // newest: the user would then read warnings about a
             // release they did not ask for, with nothing saying so.
@@ -1666,15 +1686,15 @@ impl LanguageServer for Backend {
                 None => catalog::builtin_modules().clone(),
             };
             let mut modules = chosen.modules;
-            if *self.version_in_hints.read().unwrap() {
+            if *read_lock(&self.version_in_hints) {
                 let note = catalog::version_note("module", &chosen.version);
                 catalog::note_modules(&mut modules, &note);
             }
-            *self.catalog.write().unwrap() = modules;
-            *self.catalog_origin.write().unwrap() = catalog::CatalogOrigin::BuiltIn(chosen.version);
+            *write_lock(&self.catalog) = modules;
+            *write_lock(&self.catalog_origin) = catalog::CatalogOrigin::BuiltIn(chosen.version);
         }
-        let n = self.catalog.read().unwrap().len();
-        let c = self.core.read().unwrap().functions.len();
+        let n = read_lock(&self.catalog).len();
+        let c = read_lock(&self.core).functions.len();
         let mut tag = if cached {
             ", cached".to_string()
         } else {
@@ -1699,7 +1719,7 @@ impl LanguageServer for Backend {
         }
         // Tell the client what it is judging against, so the editor can
         // show it without waiting for something to go wrong.
-        let origin = self.catalog_origin.read().unwrap().clone();
+        let origin = read_lock(&self.catalog_origin).clone();
         self.client
             .send_notification::<CatalogueNotification>(CatalogueStatus {
                 describe: origin.describe(),
@@ -1774,7 +1794,7 @@ impl LanguageServer for Backend {
             }
         }
         // debounced analyzer pass: fast feedback between saves
-        if !*self.analyzer_enabled.read().unwrap() || uri.scheme().as_str() != "file" {
+        if !*read_lock(&self.analyzer_enabled) || uri.scheme().as_str() != "file" {
             return;
         }
         let generation = {
@@ -1902,7 +1922,7 @@ impl LanguageServer for Backend {
 
     async fn did_change_workspace_folders(&self, p: DidChangeWorkspaceFoldersParams) {
         {
-            let mut roots = self.workspace_roots.write().unwrap();
+            let mut roots = write_lock(&self.workspace_roots);
             for removed in &p.event.removed {
                 if let Some(path) = removed.uri.to_file_path() {
                     roots.retain(|r| *r != *path);
@@ -1923,8 +1943,8 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change_watched_files(&self, p: DidChangeWatchedFilesParams) {
-        let src = self.src.read().unwrap().clone();
-        let wiki = self.wiki.read().unwrap().clone();
+        let src = read_lock(&self.src).clone();
+        let wiki = read_lock(&self.wiki).clone();
         let under = |path: &std::path::Path, dir: &Option<String>| {
             dir.as_ref()
                 .is_some_and(|d| path.starts_with(std::path::Path::new(d)))
@@ -1989,26 +2009,26 @@ impl LanguageServer for Backend {
         let s = &p.settings;
         let s = s.get("kamailioLsp").unwrap_or(s);
         if let Some(b) = s.get("analyzerDiagnostics").and_then(|v| v.as_bool()) {
-            *self.analyzer_enabled.write().unwrap() = b;
+            *write_lock(&self.analyzer_enabled) = b;
         }
         if let Some(b) = s.get("snippetCompletions").and_then(|v| v.as_bool()) {
-            *self.snippet_completions.write().unwrap() = b;
+            *write_lock(&self.snippet_completions) = b;
         }
         if let Some(b) = s.get("inlayHintParameterNames").and_then(|v| v.as_bool()) {
-            *self.inlay_parameter_names.write().unwrap() = b;
+            *write_lock(&self.inlay_parameter_names) = b;
         }
         if let Some(b) = s.get("inlayHintDefineValues").and_then(|v| v.as_bool()) {
-            *self.inlay_define_values.write().unwrap() = b;
+            *write_lock(&self.inlay_define_values) = b;
         }
         if let Some(b) = s.get("codeLensReferences").and_then(|v| v.as_bool()) {
-            *self.code_lens_refs.write().unwrap() = b;
+            *write_lock(&self.code_lens_refs) = b;
         }
         self.apply_assistance(s);
         if let Some(n) = s.get("maxDiagnostics").and_then(|v| v.as_u64()) {
-            *self.max_diagnostics.write().unwrap() = (n as usize).max(1);
+            *write_lock(&self.max_diagnostics) = (n as usize).max(1);
         }
         if let Some(ms) = s.get("checkTimeoutMs").and_then(|v| v.as_u64()) {
-            *self.check_timeout.write().unwrap() = logic::resolve_timeout(
+            *write_lock(&self.check_timeout) = logic::resolve_timeout(
                 Some(ms),
                 std::env::var("KAMAILIO_LSP_CHECK_TIMEOUT_MS").ok(),
             );
@@ -2046,7 +2066,7 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, p: CompletionParams) -> Result<Option<CompletionResponse>> {
-        if !*self.assistance.read().unwrap() {
+        if !*read_lock(&self.assistance) {
             return Ok(None);
         }
         let uri = p.text_document_position.text_document.uri;
@@ -2121,9 +2141,9 @@ impl LanguageServer for Backend {
             }
         });
         let files = self.closure_for(&uri, &text);
-        let cat = self.catalog.read().unwrap();
-        let core = self.core.read().unwrap();
-        let snippets = *self.snippet_completions.read().unwrap();
+        let cat = read_lock(&self.catalog);
+        let core = read_lock(&self.core);
+        let snippets = *read_lock(&self.snippet_completions);
         let items: Vec<CompletionItem> =
             logic::completions_with_core_files(&cat, &core, &files, &prefix)
                 .into_iter()
@@ -2186,8 +2206,8 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let prefix = Self::line_prefix(&text, pos);
-        let cat = self.catalog.read().unwrap();
-        let core = self.core.read().unwrap();
+        let cat = read_lock(&self.catalog);
+        let core = read_lock(&self.core);
         Ok(
             logic::signature_at(&cat, &core, &text, &prefix).map(|(sig, doc, active)| {
                 // parameter labels: the signature's TOP-LEVEL
@@ -2220,7 +2240,7 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, p: HoverParams) -> Result<Option<Hover>> {
-        if !*self.assistance.read().unwrap() {
+        if !*read_lock(&self.assistance) {
             return Ok(None);
         }
         let uri = p.text_document_position_params.text_document.uri;
@@ -2247,8 +2267,8 @@ impl LanguageServer for Backend {
                 range: None,
             }));
         }
-        let cat = self.catalog.read().unwrap();
-        let core = self.core.read().unwrap();
+        let cat = read_lock(&self.catalog);
+        let core = read_lock(&self.core);
         Ok(
             logic::hover_markdown_at(&cat, &core, &text, &word, pos.line, byte_col as u32).map(
                 |md| Hover {
@@ -2689,7 +2709,7 @@ impl LanguageServer for Backend {
         let Some(text) = self.docs.get(&uri).map(|d| d.1.clone()) else {
             return Ok(None);
         };
-        let cat = self.catalog.read().unwrap();
+        let cat = read_lock(&self.catalog);
         let mut out: Vec<CodeActionOrCommand> = Vec::new();
         // Extract is offered for a real selection of whole lines, not
         // for a bare cursor or a word inside a line: it lifts LINES,
@@ -2811,7 +2831,7 @@ impl LanguageServer for Backend {
     }
 
     async fn code_lens(&self, p: CodeLensParams) -> Result<Option<Vec<CodeLens>>> {
-        if !*self.code_lens_refs.read().unwrap() {
+        if !*read_lock(&self.code_lens_refs) {
             return Ok(None);
         }
         let uri = p.text_document.uri;
@@ -2870,16 +2890,16 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let mut hints: Vec<(logic::Hint, InlayHintKind)> = Vec::new();
-        if *self.inlay_parameter_names.read().unwrap() {
-            let cat = self.catalog.read().unwrap();
-            let core = self.core.read().unwrap();
+        if *read_lock(&self.inlay_parameter_names) {
+            let cat = read_lock(&self.catalog);
+            let core = read_lock(&self.core);
             hints.extend(
                 logic::parameter_hints(&cat, &core, &text)
                     .into_iter()
                     .map(|h| (h, InlayHintKind::PARAMETER)),
             );
         }
-        if *self.inlay_define_values.read().unwrap() {
+        if *read_lock(&self.inlay_define_values) {
             let files = self.closure_for(&p.text_document.uri, &text);
             hints.extend(
                 logic::define_hints(&files, &text)

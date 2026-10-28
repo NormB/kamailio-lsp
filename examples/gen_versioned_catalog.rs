@@ -55,5 +55,9 @@ fn main() {
         },
         deltas,
     };
-    println!("{}", serde_json::to_string(&out).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string(&out)
+            .expect("derived Serialize on structs, strings and lists cannot fail")
+    );
 }

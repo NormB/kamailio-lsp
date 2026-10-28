@@ -74,7 +74,8 @@ fn client_renames() -> Vec<(String, String)> {
 
 /// Settings the extension manifest contributes, without the namespace.
 fn manifest_settings() -> BTreeSet<String> {
-    let pkg: serde_json::Value = serde_json::from_str(&read("client/package.json")).unwrap();
+    let pkg: serde_json::Value =
+        serde_json::from_str(&read("client/package.json")).expect("the file holds valid JSON");
     pkg["contributes"]["configuration"]["properties"]
         .as_object()
         .expect("contributes.configuration.properties")

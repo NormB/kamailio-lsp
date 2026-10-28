@@ -72,7 +72,7 @@ macro_rules! static_regex {
     ($name:ident, $pat:expr) => {
         fn $name() -> &'static regex::Regex {
             static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-            RE.get_or_init(|| regex::Regex::new($pat).unwrap())
+            RE.get_or_init(|| regex::Regex::new($pat).expect("a regex literal compiles"))
         }
     };
 }
@@ -2038,7 +2038,7 @@ static_regex!(
 fn called_function_at(line_text: &str, col: u32) -> Option<String> {
     let mut best: Option<String> = None;
     for c in re_call_ident().captures_iter(line_text) {
-        let m = c.get(1).unwrap();
+        let m = c.get(1).expect("group 1, the name, is not optional");
         if m.start() <= col as usize || best.is_none() {
             best = Some(m.as_str().to_string());
         }
@@ -2204,7 +2204,9 @@ fn dedup_completions(items: Vec<Comp>) -> Vec<Comp> {
     for c in items {
         match best.get(&c.label) {
             Some(&i) => {
-                let kept = out[i].as_ref().unwrap();
+                let kept = out[i]
+                    .as_ref()
+                    .expect("best names only slots that hold a completion");
                 // On equal rank the documented one wins.  `exit` is
                 // offered twice — once as a bare keyword, once from
                 // the core docs — and both are keywords, so without

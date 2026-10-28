@@ -28,8 +28,12 @@ fn advertised_providers() -> BTreeSet<String> {
         .filter_map(|l| {
             let indent = l.len() - l.trim_start().len();
             let t = l.trim_start();
-            (indent == 16 && t.contains("_provider: Some("))
-                .then(|| t.split(':').next().unwrap().to_string())
+            (indent == 16 && t.contains("_provider: Some(")).then(|| {
+                t.split(':')
+                    .next()
+                    .expect("split always yields a first piece")
+                    .to_string()
+            })
         })
         .collect()
 }

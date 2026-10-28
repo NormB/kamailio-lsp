@@ -8,8 +8,9 @@ use std::process::{Command, Stdio};
 
 fn mk_tree(root: &std::path::Path) {
     let w = |p: std::path::PathBuf, c: &str| {
-        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
-        std::fs::write(p, c).unwrap();
+        std::fs::create_dir_all(p.parent().expect("the path has a parent directory"))
+            .expect("the test can create its directory");
+        std::fs::write(p, c).expect("the test can write its file");
     };
     w(
         root.join("src/modules/mymod/README"),
@@ -22,17 +23,17 @@ fn mk_tree(root: &std::path::Path) {
 }
 
 fn mk_wiki(root: &std::path::Path) {
-    std::fs::create_dir_all(root).unwrap();
+    std::fs::create_dir_all(root).expect("the test can create its directory");
     std::fs::write(
         root.join("core.md"),
         "# Core Cookbook\n\n## Core parameters\n\n### core_param\n\nA core parameter.\n\n## Core Functions\n\n### core_fn\n\nA core function.\n",
     )
-    .unwrap();
+    .expect("the test can write its file");
     std::fs::write(
         root.join("pseudovariables.md"),
         "# Pseudo-Variables\n\n## The list of pseudo-variables\n\n### $ru - Request URI\n\nThe request URI.\n",
     )
-    .unwrap();
+    .expect("the test can write its file");
 }
 
 const DOC: &str = "loadmodule \"mymod.so\"\nroute[HELPER] {\n    my_func(\"x\");\n}\nrequest_route {\n    route(HELPER);\n}\n";

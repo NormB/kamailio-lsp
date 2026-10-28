@@ -31,7 +31,10 @@ fn literals() -> Vec<(String, usize, String)> {
             }
             for c in re.captures_iter(line) {
                 out.push((
-                    f.file_name().unwrap().to_string_lossy().into_owned(),
+                    f.file_name()
+                        .expect("a directory entry has a file name")
+                        .to_string_lossy()
+                        .into_owned(),
                     i + 1,
                     c[1].to_string(),
                 ));

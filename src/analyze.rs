@@ -304,7 +304,7 @@ fn scan(text: &str) -> (Vec<Class>, Class) {
                 // closes the first.  It has no PVAR_P rule for a
                 // newline; this ends the pvar there, so a `$(` being
                 // typed does not swallow the rest of the document.
-                i = pvar_open(b, i).unwrap();
+                i = pvar_open(b, i).expect("this arm is taken only when pvar_open(b, i) is Some");
                 let mut depth = 1usize;
                 while i < b.len() && b[i] != b'\n' {
                     match b[i] {
@@ -435,7 +435,7 @@ macro_rules! static_regex {
     ($name:ident, $pat:expr) => {
         fn $name() -> &'static regex::Regex {
             static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-            RE.get_or_init(|| regex::Regex::new($pat).unwrap())
+            RE.get_or_init(|| regex::Regex::new($pat).expect("a regex literal compiles"))
         }
     };
 }
@@ -765,7 +765,7 @@ pub(crate) fn loadmodule_statements(text: &str) -> Vec<LoadStatement> {
     let lines = Lines::new(text);
     let mut out = Vec::new();
     for c in re_loadmodule().captures_iter(text) {
-        let whole = c.get(0).unwrap();
+        let whole = c.get(0).expect("capture group 0 is the whole match");
         if classes.get(whole.start()) != Some(&Class::Code) {
             continue; // inside a comment, string, or directive
         }
@@ -773,7 +773,7 @@ pub(crate) fn loadmodule_statements(text: &str) -> Vec<LoadStatement> {
         if whole.start() > 0 && is_word(text.as_bytes()[whole.start() - 1]) {
             continue;
         }
-        let path = c.get(1).unwrap();
+        let path = c.get(1).expect("group 1, the path, is not optional");
         let base = path
             .as_str()
             .rsplit('/')
@@ -864,7 +864,7 @@ pub fn include_links(text: &str) -> Vec<IncludeLink> {
     let b = text.as_bytes();
     let mut out = Vec::new();
     for c in re_include().captures_iter(text) {
-        let whole = c.get(0).unwrap();
+        let whole = c.get(0).expect("capture group 0 is the whole match");
         let start = whole.start();
         let prefixed = whole.as_str().starts_with("#!") || whole.as_str().starts_with("!!");
         if prefixed {
@@ -884,7 +884,7 @@ pub fn include_links(text: &str) -> Vec<IncludeLink> {
                 continue;
             }
         }
-        let path = c.get(1).unwrap();
+        let path = c.get(1).expect("group 1, the path, is not optional");
         if path.as_str().is_empty() || path.as_str().contains('\0') {
             continue;
         }
@@ -949,7 +949,7 @@ pub(crate) fn modparam_statements(text: &str) -> Vec<ModparamStatement> {
     let b = text.as_bytes();
     let mut out = Vec::new();
     for c in re_modparam_call().captures_iter(text) {
-        let whole = c.get(0).unwrap();
+        let whole = c.get(0).expect("capture group 0 is the whole match");
         let start = whole.start();
         if classes.get(start) != Some(&Class::Code) {
             continue;
@@ -961,7 +961,7 @@ pub(crate) fn modparam_statements(text: &str) -> Vec<ModparamStatement> {
         if module.contains('\0') || param.contains('\0') {
             continue;
         }
-        let pm = c.get(2).unwrap();
+        let pm = c.get(2).expect("group 2, the parameter, is not optional");
         let (line, col) = lines.line_col(pm.start());
         out.push(ModparamStatement {
             call: ModparamCall {
@@ -1050,7 +1050,7 @@ pub fn route_blocks(text: &str) -> Vec<Block> {
     let b = text.as_bytes();
     let mut out = Vec::new();
     for c in re_route_def().captures_iter(text) {
-        let whole = c.get(0).unwrap();
+        let whole = c.get(0).expect("capture group 0 is the whole match");
         let start = whole.start();
         if classes.get(start) != Some(&Class::Code) {
             continue;
@@ -1093,7 +1093,11 @@ pub fn route_blocks(text: &str) -> Vec<Block> {
             .unwrap_or((line, col));
         out.push(Block {
             name: c.get(2).map(|m| m.as_str().to_string()).unwrap_or_default(),
-            kind: c.get(1).unwrap().as_str().to_string(),
+            kind: c
+                .get(1)
+                .expect("group 1, the route kind, is not optional")
+                .as_str()
+                .to_string(),
             line,
             col,
             end_line,
@@ -1124,7 +1128,7 @@ pub fn armed_route_refs(text: &str) -> Vec<(Located, &'static str)> {
     let b = text.as_bytes();
     let mut out = Vec::new();
     for c in re_armed_route().captures_iter(text) {
-        let whole = c.get(0).unwrap();
+        let whole = c.get(0).expect("capture group 0 is the whole match");
         let start = whole.start();
         if classes.get(start) != Some(&Class::Code) || (start > 0 && is_word(b[start - 1])) {
             continue;
@@ -1134,7 +1138,10 @@ pub fn armed_route_refs(text: &str) -> Vec<(Located, &'static str)> {
             "t_on_reply" => "onreply_route",
             _ => "branch_route",
         };
-        let name = c.get(2).or_else(|| c.get(3)).unwrap();
+        let name = c
+            .get(2)
+            .or_else(|| c.get(3))
+            .expect("one quote style of the name always matches");
         let (line, col) = lines.line_col(name.start());
         out.push((
             Located {
@@ -1155,7 +1162,7 @@ pub fn route_refs(text: &str) -> Vec<Located> {
     let re = re_route_ref();
     let mut out = Vec::new();
     for c in re.captures_iter(text) {
-        let whole = c.get(0).unwrap();
+        let whole = c.get(0).expect("capture group 0 is the whole match");
         let start = whole.start();
         if classes.get(start) != Some(&Class::Code) {
             continue;
@@ -1164,7 +1171,7 @@ pub fn route_refs(text: &str) -> Vec<Located> {
         if start > 0 && is_word(text.as_bytes()[start - 1]) {
             continue;
         }
-        let name = c.get(1).unwrap();
+        let name = c.get(1).expect("group 1, the route name, is not optional");
         let (line, col) = lines.line_col(name.start());
         out.push(Located {
             name: name.as_str().to_string(),

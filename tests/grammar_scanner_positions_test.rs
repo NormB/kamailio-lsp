@@ -108,7 +108,7 @@ impl Cursor<'_> {
             self.i += 1;
         }
         std::str::from_utf8(&self.b[s..self.i])
-            .unwrap()
+            .expect("ASCII digits are UTF-8")
             .parse()
             .unwrap_or_else(|_| panic!("tree output: expected a number at byte {s}"))
     }
@@ -339,13 +339,13 @@ fn corpus_inputs() -> Vec<(String, String)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tree-sitter-kamailio/test/corpus");
     let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
         .expect("corpus dir")
-        .map(|e| e.unwrap().path())
+        .map(|e| e.expect("a directory entry is readable").path())
         .filter(|p| p.extension().is_some_and(|x| x == "txt"))
         .collect();
     files.sort();
     let mut out = Vec::new();
     for f in files {
-        let text = std::fs::read_to_string(&f).unwrap();
+        let text = std::fs::read_to_string(&f).expect("the file is readable UTF-8");
         for case in common::parse_corpus(&text) {
             if !case.expected.contains("(ERROR") {
                 out.push((case.name, case.input));

@@ -8,12 +8,15 @@ use std::time::Duration;
 
 pub fn write_msg(w: &mut impl Write, v: &serde_json::Value) {
     let s = v.to_string();
-    write!(w, "Content-Length: {}\r\n\r\n{}", s.len(), s).unwrap();
-    w.flush().unwrap();
+    write!(w, "Content-Length: {}\r\n\r\n{}", s.len(), s).expect("the server reads its stdin");
+    w.flush().expect("the server reads its stdin");
 }
 
 pub fn spawn_reader(child: &mut Child) -> mpsc::Receiver<serde_json::Value> {
-    let stdout = child.stdout.take().unwrap();
+    let stdout = child
+        .stdout
+        .take()
+        .expect("the server was spawned with a piped stdout");
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let mut r = BufReader::new(stdout);
@@ -190,7 +193,7 @@ impl Kamailio {
             .arg(&self.mpath)
             .arg("-f")
             .arg(f)
-            .current_dir(f.parent().unwrap())
+            .current_dir(f.parent().expect("the path has a parent directory"))
             .output()
             .expect("spawn kamailio");
         (
@@ -202,7 +205,15 @@ impl Kamailio {
     /// `kamailio -c` reported a syntax error in `f`.
     pub fn syntax_error(&self, f: &Path) -> bool {
         let rundir = check_rundir();
-        let (o, e) = self.run(f, &["-c", "--all-errors", "-Y", rundir.to_str().unwrap()]);
+        let (o, e) = self.run(
+            f,
+            &[
+                "-c",
+                "--all-errors",
+                "-Y",
+                rundir.to_str().expect("the run directory path is UTF-8"),
+            ],
+        );
         o.contains("syntax error") || e.contains("syntax error")
     }
 }
