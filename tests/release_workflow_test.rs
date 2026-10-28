@@ -382,11 +382,13 @@ fn openvsx_readiness_waits_for_every_platform_build() {
 ///
 /// `actions/checkout` keeps the token for later git commands unless the
 /// step says `persist-credentials: false`, and then every later step in
-/// the job, third-party actions included, can read it.  No job here
-/// pushes with git: the one job that writes, `publish`, has no checkout
-/// and calls `gh` with `GH_TOKEN`.  A checkout that does need the token
-/// says `persist-credentials: true` and records why on a comment line
-/// in the step: `# keeps the token: <reason>`.
+/// the job, third-party actions included, can read it.  No checkout here
+/// needs it: the wiki-sync job pushes the wiki with the token in the
+/// push URL, not the checkout's stored credentials, and the release
+/// publish job has no checkout and calls `gh` with `GH_TOKEN`.  A
+/// checkout that does need the token says `persist-credentials: true`
+/// and records why on a comment line in the step:
+/// `# keeps the token: <reason>`.
 fn checkouts_keeping_the_token(file: &str, yaml: &str) -> Vec<String> {
     let lines: Vec<&str> = yaml.lines().collect();
     let mut bad = Vec::new();
