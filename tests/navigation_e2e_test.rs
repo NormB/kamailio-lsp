@@ -2,7 +2,7 @@
 //! over stdio.
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 const DOC: &str = "route[HELPER] {\n    exit;\n}\nroute[OTHER_THING] {\n    exit;\n}\nfailure_route[HELPER] {\n    drop;\n}\nrequest_route {\n    route(HELPER);\n    route(HELPER);\n}\n";
@@ -34,17 +34,17 @@ fn boot(
             .expect("the server binary starts"),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
         "capabilities":{}, "initializationOptions": opts}}),
     );
-    let init = wait_for(&rx, |v| v["id"] == 1, "init");
+    let init = common::wait_for(&rx, |v| v["id"] == 1, "init");
     assert!(
         init["result"]["capabilities"]["workspaceSymbolProvider"]
             .as_bool()
@@ -63,11 +63,11 @@ fn boot(
         !init["result"]["capabilities"]["codeActionProvider"].is_null(),
         "codeActionProvider must be advertised"
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
         "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
@@ -79,29 +79,29 @@ fn boot(
 fn workspace_symbols_filter_across_open_docs() {
     let (_base, mut child, rx, mut stdin, _uri) =
         boot("ws", serde_json::json!({"kamailioPath":""}), DOC);
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"workspace/symbol","params":{"query":"help"}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "wsym");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "wsym");
     let syms = v["result"].as_array().expect("symbols");
     // both the route and the failure_route carry the name
     assert_eq!(syms.len(), 2, "{syms:?}");
     assert!(syms.iter().any(|s| s["name"] == "route[HELPER]"));
     assert!(syms.iter().any(|s| s["name"] == "failure_route[HELPER]"));
     // case-insensitive
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":3,"method":"workspace/symbol","params":{"query":"OTHER_TH"}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 3, "wsym-ci");
+    let v = common::wait_for(&rx, |v| v["id"] == 3, "wsym-ci");
     assert_eq!(v["result"].as_array().unwrap().len(), 1);
     // empty query returns everything named
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":4,"method":"workspace/symbol","params":{"query":""}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 4, "wsym-all");
+    let v = common::wait_for(&rx, |v| v["id"] == 4, "wsym-all");
     assert!(v["result"].as_array().unwrap().len() >= 3);
     child.kill().ok();
 }
@@ -110,12 +110,12 @@ fn workspace_symbols_filter_across_open_docs() {
 fn code_lens_counts_route_references() {
     let (_base, mut child, rx, mut stdin, uri) =
         boot("cl", serde_json::json!({"kamailioPath":""}), DOC);
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/codeLens","params":{
         "textDocument":{"uri":uri}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "codelens");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "codelens");
     let lenses = v["result"].as_array().expect("lenses");
     // only CALLABLE (kind "route") named blocks get a lens: not the
     // anonymous request_route, and NOT the failure_route[HELPER]
@@ -144,12 +144,12 @@ fn code_lens_can_be_disabled() {
         serde_json::json!({"kamailioPath":"", "codeLensReferences": false}),
         DOC,
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/codeLens","params":{
         "textDocument":{"uri":uri}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "codelens-off");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "codelens-off");
     assert!(
         v["result"].is_null() || v["result"].as_array().unwrap().is_empty(),
         "no lenses when disabled: {v}"
@@ -162,7 +162,7 @@ fn quick_fix_creates_a_route_stub() {
     let broken = "request_route {\n    route(MISSING);\n}\n";
     let (_base, mut child, rx, mut stdin, uri) =
         boot("qf", serde_json::json!({"kamailioPath":""}), broken);
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/codeAction","params":{
         "textDocument":{"uri":uri},
@@ -172,7 +172,7 @@ fn quick_fix_creates_a_route_stub() {
             "severity":2,"source":"kamailio-lsp",
             "message":"route 'MISSING' is not defined here or in included files"}]}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "codeAction");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "codeAction");
     let actions = v["result"].as_array().expect("actions");
     assert_eq!(actions.len(), 1, "{actions:?}");
     let a = &actions[0];
@@ -220,20 +220,20 @@ fn quick_fix_loads_the_exporting_module() {
             .unwrap(),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
         "capabilities":{},
         "initializationOptions":{"kamailioPath":"","kamailioSrc": tree.display().to_string()}}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "init");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "init");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    wait_for(
+    common::wait_for(
         &rx,
         |v| {
             v["method"] == "window/logMessage"
@@ -244,13 +244,13 @@ fn quick_fix_loads_the_exporting_module() {
         },
         "ready",
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
         "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":doc}}}),
     );
     // position = the `)` of t_relay() on line 2 (0-based col 12)
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/codeAction","params":{
         "textDocument":{"uri":uri},
@@ -260,7 +260,7 @@ fn quick_fix_loads_the_exporting_module() {
             "severity":1,"source":"kamailio -c",
             "message":"unknown command, missing loadmodule?"}]}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "codeAction");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "codeAction");
     let actions = v["result"].as_array().expect("actions");
     assert_eq!(actions.len(), 1, "{actions:?}");
     assert!(
@@ -280,12 +280,12 @@ fn semantic_tokens_over_stdio() {
         serde_json::json!({"kamailioPath":""}),
         "route[AB] {\n    route(AB);\n}\n",
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/semanticTokens/full","params":{
         "textDocument":{"uri":uri}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "semanticTokens");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "semanticTokens");
     let data = v["result"]["data"].as_array().expect("data");
     assert_eq!(data.len() % 5, 0);
     let first: Vec<u64> = data[..5].iter().map(|x| x.as_u64().unwrap()).collect();
@@ -329,11 +329,11 @@ fn request(
     method: &str,
     params: serde_json::Value,
 ) -> serde_json::Value {
-    write_msg(
+    common::write_msg(
         stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":id,"method":method,"params":params}),
     );
-    wait_for(rx, |v| v["id"] == id, method)
+    common::wait_for(rx, |v| v["id"] == id, method)
 }
 
 const ARMED: &str = "request_route {\n    t_on_failure(\"FR\");\n    t_relay();\n}\nfailure_route[FR] {\n    exit;\n}\n";

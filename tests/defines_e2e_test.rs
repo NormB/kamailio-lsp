@@ -6,7 +6,7 @@
 //! which is why none of this is gated on code position.
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 const CFG: &str = "\
@@ -52,21 +52,21 @@ fn boot(
             .expect("the server binary starts"),
         &dir,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "initialize");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "initialize");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
@@ -78,12 +78,12 @@ fn boot(
 fn a_define_name_jumps_to_its_directive() {
     let (_scratch, mut child, rx, mut stdin, uri) = boot("goto", CFG);
     // cursor on RELAY inside `route(RELAY);` (line 6)
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{
             "textDocument":{"uri":uri},"position":{"line":6,"character":11}}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 2, "definition");
+    let r = common::wait_for(&rx, |v| v["id"] == 2, "definition");
     // RELAY is a define, so it resolves to the #!define line (2), not
     // to route[MYROUTE]
     assert_eq!(
@@ -99,12 +99,12 @@ fn a_define_inside_ifdef_jumps_too() {
     let (_scratch, mut child, rx, mut stdin, uri) = boot("ifdef", CFG);
     // cursor on WITH_TLS inside `#!ifdef WITH_TLS` (line 5) — a
     // directive operand, not code position
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{
             "textDocument":{"uri":uri},"position":{"line":5,"character":10}}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 2, "definition");
+    let r = common::wait_for(&rx, |v| v["id"] == 2, "definition");
     assert_eq!(
         r["result"]["range"]["start"]["line"], 1,
         "expected the #!define WITH_TLS line: {}",
@@ -116,12 +116,12 @@ fn a_define_inside_ifdef_jumps_too() {
 #[test]
 fn hover_shows_what_a_define_binds() {
     let (_scratch, mut child, rx, mut stdin, uri) = boot("hover", CFG);
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{
             "textDocument":{"uri":uri},"position":{"line":6,"character":11}}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 2, "hover");
+    let r = common::wait_for(&rx, |v| v["id"] == 2, "hover");
     let md = r["result"]["contents"]["value"].as_str().unwrap_or("");
     assert!(md.contains("RELAY"), "hover: {md}");
     assert!(md.contains("MYROUTE"), "the bound value must show: {md}");
@@ -133,12 +133,12 @@ fn hover_shows_what_a_define_binds() {
 fn a_substdef_name_is_a_symbol_like_any_other() {
     let (_scratch, mut child, rx, mut stdin, uri) = boot("substdef", CFG);
     // MYPORT is bound by #!substdef, used inside a string
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{
             "textDocument":{"uri":uri},"position":{"line":8,"character":11}}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 2, "hover");
+    let r = common::wait_for(&rx, |v| v["id"] == 2, "hover");
     let md = r["result"]["contents"]["value"].as_str().unwrap_or("");
     assert!(md.contains("MYPORT") && md.contains("5060"), "hover: {md}");
     let _ = child.kill();
@@ -147,12 +147,12 @@ fn a_substdef_name_is_a_symbol_like_any_other() {
 #[test]
 fn defines_complete_in_code_position() {
     let (_scratch, mut child, rx, mut stdin, uri) = boot("complete", CFG);
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
             "textDocument":{"uri":uri},"position":{"line":8,"character":4}}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 2, "completion");
+    let r = common::wait_for(&rx, |v| v["id"] == 2, "completion");
     let empty = vec![];
     let labels: Vec<&str> = r["result"]
         .as_array()
@@ -169,12 +169,12 @@ fn defines_complete_in_code_position() {
 #[test]
 fn defines_appear_in_the_outline() {
     let (_scratch, mut child, rx, mut stdin, uri) = boot("outline", CFG);
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{
             "textDocument":{"uri":uri}}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 2, "documentSymbol");
+    let r = common::wait_for(&rx, |v| v["id"] == 2, "documentSymbol");
     let empty = vec![];
     let names: Vec<&str> = r["result"]
         .as_array()

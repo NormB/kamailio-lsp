@@ -7,7 +7,7 @@
 //! to report, and claiming otherwise would be worse than declining.
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 const MAIN: &str = "\
@@ -54,26 +54,26 @@ fn boot(
             .expect("the server binary starts"),
         &dir,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
     );
-    let init = wait_for(&rx, |v| v["id"] == 1, "initialize");
+    let init = common::wait_for(&rx, |v| v["id"] == 1, "initialize");
     assert_eq!(
         init["result"]["capabilities"]["callHierarchyProvider"],
         serde_json::json!(true),
         "call hierarchy capability not advertised"
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
@@ -89,12 +89,12 @@ fn prepare(
     line: u32,
     ch: u32,
 ) -> serde_json::Value {
-    write_msg(
+    common::write_msg(
         stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"textDocument/prepareCallHierarchy",
             "params":{"textDocument":{"uri":uri},"position":{"line":line,"character":ch}}}),
     );
-    wait_for(rx, |v| v["id"] == id, "prepareCallHierarchy")["result"].clone()
+    common::wait_for(rx, |v| v["id"] == id, "prepareCallHierarchy")["result"].clone()
 }
 
 #[test]
@@ -127,12 +127,12 @@ fn a_per_kind_block_has_no_hierarchy_of_its_own() {
 fn incoming_calls_group_by_caller_and_keep_every_call_site() {
     let (_scratch, mut child, rx, mut stdin, uri) = boot("in", MAIN);
     let item = prepare(&mut stdin, &rx, &uri, 2, 1, 11)[0].clone();
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":3,"method":"callHierarchy/incomingCalls",
             "params":{"item":item}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 3, "incomingCalls");
+    let r = common::wait_for(&rx, |v| v["id"] == 3, "incomingCalls");
     let calls = r["result"].as_array().expect("a call array");
 
     let names: Vec<&str> = calls
@@ -164,12 +164,12 @@ fn incoming_calls_group_by_caller_and_keep_every_call_site() {
 fn outgoing_calls_list_targets_and_name_the_undefined_ones() {
     let (_scratch, mut child, rx, mut stdin, uri) = boot("out", MAIN);
     let item = prepare(&mut stdin, &rx, &uri, 2, 1, 11)[0].clone();
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":3,"method":"callHierarchy/outgoingCalls",
             "params":{"item":item}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 3, "outgoingCalls");
+    let r = common::wait_for(&rx, |v| v["id"] == 3, "outgoingCalls");
     let calls = r["result"].as_array().expect("a call array");
     let names: Vec<&str> = calls
         .iter()
@@ -212,18 +212,18 @@ fn the_graph_spans_the_include_closure() {
             .unwrap(),
         &dir,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "initialize");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "initialize");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":main}}}),
@@ -231,12 +231,12 @@ fn the_graph_spans_the_include_closure() {
 
     // cursor on TARGET in `route[TARGET]` (line 1)
     let item = prepare(&mut stdin, &rx, &uri, 2, 1, 6)[0].clone();
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":3,"method":"callHierarchy/incomingCalls",
             "params":{"item":item}}),
     );
-    let r = wait_for(&rx, |v| v["id"] == 3, "incomingCalls");
+    let r = common::wait_for(&rx, |v| v["id"] == 3, "incomingCalls");
     let calls = r["result"].as_array().expect("a call array");
     assert_eq!(
         calls.len(),

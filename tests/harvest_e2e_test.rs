@@ -6,7 +6,7 @@
 //!     tree yields zero symbols
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 fn mk_tree(root: &std::path::Path) {
@@ -46,18 +46,18 @@ fn boot(
             .expect("the server binary starts"),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
             "capabilities": capabilities, "initializationOptions": opts}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "init");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "init");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
@@ -90,19 +90,19 @@ fn harvest_sends_work_done_progress_when_supported() {
     // the tree the server is pointed at is still there for it to read
     assert!(tree.join("src/modules/mymod/README").is_file());
     // the server asks to create a progress token; answer it
-    let create = wait_for(
+    let create = common::wait_for(
         &rx,
         |v| v["method"] == "window/workDoneProgress/create",
         "progress create request",
     );
     let token = create["params"]["token"].clone();
     assert!(token.is_string(), "token: {create}");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":create["id"],"result":null}),
     );
     // begin → report → end, all on that token
-    let begin = wait_for(
+    let begin = common::wait_for(
         &rx,
         |v| v["method"] == "$/progress" && v["params"]["value"]["kind"] == "begin",
         "progress begin",
@@ -116,19 +116,19 @@ fn harvest_sends_work_done_progress_when_supported() {
             .contains("harvest"),
         "{begin}"
     );
-    let report = wait_for(
+    let report = common::wait_for(
         &rx,
         |v| v["method"] == "$/progress" && v["params"]["value"]["kind"] == "report",
         "progress report",
     );
     assert_eq!(report["params"]["token"], token);
-    let end = wait_for(
+    let end = common::wait_for(
         &rx,
         |v| v["method"] == "$/progress" && v["params"]["value"]["kind"] == "end",
         "progress end",
     );
     assert_eq!(end["params"]["token"], token);
-    wait_for(&rx, is_ready, "ready");
+    common::wait_for(&rx, is_ready, "ready");
     child.kill().ok();
 }
 
@@ -151,7 +151,7 @@ fn no_progress_without_the_client_capability() {
     assert!(tree.join("src/modules/mymod/README").is_file());
     // the harvest must complete (ready) without ever sending progress
     // or a create request the client cannot handle
-    let v = wait_for(
+    let v = common::wait_for(
         &rx,
         |v| {
             is_ready(v)
@@ -188,7 +188,7 @@ fn configured_empty_trees_warn_visibly() {
     let mut warned_src = false;
     let mut warned_wiki = false;
     loop {
-        let v = wait_for(
+        let v = common::wait_for(
             &rx,
             |v| is_ready(v) || v["method"] == "window/showMessage",
             "warnings then ready",
@@ -221,7 +221,7 @@ fn unconfigured_trees_stay_silent() {
         serde_json::json!({"window":{"workDoneProgress":true}}),
         serde_json::json!({"kamailioPath": ""}),
     );
-    let v = wait_for(
+    let v = common::wait_for(
         &rx,
         |v| {
             is_ready(v)

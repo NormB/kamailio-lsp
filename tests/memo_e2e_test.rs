@@ -4,7 +4,7 @@
 //! Observed through the KAMAILIO_LSP_TRACE_INDEX stderr seam.
 
 mod common;
-use common::*;
+use common::Server;
 use std::io::Read;
 use std::process::{Command, Stdio};
 
@@ -29,18 +29,18 @@ fn hot_handlers_share_one_index_build_per_version() {
             .unwrap(),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "init");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "init");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
         "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
@@ -68,32 +68,32 @@ fn hot_handlers_share_one_index_build_per_version() {
         for (k, v) in extra.as_object().unwrap() {
             params[k] = v.clone();
         }
-        write_msg(
+        common::write_msg(
             &mut stdin,
             &serde_json::json!({"jsonrpc":"2.0","id":id,"method":method,"params":params}),
         );
-        wait_for(&rx, |v| v["id"] == id, method);
+        common::wait_for(&rx, |v| v["id"] == id, method);
     }
     // a new version rebuilds exactly once
     let text2 = "route[A] {\n    exit;\n}\nrequest_route {\n    route(A);\n    exit;\n}\n";
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{
         "textDocument":{"uri":uri,"version":2},
         "contentChanges":[{"text":text2}]}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":7,"method":"textDocument/documentSymbol","params":{
         "textDocument":{"uri":uri}}}),
     );
-    wait_for(&rx, |v| v["id"] == 7, "documentSymbol v2");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 7, "documentSymbol v2");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":8,"method":"textDocument/codeLens","params":{
         "textDocument":{"uri":uri}}}),
     );
-    wait_for(&rx, |v| v["id"] == 8, "codeLens v2");
+    common::wait_for(&rx, |v| v["id"] == 8, "codeLens v2");
     child.kill().ok();
     let mut err = String::new();
     child.stderr.take().unwrap().read_to_string(&mut err).ok();

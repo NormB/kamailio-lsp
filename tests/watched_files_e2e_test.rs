@@ -7,7 +7,7 @@
 //! answering from a stale read until the buffer happens to be touched.
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 fn boot(
@@ -40,33 +40,33 @@ fn boot(
             .expect("the server binary starts"),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
             "capabilities":{"workspace":{"didChangeWatchedFiles":{"dynamicRegistration":true}}}}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "initialize");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "initialize");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
     // answer the registration the way a client would, then wait for
     // the harvest so the tests exercise a ready server
-    let req = wait_for(
+    let req = common::wait_for(
         &rx,
         |v| v["method"] == "client/registerCapability",
         "registerCapability",
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":req["id"].clone(),"result":null}),
     );
-    wait_for(
+    common::wait_for(
         &rx,
         |v| {
             v["method"] == "window/logMessage"
@@ -130,7 +130,7 @@ fn an_include_changing_on_disk_republishes_diagnostics() {
     let (base, mut child, rx, mut stdin, _) = boot("include");
     let inc = base.join("inc.cfg");
     let notify = |stdin: &mut std::process::ChildStdin| {
-        write_msg(
+        common::write_msg(
             stdin,
             &serde_json::json!({"jsonrpc":"2.0","method":"workspace/didChangeWatchedFiles","params":{
                 "changes":[{"uri": format!("file://{}", inc.display()), "type": 2}]}}),
@@ -142,7 +142,7 @@ fn an_include_changing_on_disk_republishes_diagnostics() {
     let cfg = base.join("main.cfg");
     std::fs::write(&cfg, main).unwrap();
     let uri = format!("file://{}", cfg.display());
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":main}}}),
@@ -151,7 +151,7 @@ fn an_include_changing_on_disk_republishes_diagnostics() {
     // the include loses the route, without the buffer being touched
     std::fs::write(&inc, "route[SOMETHING_ELSE] {\n    exit;\n}\n").unwrap();
     notify(&mut stdin);
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| {
             v["method"] == "textDocument/publishDiagnostics"
@@ -173,7 +173,7 @@ fn an_include_changing_on_disk_republishes_diagnostics() {
     // and putting it back clears the warning, again with no edit
     std::fs::write(&inc, "route[HELPER] {\n    exit;\n}\n").unwrap();
     notify(&mut stdin);
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| {
             v["method"] == "textDocument/publishDiagnostics"
@@ -200,21 +200,21 @@ fn a_changed_documentation_tree_is_reharvested() {
     let text = "loadmodule \"mymod.so\"\nroute {\n    \n}\n";
     std::fs::write(&cfg, text).unwrap();
     let uri = format!("file://{}", cfg.display());
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
     );
 
     let ask = |stdin: &mut std::process::ChildStdin, id: i64| {
-        write_msg(
+        common::write_msg(
             stdin,
             &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"textDocument/completion","params":{
                 "textDocument":{"uri":uri},"position":{"line":2,"character":4}}}),
         );
     };
     ask(&mut stdin, 10);
-    let r = wait_for(&rx, |v| v["id"] == 10, "completion before");
+    let r = common::wait_for(&rx, |v| v["id"] == 10, "completion before");
     let labels: Vec<String> = r["result"]
         .as_array()
         .cloned()
@@ -232,7 +232,7 @@ fn a_changed_documentation_tree_is_reharvested() {
          2.2.  second_fn()\n\n   Two.\n",
     )
     .unwrap();
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"workspace/didChangeWatchedFiles","params":{
             "changes":[{"uri": format!("file://{}", base.join("tree/src/modules/mymod/README").display()), "type": 2}]}}),
@@ -242,7 +242,7 @@ fn a_changed_documentation_tree_is_reharvested() {
     let mut found = false;
     for id in 11..25 {
         ask(&mut stdin, id);
-        let r = wait_for(&rx, |v| v["id"] == id, "completion after");
+        let r = common::wait_for(&rx, |v| v["id"] == id, "completion after");
         let labels: Vec<String> = r["result"]
             .as_array()
             .cloned()

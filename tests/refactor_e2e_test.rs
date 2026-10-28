@@ -4,7 +4,7 @@
 //! corrupts the file is the failure that matters.
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 fn boot(
@@ -34,21 +34,21 @@ fn boot(
             .expect("the server binary starts"),
         &dir,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "initialize");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "initialize");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
@@ -64,14 +64,14 @@ fn actions(
     from: u32,
     to: u32,
 ) -> Vec<serde_json::Value> {
-    write_msg(
+    common::write_msg(
         stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"textDocument/codeAction","params":{
             "textDocument":{"uri":uri},
             "range":{"start":{"line":from,"character":0},"end":{"line":to,"character":0}},
             "context":{"diagnostics":[]}}}),
     );
-    wait_for(rx, |v| v["id"] == id, "codeAction")["result"]
+    common::wait_for(rx, |v| v["id"] == id, "codeAction")["result"]
         .as_array()
         .cloned()
         .unwrap_or_default()

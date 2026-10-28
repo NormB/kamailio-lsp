@@ -1,7 +1,7 @@
 //! textDocument/semanticTokens/range over real stdio LSP.
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 #[test]
@@ -25,33 +25,33 @@ fn semantic_tokens_range_returns_the_slice_with_fresh_deltas() {
             .unwrap(),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child.stdin.take().unwrap();
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
     );
-    let init = wait_for(&rx, |v| v["id"] == 1, "init");
+    let init = common::wait_for(&rx, |v| v["id"] == 1, "init");
     let sem = &init["result"]["capabilities"]["semanticTokensProvider"];
     assert_eq!(sem["range"], true, "range capability: {init}");
     assert_eq!(sem["full"], true, "full stays advertised: {init}");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
         "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
     );
     // the middle route only (lines 3..6)
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/semanticTokens/range","params":{
         "textDocument":{"uri":uri},
         "range":{"start":{"line":3,"character":0},"end":{"line":6,"character":0}}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "range tokens");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "range tokens");
     let data: Vec<u64> = v["result"]["data"]
         .as_array()
         .expect("data")

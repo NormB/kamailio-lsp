@@ -5,7 +5,7 @@
 //!   - cacheDir: catalog cache location as an initialization option
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 fn mk_tree(root: &std::path::Path) {
@@ -83,22 +83,22 @@ fn boot(
             .expect("the server binary starts"),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
             "capabilities":{}, "initializationOptions": opts}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "init");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "init");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    wait_for(
+    common::wait_for(
         &rx,
         |v| {
             v["method"] == "window/logMessage"
@@ -109,7 +109,7 @@ fn boot(
         },
         "ready",
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,
@@ -129,12 +129,12 @@ fn completion_item<'a>(v: &'a serde_json::Value, label: &str) -> Option<&'a serd
 #[test]
 fn function_completions_are_snippets_by_default() {
     let (_base, mut child, rx, mut stdin, uri) = boot("snip", serde_json::json!({}), 0);
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
             "textDocument":{"uri":uri},"position":{"line":1,"character":18}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "completion");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "completion");
     let item = completion_item(&v, "my_func").expect("my_func offered");
     assert_eq!(item["insertTextFormat"], 2, "snippet format: {item}");
     assert_eq!(
@@ -154,12 +154,12 @@ fn snippet_completions_can_be_disabled() {
         serde_json::json!({"snippetCompletions": false}),
         0,
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
             "textDocument":{"uri":uri},"position":{"line":1,"character":18}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "completion");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "completion");
     let item = completion_item(&v, "my_func").expect("my_func offered");
     assert!(
         item.get("insertTextFormat").is_none() && item.get("insertText").is_none(),
@@ -172,7 +172,7 @@ fn snippet_completions_can_be_disabled() {
 fn max_diagnostics_bounds_the_publish() {
     let (_base, mut child, rx, _stdin, _uri) =
         boot("maxdiag", serde_json::json!({"maxDiagnostics": 2}), 5);
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| v["method"] == "textDocument/publishDiagnostics",
         "publish",

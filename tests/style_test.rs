@@ -11,7 +11,8 @@
 //!    run clippy on both with warnings as errors;
 //! 3. the git hooks run `scripts/gate.sh`, and CI runs their tests;
 //! 4. a `#[rustfmt::skip]` has the reason on the line above it;
-//! 5. no `catch_unwind` outside the tests, no unstable `#![feature]`, and
+//! 5. no glob import outside the guide's exceptions, in any file;
+//! 6. no `catch_unwind` outside the tests, no unstable `#![feature]`, and
 //!    no crate that runs code before `main`.
 //!
 //! Each rule is a function of the text it reads, so the tests at the end
@@ -39,6 +40,7 @@ const DENIED_LINTS: &[&str] = &[
     "clippy.len_without_is_empty",
     "clippy.undocumented_unsafe_blocks",
     "clippy.unwrap_used",
+    "clippy.wildcard_imports",
 ];
 
 /// Crates that run code before `main`, which the guide forbids.
@@ -136,6 +138,34 @@ fn forbidden_constructs(text: &str) -> Vec<(usize, &'static str)> {
         }
         if code.starts_with("#![feature") {
             out.push((n + 1, "an unstable feature"));
+        }
+    }
+    out
+}
+
+/// The lines of a Rust file with a glob import the guide does not allow.
+/// It allows `pub use sub::*` (re-exports from a non-leaf module), and,
+/// indented inside an item, `use super::*` (an inline module) and
+/// `use Enum::*` (a function about that enum). clippy's wildcard_imports
+/// does not look inside test code, so this reads every file.
+fn glob_imports(text: &str) -> Vec<usize> {
+    let mut out = Vec::new();
+    for (n, line) in text.lines().enumerate() {
+        let code = line.trim_start();
+        let indented = code.len() < line.len();
+        let Some(path) = code
+            .strip_prefix("use ")
+            .and_then(|p| p.strip_suffix("::*;"))
+        else {
+            if code.starts_with("use ") && code.contains('*') {
+                out.push(n + 1);
+            }
+            continue;
+        };
+        let last = path.rsplit("::").next().unwrap_or(path);
+        let enum_like = last.starts_with(|c: char| c.is_ascii_uppercase());
+        if !(indented && (path == "super" || enum_like)) {
+            out.push(n + 1);
         }
     }
     out
@@ -323,6 +353,42 @@ fn no_test_enables_an_unstable_feature() {
         }
     }
     assert!(offenders.is_empty(), "{offenders:#?}");
+}
+
+#[test]
+fn no_glob_import_the_guide_does_not_allow() {
+    let mut offenders = Vec::new();
+    for dir in ["src", "examples", "tests", "fuzz/fuzz_targets"] {
+        for file in rust_files(dir) {
+            for line in glob_imports(&read(&file)) {
+                offenders.push(format!("{file}:{line}"));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "import the names, or the module for its functions: {offenders:#?}"
+    );
+}
+
+#[test]
+fn glob_rule_allows_only_the_guides_exceptions() {
+    let text = "use common::*;\nuse std::io::*;\npub use sub::*;\nmod tests {\n    use super::*;\n}\nfn f() {\n    use Kind::*;\n    use std::fmt::*;\n}\nuse a::{b, c::*};\n";
+    assert_eq!(
+        glob_imports(text),
+        vec![1, 2, 9, 11],
+        "a top-level glob, a glob of a module inside a function and a glob in braces"
+    );
+    assert_eq!(
+        glob_imports("use super::*;\n"),
+        vec![1],
+        "use super::* only in an inline module"
+    );
+    assert_eq!(
+        glob_imports("use common::Server;\n"),
+        Vec::<usize>::new(),
+        "named imports"
+    );
 }
 
 #[test]

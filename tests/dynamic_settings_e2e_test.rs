@@ -4,7 +4,7 @@
 //! restart, republishing diagnostics for open documents.
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 /// Boot a server: optional stub checker planting `stub_errors`
@@ -80,22 +80,22 @@ fn boot(
             .expect("the server binary starts"),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
             "capabilities":{}, "initializationOptions": opts}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "init");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "init");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    wait_for(
+    common::wait_for(
         &rx,
         |v| {
             v["method"] == "window/logMessage"
@@ -106,7 +106,7 @@ fn boot(
         },
         "ready",
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
@@ -115,7 +115,7 @@ fn boot(
 }
 
 fn change_config(stdin: &mut std::process::ChildStdin, settings: serde_json::Value) {
-    write_msg(
+    common::write_msg(
         stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"workspace/didChangeConfiguration",
             "params":{"settings": settings}}),
@@ -130,7 +130,7 @@ fn max_diagnostics_applies_without_restart() {
         5,
         "loadmodule \"mymod.so\"\nrequest_route { exit; }\n",
     );
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| v["method"] == "textDocument/publishDiagnostics",
         "initial publish",
@@ -144,7 +144,7 @@ fn max_diagnostics_applies_without_restart() {
         &mut stdin,
         serde_json::json!({"kamailioLsp": {"maxDiagnostics": 2}}),
     );
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| {
             v["method"] == "textDocument/publishDiagnostics"
@@ -167,7 +167,7 @@ fn analyzer_toggle_silences_and_restores_diags() {
         0,
         "request_route {\n    route(GONE);\n}\n",
     );
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| {
             v["method"] == "textDocument/publishDiagnostics"
@@ -189,7 +189,7 @@ fn analyzer_toggle_silences_and_restores_diags() {
         &mut stdin,
         serde_json::json!({"kamailioLsp": {"analyzerDiagnostics": false}}),
     );
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| {
             v["method"] == "textDocument/publishDiagnostics"
@@ -205,7 +205,7 @@ fn analyzer_toggle_silences_and_restores_diags() {
         &mut stdin,
         serde_json::json!({"kamailioLsp": {"analyzerDiagnostics": true}}),
     );
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| {
             v["method"] == "textDocument/publishDiagnostics"
@@ -238,12 +238,12 @@ fn snippet_toggle_applies_to_the_next_completion() {
         serde_json::json!({"kamailioLsp": {"snippetCompletions": false}}),
     );
     // fence: a round-trip guarantees the notification was processed
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
             "textDocument":{"uri":uri},"position":{"line":1,"character":18}}}),
     );
-    let v = wait_for(&rx, |v| v["id"] == 2, "completion");
+    let v = common::wait_for(&rx, |v| v["id"] == 2, "completion");
     let item = v["result"]
         .as_array()
         .unwrap()
@@ -266,7 +266,7 @@ fn flat_settings_and_garbage_are_tolerated() {
         5,
         "loadmodule \"mymod.so\"\nrequest_route { exit; }\n",
     );
-    wait_for(
+    common::wait_for(
         &rx,
         |v| v["method"] == "textDocument/publishDiagnostics",
         "initial publish",
@@ -284,7 +284,7 @@ fn flat_settings_and_garbage_are_tolerated() {
     }
     // FLAT settings (no kamailioLsp wrapper) must also work
     change_config(&mut stdin, serde_json::json!({"maxDiagnostics": 2}));
-    let d = wait_for(
+    let d = common::wait_for(
         &rx,
         |v| {
             v["method"] == "textDocument/publishDiagnostics"
@@ -296,11 +296,11 @@ fn flat_settings_and_garbage_are_tolerated() {
     );
     assert_eq!(d["params"]["diagnostics"].as_array().unwrap().len(), 2);
     // server still answers requests after the garbage barrage
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{
             "textDocument":{"uri":uri},"position":{"line":0,"character":1}}}),
     );
-    wait_for(&rx, |v| v["id"] == 3, "hover after garbage");
+    common::wait_for(&rx, |v| v["id"] == 3, "hover after garbage");
     child.kill().ok();
 }

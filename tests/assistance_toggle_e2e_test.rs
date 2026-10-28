@@ -17,7 +17,7 @@
 //! is already a separate switch for them.
 
 mod common;
-use common::*;
+use common::Server;
 use std::process::{Command, Stdio};
 
 fn manifest() -> serde_json::Value {
@@ -152,22 +152,22 @@ fn boot(
             .expect("the server binary starts"),
         &base,
     );
-    let rx = spawn_reader(&mut child);
+    let rx = common::spawn_reader(&mut child);
     let mut stdin = child
         .stdin
         .take()
         .expect("the server was spawned with a piped stdin");
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
             "capabilities":{}, "initializationOptions": opts}}),
     );
-    wait_for(&rx, |v| v["id"] == 1, "init");
-    write_msg(
+    common::wait_for(&rx, |v| v["id"] == 1, "init");
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{
             "textDocument":{"uri":uri,"languageId":"kamailio-cfg","version":1,"text":text}}}),
@@ -181,12 +181,12 @@ fn hover(
     uri: &str,
     id: i64,
 ) -> serde_json::Value {
-    write_msg(
+    common::write_msg(
         stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"textDocument/hover","params":{
             "textDocument":{"uri":uri},"position":{"line":1,"character":5}}}),
     );
-    wait_for(rx, |v| v["id"] == id, "hover")["result"].clone()
+    common::wait_for(rx, |v| v["id"] == id, "hover")["result"].clone()
 }
 
 fn completion(
@@ -195,12 +195,12 @@ fn completion(
     uri: &str,
     id: i64,
 ) -> Vec<String> {
-    write_msg(
+    common::write_msg(
         stdin,
         &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"textDocument/completion","params":{
             "textDocument":{"uri":uri},"position":{"line":1,"character":8}}}),
     );
-    let v = wait_for(rx, |v| v["id"] == id, "completion");
+    let v = common::wait_for(rx, |v| v["id"] == id, "completion");
     v["result"]
         .as_array()
         .map(|a| {
@@ -247,7 +247,7 @@ fn the_toggle_takes_effect_without_a_restart() {
         "on to begin with"
     );
 
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"workspace/didChangeConfiguration","params":{
             "settings":{"assistance": false}}}),
@@ -269,7 +269,7 @@ fn the_toggle_takes_effect_without_a_restart() {
     assert!(off, "the same server, no restart, must stop answering");
     assert!(completion(&mut stdin, &rx, &uri, 20).is_empty());
 
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"workspace/didChangeConfiguration","params":{
             "settings":{"assistance": true}}}),
@@ -310,7 +310,7 @@ fn a_payload_that_omits_the_toggle_leaves_it_alone() {
         "off to begin with"
     );
 
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"workspace/didChangeConfiguration","params":{
             "settings":{"maxDiagnostics": 42}}}),
@@ -344,7 +344,7 @@ fn the_namespaced_payload_shape_toggles_too() {
         "on to begin with"
     );
 
-    write_msg(
+    common::write_msg(
         &mut stdin,
         &serde_json::json!({"jsonrpc":"2.0","method":"workspace/didChangeConfiguration","params":{
             "settings":{"kamailioLsp":{"assistance": false}}}}),
