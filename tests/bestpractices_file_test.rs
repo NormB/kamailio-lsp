@@ -225,3 +225,23 @@ fn every_path_it_links_to_is_tracked() {
     let gone: Vec<_> = paths.iter().filter(|p| !tracked.contains(*p)).collect();
     assert!(gone.is_empty(), "links to paths not in the tree: {gone:?}");
 }
+
+/// The project's page on the OpenSSF Best Practices site.
+const PROJECT: &str = "https://www.bestpractices.dev/projects/16016";
+
+#[test]
+fn the_readme_shows_the_best_practices_badge_under_its_title() {
+    let readme = std::fs::read_to_string(root().join("README.md")).expect("README.md is readable");
+    let badge = format!("[![OpenSSF Best Practices]({PROJECT}/badge)]({PROJECT})");
+    let mut lines = readme.lines().filter(|l| !l.trim().is_empty());
+    assert_eq!(
+        lines.next(),
+        Some("# kamailio-lsp"),
+        "the README starts with its title"
+    );
+    assert_eq!(
+        lines.next(),
+        Some(badge.as_str()),
+        "the badge is the first thing under the title, linking to project 16016"
+    );
+}

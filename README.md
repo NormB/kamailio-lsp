@@ -1,5 +1,7 @@
 # kamailio-lsp
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16016/badge)](https://www.bestpractices.dev/projects/16016)
+
 A Language Server Protocol implementation for the Kamailio
 configuration file language (`kamailio.cfg`).
 
