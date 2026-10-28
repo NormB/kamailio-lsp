@@ -1,0 +1,6 @@
+# Commits that only reformat, for git blame to skip:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub's blame view reads this file on its own.
+
+# Write hex literals in lower case, as rustfmt.toml now asks
+3801b7763fe102e017472bd7e3b96d841f2116ac

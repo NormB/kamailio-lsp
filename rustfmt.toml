@@ -1,0 +1,9 @@
+# The Google Rust Style Guide's options
+# (https://google.github.io/styleguide/rustguide.html) on top of the
+# official Rust style. Stable rustfmt does not apply the last three, so
+# run rustfmt through scripts/fmt.sh, which uses a pinned nightly.
+style_edition = "2024"
+max_width = 100
+hex_literal_case = "Lower"
+format_macro_matchers = true
+imports_granularity = "Module"

@@ -34,11 +34,43 @@ not by OpenSIPS habits, docs, or recollection. The rules:
 
 ## Local workflow
 
+Turn on the git hooks once per clone:
+
 ```sh
-cargo test                     # full suite, includes the stdio LSP e2e
-cargo clippy --all-targets     # CI enforces -D warnings
-cargo fmt
-RUSTDOCFLAGS="-D warnings" cargo doc --no-deps   # missing_docs is deny
+git config core.hooksPath .githooks
+```
+
+They run `scripts/gate.sh`, the checks CI runs, before a commit and
+before a push. The commit hook refuses a message or a staged line that
+credits an AI tool, and then runs rustfmt, clippy on both packages
+with warnings as errors, and every test. It runs them on the working
+tree, so it also refuses a commit while anything is unstaged or
+untracked. The push hook refuses a commit without a good signature,
+or one whose author or committer is not you. It then runs rustdoc with
+warnings as errors, the MSRV build, the client's compile and tests, and
+`cargo audit`. `scripts/test-hooks.sh` tests the hooks themselves.
+
+The tests need the proof environment. Write it once where the gate
+reads it:
+
+```sh
+scripts/proof-env.sh > "$(git rev-parse --git-common-dir)/env.sh"
+```
+
+Rust code follows the [Google Rust Style
+Guide](https://google.github.io/styleguide/rustguide.html), which
+builds on the [Rust Style Guide](https://doc.rust-lang.org/nightly/style-guide/)
+and the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/).
+`rustfmt.toml` sets its options, and some of them are unstable, so
+format with `scripts/fmt.sh fix`. It runs rustfmt from a pinned
+nightly. The crate itself builds on stable. Clippy denies the guide's
+lints through the `[lints]` tables in both manifests, and
+`tests/style_test.rs` checks the rest.
+
+```sh
+scripts/gate.sh commit         # rustfmt check, clippy, the full suite
+scripts/gate.sh push           # rustdoc, MSRV, client, cargo audit
+scripts/fmt.sh fix             # format with the pinned nightly
 ```
 
 The real-tree harvest test is opt-in:

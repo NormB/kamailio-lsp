@@ -18,6 +18,17 @@ cargo-fuzz = true
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }
 
+# The same lints as the server's Cargo.toml (tests/style_test.rs checks
+# both lists).
+[lints.clippy]
+borrowed_box = "deny"
+ptr_arg = "deny"
+should_implement_trait = "deny"
+wrong_self_convention = "deny"
+new_without_default = "deny"
+len_without_is_empty = "deny"
+undocumented_unsafe_blocks = "deny"
+
 [dependencies]
 kamailio-lsp = { path = ".." }
 libfuzzer-sys = "0.4.13"
