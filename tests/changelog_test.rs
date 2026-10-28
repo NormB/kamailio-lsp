@@ -122,3 +122,29 @@ fn the_version_dropdown_offers_exactly_the_shipped_releases() {
         .len();
     assert_eq!(described, offered.len(), "one description per choice");
 }
+
+/// `fuzz/Cargo.lock` records the version of the server crate the fuzz
+/// targets depend on by path, and must say what Cargo.toml says. After
+/// 0.21.6 it still said 0.21.5: a release bump that leaves it behind
+/// fails here, on the bump's own commit.
+#[test]
+fn the_fuzz_lockfile_records_the_crate_version() {
+    let root = env!("CARGO_MANIFEST_DIR");
+    let lock = std::fs::read_to_string(format!("{root}/fuzz/Cargo.lock"))
+        .expect("fuzz/Cargo.lock must exist");
+    let entry = lock
+        .split("[[package]]")
+        .find(|p| p.lines().any(|l| l.trim() == "name = \"kamailio-lsp\""))
+        .expect("fuzz/Cargo.lock has a kamailio-lsp entry");
+    let version = entry
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("version = \""))
+        .and_then(|v| v.strip_suffix('"'))
+        .expect("the entry has a version");
+    assert_eq!(
+        version,
+        env!("CARGO_PKG_VERSION"),
+        "fuzz/Cargo.lock records kamailio-lsp {version}, Cargo.toml says {}",
+        env!("CARGO_PKG_VERSION")
+    );
+}

@@ -468,3 +468,63 @@ fn checkouts_keeping_the_token_reads_each_step() {
     );
     assert!(checkouts_keeping_the_token("a.yml", &y).is_empty());
 }
+
+/// actionlint checks every workflow, shell scripts included through
+/// shellcheck, on every push. actionlint 1.7.12 found 13 places in
+/// release.yml where an unquoted expansion would be split or globbed,
+/// and one in the grammar sanitizer step of ci.yml; a gate that reads
+/// the workflows as text cannot see those. The binary is pinned by
+/// version and sha256 so the check is the same on every run, and
+/// shellcheck must be present, because without it actionlint skips the
+/// script checks and passes.
+#[test]
+fn ci_runs_a_pinned_actionlint_over_every_workflow() {
+    let y = workflow("ci.yml").expect("ci.yml must exist");
+    let (_, job) = y
+        .split_once("\n  actionlint:")
+        .expect("ci.yml has an `actionlint` job");
+    let job = job.split("\n  ci-success:").next().unwrap_or(job);
+    assert!(
+        job.contains("actionlint_1.7.12_linux_amd64.tar.gz"),
+        "actionlint is pinned to a release artefact"
+    );
+    let sha = regex::Regex::new(r"[0-9a-f]{64}  actionlint_1\.7\.12_linux_amd64\.tar\.gz").unwrap();
+    assert!(
+        sha.is_match(job) && job.contains("sha256sum -c"),
+        "the artefact's sha256 is pinned and checked"
+    );
+    assert!(
+        job.contains("command -v shellcheck"),
+        "the job fails when shellcheck is missing"
+    );
+    assert!(
+        job.contains("./actionlint -color") || job.contains("./actionlint\n"),
+        "actionlint runs with no file list, so it reads every workflow"
+    );
+    let needs = y
+        .split_once("\n  ci-success:")
+        .and_then(|(_, rest)| rest.lines().find(|l| l.trim_start().starts_with("needs:")))
+        .expect("ci-success has needs");
+    assert!(
+        needs.contains("actionlint"),
+        "CI success waits for actionlint: {needs}"
+    );
+}
+
+/// The tag's verify job compares every file that records the release
+/// version. `fuzz/Cargo.lock` records the server's own version (the fuzz
+/// crate depends on it by path); 0.21.6 was released with it still
+/// saying 0.21.5, because nothing compared it.
+#[test]
+fn the_release_verify_job_reads_the_fuzz_lockfile() {
+    let y = workflow("release.yml").expect("release.yml");
+    let verify = y
+        .split("\n  verify:")
+        .nth(1)
+        .and_then(|s| s.split("\n  server:").next())
+        .expect("a verify job");
+    assert!(
+        verify.contains("fuzz/Cargo.lock"),
+        "the verify job does not compare fuzz/Cargo.lock's kamailio-lsp version with the tag"
+    );
+}

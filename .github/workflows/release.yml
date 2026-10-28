@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: The tag, Cargo.toml, package.json and the changelog agree
+      - name: The tag, Cargo.toml, package.json, fuzz/Cargo.lock and the changelog agree
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
@@ -35,9 +35,21 @@ jobs:
           EOF
           )
           ext=$(python3 -c "import json;print(json.load(open('client/package.json'))['version'])")
-          echo "tag=$tag crate=$crate extension=$ext"
+          # the fuzz crate depends on the server by path, and its lockfile
+          # records the server's version
+          fuzz=$(python3 - <<'EOF'
+          import pathlib
+          lock = pathlib.Path("fuzz/Cargo.lock").read_text()
+          for entry in lock.split("[[package]]"):
+              lines = [l.strip() for l in entry.splitlines()]
+              if 'name = "kamailio-lsp"' in lines:
+                  print(next(l for l in lines if l.startswith("version = ")).split('"')[1])
+          EOF
+          )
+          echo "tag=$tag crate=$crate extension=$ext fuzz-lock=$fuzz"
           [ "$tag" = "$crate" ] || { echo "::error::tag $tag != Cargo.toml $crate"; exit 1; }
           [ "$tag" = "$ext" ]   || { echo "::error::tag $tag != package.json $ext"; exit 1; }
+          [ "$tag" = "$fuzz" ]  || { echo "::error::tag $tag != fuzz/Cargo.lock $fuzz"; exit 1; }
           grep -q "^## \[$tag\]" client/CHANGELOG.md || {
             echo "::error::client/CHANGELOG.md has no '## [$tag]' entry — the marketplace Changes tab would be stale"
             exit 1
@@ -92,11 +104,11 @@ jobs:
           if [ "${{ matrix.os }}" = "windows" ]; then
             # zip: what Windows users (and Explorer) expect
             7z a -tzip \
-              kamailio-lsp-${GITHUB_REF_NAME}-${{ matrix.arch }}-windows.zip \
+              "kamailio-lsp-${GITHUB_REF_NAME}-${{ matrix.arch }}-windows.zip" \
               "./$BINDIR/kamailio-lsp.exe" >/dev/null
           else
             tar -C "$BINDIR" -czf \
-              kamailio-lsp-${GITHUB_REF_NAME}-${{ matrix.arch }}-${{ matrix.os }}.tar.gz \
+              "kamailio-lsp-${GITHUB_REF_NAME}-${{ matrix.arch }}-${{ matrix.os }}.tar.gz" \
               kamailio-lsp
           fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -131,23 +143,22 @@ jobs:
           for triple in "linux-x64 x86_64 linux-gnu" "linux-arm64 aarch64 linux-gnu" \
                         "darwin-arm64 aarch64 darwin" "darwin-x64 x86_64 darwin" \
                         "win32-x64 x86_64 windows" "win32-arm64 aarch64 windows"; do
-            set -- $triple
-            target=$1; arch=$2; os=$3
+            read -r target arch os <<<"$triple"
             rm -rf server && mkdir server
             if [ "$os" = "windows" ]; then
               unzip -q -d server \
-                ../dist/kamailio-lsp-${GITHUB_REF_NAME}-${arch}-windows.zip
+                "../dist/kamailio-lsp-${GITHUB_REF_NAME}-${arch}-windows.zip"
             else
               tar -C server -xzf \
-                ../dist/kamailio-lsp-${GITHUB_REF_NAME}-${arch}-${os}.tar.gz
+                "../dist/kamailio-lsp-${GITHUB_REF_NAME}-${arch}-${os}.tar.gz"
             fi
             npx --yes @vscode/vsce package --target "$target" --out \
-              kamailio-lsp-ext-${GITHUB_REF_NAME}-${target}.vsix
+              "kamailio-lsp-ext-${GITHUB_REF_NAME}-${target}.vsix"
           done
           # universal build: no binary, PATH/setting fallback
           rm -rf server
           npx --yes @vscode/vsce package --out \
-            kamailio-lsp-ext-${GITHUB_REF_NAME}.vsix
+            "kamailio-lsp-ext-${GITHUB_REF_NAME}.vsix"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vsix
@@ -249,11 +260,11 @@ jobs:
             # rerun: refresh the assets on the existing release
             gh release upload "${GITHUB_REF_NAME}" \
               --repo "${GITHUB_REPOSITORY}" --clobber \
-              kamailio-lsp-*.tar.gz kamailio-lsp-*.zip *.vsix
+              ./kamailio-lsp-*.tar.gz ./kamailio-lsp-*.zip ./*.vsix
           else
             gh release create "${GITHUB_REF_NAME}" \
               --repo "${GITHUB_REPOSITORY}" \
               --title "${GITHUB_REF_NAME}" \
               --generate-notes \
-              kamailio-lsp-*.tar.gz kamailio-lsp-*.zip *.vsix
+              ./kamailio-lsp-*.tar.gz ./kamailio-lsp-*.zip ./*.vsix
           fi
