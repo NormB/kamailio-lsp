@@ -44,6 +44,20 @@ impact assessment, and (optionally) your name/handle for credit.
   deliberately enabled* — that is the documented trust model; see the
   Security section of `docs/ADMIN.md`.
 
+## Advisories recorded as not affecting kamailio-lsp
+
+A dependency advisory with no usable fixed version can be recorded as
+not affecting the project in an `osv-scanner.toml` next to the
+lockfile, with the reason and an `ignoreUntil` date. OSV-Scanner and
+the OpenSSF Scorecard honor the record. `tests/npm_advisory_test.rs`
+fails when a record has no reason or its date has passed, when the
+advised version is no longer locked, or when a fact the reason depends
+on stops holding.
+
+| Advisory | Package | Record | Why it does not affect kamailio-lsp |
+|---|---|---|---|
+| [GHSA-g3hv-75wg-m249](https://osv.dev/GHSA-g3hv-75wg-m249) | minimatch 10.2.6, in the VS Code client | `client/osv-scanner.toml`, until 2027-02-01 | vscode-languageclient 11.0.0, the only package that pulls minimatch, compiles file-operation globs and document or notebook filter patterns with it. The server advertises no file operations and no notebook sync, and the client's document selector has no pattern, so no user, workspace or file content reaches minimatch. The fixed minimatch 11.0.1 removes `makeRe()`, which vscode-languageclient calls ([microsoft/vscode-languageserver-node#1938](https://github.com/microsoft/vscode-languageserver-node/issues/1938)). |
+
 ## Verifying a release
 
 Releases after v0.22.0 attach three files that prove where every asset

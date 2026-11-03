@@ -1,0 +1,10 @@
+# Vulnerabilities in client/package-lock.json recorded as not affecting
+# kamailio-lsp. OSV-Scanner and the OpenSSF Scorecard read this file.
+# tests/npm_advisory_test.rs checks every entry: the reason is present,
+# ignoreUntil has not passed, the affected version is still locked, and
+# the facts the reason states still hold. SECURITY.md records the decision.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-01T00:00:00Z
+reason = "minimatch 10.2.6 is reached only through vscode-languageclient 11.0.0, which compiles two kinds of glob with it: file-operation globs the server registers (lib/common/fileOperations.js) and the pattern of a document or notebook filter (lib/common/utils/globPattern.js). The kamailio-lsp server advertises no file operations (file_operations: None in src/server.rs), advertises no notebook sync, and registers only workspace/didChangeWatchedFiles, whose globs go to the VS Code file watcher and not to minimatch. The client document selector is [{ language: 'kamailio-cfg' }], with no pattern. No user, workspace or file content reaches minimatch. No usable fixed version exists: vscode-languageclient 11.0.0 is the latest release and requires minimatch ^10.2.6, and minimatch 11.0.1 removes makeRe(), which vscode-languageclient calls (microsoft/vscode-languageserver-node issue 1938)."
