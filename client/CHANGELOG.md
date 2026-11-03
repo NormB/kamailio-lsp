@@ -2,6 +2,35 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.22.1] — 2026-11-03
+
+**GHSA-g3hv-75wg-m249 in minimatch is recorded as not affecting the
+extension, and the formatter no longer removes a form feed.**
+
+- **The decision.** The extension bundles minimatch 10.2.6 through
+  vscode-languageclient 11.0.0. Every minimatch release before 11.0.1
+  is covered by GHSA-g3hv-75wg-m249, a denial of service through glob
+  pattern amplification. vscode-languageclient compiles two kinds of
+  glob with minimatch: the file-operation globs a server registers, and
+  the pattern of a document or notebook filter. The kamailio-lsp server
+  registers no file operations and no notebook sync, and the
+  extension's document selector has no pattern, so no user, workspace
+  or file content reaches minimatch.
+- **Why the version stays.** vscode-languageclient 11.0.0 is the
+  latest release and requires minimatch 10. minimatch 11.0.1 removes
+  `makeRe()`, which vscode-languageclient calls, so forcing it breaks
+  the client (microsoft/vscode-languageserver-node issue 1938).
+- **The record.** `client/osv-scanner.toml` holds the decision for
+  OSV-Scanner and the OpenSSF Scorecard, until 2027-02-01. A test fails
+  when the record expires, when the facts it states stop holding, or
+  when minimatch is upgraded and the record remains. `SECURITY.md`
+  lists it.
+- **The formatter removes only what Kamailio reads as whitespace.**
+  Space, tab, backspace and CR. It used to remove a form feed too, and
+  `#!endif` followed by a form feed, which Kamailio reads as a comment,
+  became a directive that closed an `#!ifdef` the file never closed.
+  Formatting such a file a second time then changed it again.
+
 ## [0.22.0] — 2026-10-27
 
 **Completion inside include paths, a warning when the include closure
