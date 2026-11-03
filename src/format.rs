@@ -1,7 +1,8 @@
 //! Line-preserving whitespace formatter for `kamailio.cfg`.
 //!
 //! The formatter rewrites the leading and trailing whitespace of a
-//! line and nothing else: it never joins, splits or reorders lines,
+//! line, as cfg.lex reads whitespace (space, tab, backspace and CR), and
+//! nothing else: it never joins, splits or reorders lines,
 //! never touches a byte inside a string literal or a comment body, and
 //! never rewrites a line it does not need to change.
 //!
@@ -31,6 +32,16 @@
 //!   when the previous code line actually ENDED a statement.
 
 use crate::analyze::{Class, classify};
+
+/// What cfg.lex skips between tokens on a line: `EAT_ABLE`,
+/// `[\ \t\b\r]`.  Anything else, a form feed or a no-break space
+/// included, is a character to it, and removing one can change how the
+/// line reads: `#!endif` followed by a form feed is a comment, and
+/// without the form feed it is a directive.  So these are the only
+/// characters the formatter moves.
+fn is_eatable(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\u{8}' | '\r')
+}
 
 /// Formatting options, as an LSP client supplies them in
 /// `FormattingOptions`.
@@ -106,7 +117,7 @@ fn lines_with_offsets(text: &str) -> Vec<Line<'_>> {
 fn ends_statement(body: &str, start: usize, class: &[Class]) -> Option<bool> {
     let mut last = None;
     for (off, ch) in body.char_indices() {
-        if ch.is_whitespace() || class.get(start + off) != Some(&Class::Code) {
+        if is_eatable(ch) || class.get(start + off) != Some(&Class::Code) {
             continue;
         }
         last = Some(ch);
@@ -179,7 +190,7 @@ fn formatted_lines(text: &str, opts: &Options) -> Vec<String> {
             continue;
         }
 
-        let trimmed = body.trim();
+        let trimmed = body.trim_matches(is_eatable);
         if trimmed.is_empty() {
             out.push(String::new() + cr);
             continue;
@@ -187,7 +198,7 @@ fn formatted_lines(text: &str, opts: &Options) -> Vec<String> {
 
         // Braces that are code decide the depth; a `{` in a string or
         // a comment is decoration.
-        let leading_ws = body.len() - body.trim_start().len();
+        let leading_ws = body.len() - body.trim_start_matches(is_eatable).len();
         let code_at = |off: usize| class.get(line.start + off) == Some(&Class::Code);
 
         // Closers at the head of the line dedent the line itself.
@@ -195,7 +206,7 @@ fn formatted_lines(text: &str, opts: &Options) -> Vec<String> {
         for (off, ch) in body.char_indices().skip_while(|(i, _)| *i < leading_ws) {
             if ch == '}' && code_at(off) {
                 closers += 1;
-            } else if !ch.is_whitespace() {
+            } else if !is_eatable(ch) {
                 break;
             }
         }

@@ -508,7 +508,11 @@ range formatting does the same for those lines only, at the
 indentation a whole-document pass would have given them.
 
 The formatter is deliberately **line-preserving**: it rewrites the
-leading and trailing whitespace of a line and nothing else. It never
+leading and trailing whitespace of a line and nothing else.
+Whitespace is what Kamailio's lexer skips: space, tab, backspace and
+CR. A form feed or a no-break space is a character to Kamailio, so the
+formatter leaves it in place; removing the form feed from `#!endif`
+followed by a form feed would turn that comment into a directive. It never
 joins, splits or reorders lines, never touches a byte inside a string
 literal or a comment body (either comment style), and never emits an
 edit for a line that is already correct — so folding, selection and

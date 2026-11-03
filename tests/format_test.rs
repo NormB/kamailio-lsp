@@ -111,6 +111,68 @@ fn is_idempotent() {
     }
 }
 
+/// The cfg fuzz target's minimized input (ClusterFuzzLite, 2026-11-03):
+/// a string opened between two `#!endif` lines that end in a form feed.
+#[test]
+fn a_string_between_form_feed_endifs_formats_stably() {
+    let src = "#!ifdef \n#!endif\x0c\nea\"\n#!endif\x0c\n\"h\n ";
+    for opts in [tabs(), spaces(2)] {
+        let once = format(src, &opts);
+        let twice = format(&once, &opts);
+        assert_eq!(once, twice, "second pass changed the document");
+    }
+}
+
+/// cfg.lex reads `#!endif` as a directive only when nothing but
+/// `EAT_ABLE` (space, tab, backspace, CR) follows it, so `#!endif` and a
+/// form feed is a comment. Removing the form feed would make it a
+/// directive and close a conditional the file never closed.
+#[test]
+fn a_form_feed_after_a_directive_keyword_is_kept() {
+    for src in ["#!endif\x0c\n", "#!else\x0c\n", "  #!endif\x0c\n"] {
+        let out = format(src, &tabs());
+        assert!(
+            out.contains("\x0c"),
+            "the form feed was removed from {src:?}: {out:?}"
+        );
+    }
+}
+
+/// The formatter moves only what cfg.lex skips between tokens; a form
+/// feed or a no-break space is a character to it, not layout.
+#[test]
+fn only_characters_the_lexer_skips_are_trimmed() {
+    assert_eq!(
+        format("route {\n x;\x0c\n}\n", &tabs()),
+        "route {\n\tx;\x0c\n}\n"
+    );
+    assert_eq!(
+        format("route {\n\u{a0}x;\n}\n", &tabs()),
+        "route {\n\t\u{a0}x;\n}\n"
+    );
+    assert_eq!(
+        format("route {\n \x08x; \t\x08\r\n}\n", &tabs()),
+        "route {\n\tx;\r\n}\n"
+    );
+}
+
+/// The indenter reads a form feed as cfg.lex does, as a character: a
+/// line that starts with one does not start with its `}`, and a line
+/// that ends with one did not end with its `;`.
+#[test]
+fn a_form_feed_is_content_to_the_indenter() {
+    assert_eq!(
+        format("route {\n\x0c}\n}\n", &tabs()),
+        "route {\n\t\x0c}\n}\n",
+        "a `}}` after a form feed is not a closer at the head of the line"
+    );
+    assert_eq!(
+        format("route {\n\tx;\x0c\n   y;\n}\n", &tabs()),
+        "route {\n\tx;\x0c\n   y;\n}\n",
+        "a line ending in a form feed did not end its statement"
+    );
+}
+
 #[test]
 fn changes_nothing_but_leading_and_trailing_whitespace() {
     let src = "# comment\nloadmodule \"tm.so\"\nmodparam(\"tm\", \"fr_timeout\", 3)\n\
