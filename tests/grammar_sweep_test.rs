@@ -21,8 +21,8 @@
 
 mod common;
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// The emulation above, held to the binary.  Each case's skipped text
 /// is something the parser would reject if it read it — the variant
@@ -139,12 +139,11 @@ fn the_grammar_parses_every_config_the_real_parser_accepts() {
         std::fs::write(&p, common::as_the_parser_reads_it(&raw)).unwrap();
         printed.push((p, f.clone()));
     }
-    let out = Command::new("npx")
-        .args(["--yes", "tree-sitter-cli@0.26", "parse", "--quiet"])
-        .args(printed.iter().map(|(p, _)| p))
-        .current_dir(root.join("tree-sitter-kamailio"))
-        .output()
-        .expect("npx tree-sitter-cli parse");
+    let files = printed.iter().map(|(p, _)| p.as_os_str());
+    let args = [OsStr::new("parse"), OsStr::new("--quiet")]
+        .into_iter()
+        .chain(files);
+    let out = common::tree_sitter(&root.join("tree-sitter-kamailio"), None, args);
     let report = String::from_utf8_lossy(&out.stdout);
     let failed: Vec<String> = report
         .lines()
@@ -180,17 +179,11 @@ fn the_grammar_parses_every_config_the_real_parser_accepts() {
 #[test]
 fn the_fold_query_loads_and_folds_blocks_and_comments() {
     let grammar = Path::new(env!("CARGO_MANIFEST_DIR")).join("tree-sitter-kamailio");
-    let out = Command::new("npx")
-        .args([
-            "--yes",
-            "tree-sitter-cli@0.26",
-            "query",
-            "queries/folds.scm",
-            "test/highlight/basics.cfg",
-        ])
-        .current_dir(&grammar)
-        .output()
-        .expect("npx tree-sitter-cli query");
+    let out = common::tree_sitter(
+        &grammar,
+        None,
+        ["query", "queries/folds.scm", "test/highlight/basics.cfg"],
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         out.status.success(),
