@@ -11,6 +11,9 @@ All notable changes to the Kamailio Routing Script extension.
     detail is.
   - Effect: documentation only; the extension and the server behave
     exactly as 0.22.1 did.
+- **The release builds on a supported macOS image.**
+  - Effect: the macOS servers are built on `macos-26` and still run on
+    macOS 11.0 (arm64) and 10.12 (x86_64) or later.
 
 ## [0.22.1] — 2026-11-03
 
