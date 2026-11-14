@@ -4,1228 +4,1089 @@ All notable changes to the Kamailio Routing Script extension.
 
 ## [0.22.1] — 2026-11-03
 
-**GHSA-g3hv-75wg-m249 in minimatch is recorded as not affecting the
-extension, and the formatter no longer removes a form feed.**
+### Fixed
 
-- **The decision.** The extension bundles minimatch 10.2.6 through
-  vscode-languageclient 11.0.0. Every minimatch release before 11.0.1
-  is covered by GHSA-g3hv-75wg-m249, a denial of service through glob
-  pattern amplification. vscode-languageclient compiles two kinds of
-  glob with minimatch: the file-operation globs a server registers, and
-  the pattern of a document or notebook filter. The kamailio-lsp server
-  registers no file operations and no notebook sync, and the
-  extension's document selector has no pattern, so no user, workspace
-  or file content reaches minimatch.
-- **Why the version stays.** vscode-languageclient 11.0.0 is the
-  latest release and requires minimatch 10. minimatch 11.0.1 removes
-  `makeRe()`, which vscode-languageclient calls, so forcing it breaks
-  the client (microsoft/vscode-languageserver-node issue 1938).
-- **The record.** `client/osv-scanner.toml` holds the decision for
-  OSV-Scanner and the OpenSSF Scorecard, until 2027-02-01. A test fails
-  when the record expires, when the facts it states stop holding, or
-  when minimatch is upgraded and the record remains. `SECURITY.md`
-  lists it.
-- **The formatter removes only what Kamailio reads as whitespace.**
-  Space, tab, backspace and CR. It used to remove a form feed too, and
-  `#!endif` followed by a form feed, which Kamailio reads as a comment,
-  became a directive that closed an `#!ifdef` the file never closed.
-  Formatting such a file a second time then changed it again.
+- **The formatter removes only what Kamailio reads as whitespace: space,
+  tab, backspace and CR.**
+  - Was: it removed a form feed too, so `#!endif` followed by a form feed,
+    a comment to Kamailio, became a directive.
+  - Effect: formatting such a file a second time no longer changes it
+    again.
+
+### Security
+
+- **GHSA-g3hv-75wg-m249 in minimatch is recorded as not affecting the
+  extension.**
+  - Effect: the server registers no file operations and the document
+    selector has no pattern, so no user, workspace or file content reaches
+    minimatch.
+  - Effect: `client/osv-scanner.toml` holds the decision for OSV-Scanner
+    and the OpenSSF Scorecard until 2027-02-01.
+  - Limit: minimatch 10.2.6 stays; vscode-languageclient 11.0.0 requires
+    it, and minimatch 11.0.1 removes `makeRe()`, which the client calls.
+  - Docs: [Advisories recorded as not affecting kamailio-lsp](https://github.com/NormB/kamailio-lsp/blob/main/SECURITY.md#advisories-recorded-as-not-affecting-kamailio-lsp).
 
 ## [0.22.0] — 2026-10-27
 
-**Completion inside include paths, a warning when the include closure
-stops at its file bound, and a function catalog that lists only
-functions a script can call.**
+### Added
 
-- **Completion inside `include_file "` and `import_file "`.** It lists
-  the directories and the `.cfg`, `.inc` and `.m4` files in each place
-  Kamailio opens the path from: the main config's directory, then the
-  including file's. Typing `/` opens the next directory. Before, the
-  list offered keywords and function names, which wrote a function name
-  into a file path. Kamailio refuses an include name in single quotes,
-  so `include_file '` offers nothing.
-- **A warning when the include closure stops at 500 files.** A route
-  defined only in a file past the bound was reported as undefined with
-  nothing to say why. The analyzed file now carries "the include
-  closure stopped at 500 files" on its first line, in the editor and in
-  `kamailio-lsp check`. A configuration of exactly 500 files, or one
-  whose next include names a missing file, gets no warning.
-- **Functions that are not script functions are no longer listed.**
-  Completion and hover offered names no script can call:
-  - `tm`'s C API (`int t_suspend`, `register_tmcb`);
-  - `textops`' and `xprint`'s Developer Guide functions;
-  - `app_java`'s "Common requirements";
-  - `db2_ops`'s `@db.query...` selects.
-- **Functions that were missing are now listed:**
-  - every function of `auth_web3`, whose 6.1.5 README is not valid
-    UTF-8 and was skipped whole;
-  - `rtpengine_subscribe_request`, whose heading wraps onto a second
-    line in the 6.1.5 README;
-  - `crypto_netio_in`, whose heading lost its `(`.
-- **Second names the C sources export are listed as aliases.** An
-  export that shares a documented function's handler and parameter
-  count, under a name the README does not use, gets that function's
-  documentation with an "Alias of" note: `sl_reply` (`sl_send_reply`),
-  `t_disable_e2e_cancel_reason`, `ds_list_exist`, `avp_printf` (kex),
-  `set_attr`, `pv_www_authorize`, `pv_proxy_authorize`,
-  `www_authenticate` and `proxy_authenticate` (`uid_auth_db`).
-- **Formatting leaves a directive line exactly as it stands.** The
-  formatter trimmed trailing whitespace on `#!` lines, and that
-  whitespace is part of some directives: Kamailio reads `#!def ` as a
-  directive and `#!def` as a comment. A directive line is no longer
-  changed.
-- **A failed check never shows an empty message.** When `kamailio -c`
-  failed with no positioned error and its last error line had nothing
-  after the prefix, the diagnostic had no text. The nearest earlier
-  error line with a reason is used, or a fixed message when there is
-  none.
-
-## [0.21.6] — 2026-10-27
-
-**Includes are followed as deep as Kamailio reads them, and the
-outline lists a parameter after a blank line once.**
-
-- **The analyzer follows includes 10 levels below the main config, as
-  Kamailio does** (`MAX_INCLUDE_DEPTH` in Kamailio's `cfg.lex`), and
-  reads up to 500 files, the same bound as the workspace scan. It
-  stopped at 8 levels and 64 files, so a route defined deeper, or in a
-  later file of a configuration with many includes, was reported as
-  "not defined here or in included files".
-- **A top-level `name = value` that follows a blank line is listed once
-  in the outline.** It was listed twice, the second entry with a range
-  that ended before it started.
-
-## [0.21.5] — 2026-10-26
-
-**Two corrections to how the analyzer follows Kamailio's preprocessor,
-and dependency updates.**
-
-- **An included file is treated as part of a configuration only when
-  Kamailio reads it.** An `include_file` inside `#!ifdef NAME` counts
-  as read only when `NAME` is defined above it. A `#!define NAME` in a
-  branch the preprocessor skips, in the dead `#!else` of a satisfied
-  `#!ifdef`, or inside a `/* */` comment no longer counts. Before, such
-  a file was checked through a configuration that never opens it, and
-  `kamailio -c` reported none of its errors. `#!defexp`, `#!defexps`,
-  `#!defenv`, `#!defenvs`, `#!substdef` and `#!substdefs` now count as
-  defining the name, as they do for Kamailio.
-- **A `#!ifdef`, `#!else` or `#!endif` inside a `/* */` comment or a
-  string outside every conditional is read as comment or string
-  text.** Before, a route commented out together with its `#!ifdef`
-  was reported as "defined more than once", appeared in the outline,
-  was the target of go-to-definition and opened a fold.
-- **Dependencies.** The language server is built with tokio 1.54.1.
-  The extension uses vscode-languageclient 11.0.0; the minimum VS Code
-  version is unchanged (1.91).
-
-## [0.21.4] — 2026-10-22
-
-**A release with no behavior change: the language server is rebuilt
-against tokio 1.53.3.**
-
-- **tokio, the async runtime the language server runs on, moves from
-  1.53.2 to 1.53.3**, an upstream patch release. The language server's
-  own code and the extension's code are unchanged from 0.21.3.
-
-## [0.21.3] — 2026-10-19
-
-**A release with no behavior change: one correction to the extension's
-README.**
-
-- **"an `kamailio` binary" now reads "a `kamailio` binary"** in the
-  extension's README, the page shown on Open VSX and in the editor's
-  extension view. The language server and the extension's code are
-  unchanged from 0.21.2.
-
-## [0.21.2] — 2026-10-19
-
-**Pseudo-variables with `//`, `#`, quotes or braces inside them no
-longer break the outline, and the built-in catalog moves to Kamailio
-6.1.5 and 6.0.8.**
-
-- **A `$(...)` or `$name(...)` pseudo-variable is read the way Kamailio
-  reads it.** Inside its parentheses, `//` and `#` do not start a
-  comment, a quote does not start a string and a brace does not open a
-  block. Before, a line such as `$ru = $(ru{re.subst,/;t=[a-z]*//g});`
-  made its route run to the end of the file: the outline listed the
-  routes after it inside that route, beside an invented block named
-  `$ru = $(ru`.
-- **The built-in module catalog is harvested from Kamailio 6.1.5, and
-  the `kamailioVersion` choices are now `5.8.8`, `6.0.8` and `6.1.5`.**
-  A setting of `6.0.7` or `6.1.4` is reported as unrecognized and the
-  newest release (`6.1.5`) is used. `topoh`'s new `mask_cookie`
-  parameter is known; on `6.0.8` it is reported as existing only in
-  6.1.5.
-- **Core docs come from the current kamailio-wiki 6.1.x cookbook.** The
-  core parameter `dns_cache_mode`, new in 6.1.5, completes; its hover
-  says the cookbook does not describe it yet.
-- **The documentation states what the tests prove.** The real-binary
-  proof runs against Kamailio 6.1.5; 6.0.8 and 5.8.8 are checked
-  against their source trees, and no binary of either is run. The
-  readiness message example now shows 65 core functions, as the server
-  reports.
-
-## [0.21.1] — 2026-10-15
-
-**A release with no behavior change in this project's code: the weekly
-dependency updates, and nothing else.**
-
-- **`serde_json` 1.0.151 to 1.0.154**, the JSON library the language
-  server uses, from the weekly cargo group in #36. Its notes list: the
-  sign of `-0` preserved in `arbitrary_precision` mode, a fixed comparison
-  of large non-integer values with `f32::INFINITY` (1.0.152), invalid
-  UTF-8 reported at the first bad byte (1.0.153), and `preserve_order`
-  supported in `no_std` builds (1.0.154). Only its `Cargo.lock` entry
-  changed.
-- **`@types/node` 26.6.4 to 26.6.5**, a compile-time stub with no runtime
-  half, from the weekly npm group in #37.
-- No source file changed.
-
-## [0.21.0] — 2026-10-11
-
-**Includes open where Kamailio opens them, and the outline, folding
-and selection follow a config's structure.**
-
-- **A relative include resolves the way Kamailio resolves it**: in the
-  main config's directory first, where `kamailio -c` runs, then beside
-  the including file. A fragment `inc/a.cfg` that includes
-  `inc/b.cfg` now reaches the main directory's `inc/b.cfg` instead of
-  reporting its routes as undefined. Document links follow the same
-  rule.
-- **A missing include is reported on the `include_file` line that
-  names it**, not at line 1, column 1.
-- **`if (!!$var(x))` is code.** Any `!!` or `#!` was taken as a
-  preprocessor directive that swallowed the rest of the line. A
-  directive now needs a directive keyword, as in Kamailio's lexer; the
-  tree-sitter grammar (0.3.1) follows the same rule.
-- **`kamailio-lsp check --modules-path <dir>`** passes the module
-  directory to the checker as `-L`, as the `modulesPath` setting does
-  in the editor. `check` also reads configs with a latin-1 byte, where
-  it used to stop with "cannot read".
-- **The formatter indents what a `case` or `default` label guards one
-  level under the label**, as upstream's `etc/kamailio.cfg` does. The
-  line after a label used to be left where it was.
-- **The outline nests the `if`, `else`, `switch` and `while` blocks
-  inside a route under it**, named by their condition, and lists every
-  `loadmodule`, `modparam`, top-level parameter (a `socket = { ... }`
-  block is one entry) and `#!define`. Selecting a route highlights its
-  name.
-- **Folding covers the blocks inside a route, `socket = { ... }`, each
-  branch of an `#!ifdef`, multi-line block comments and runs of `#` or
-  `//` comment lines.**
-- **Expand selection** (`textDocument/selectionRange`) grows from the
-  word under the cursor to each enclosing block, the route and the
-  file.
-- **Workspace diagnostics agree with the include tracking**: a
-  fragment included as `sub/../frag.inc` is no longer reported as a
-  program of its own, and a config with a latin-1 byte is reported
-  instead of skipped.
-- **`.inc` and `.m4` fragments edited on disk are noticed.** The file
-  watcher covered only `*.cfg`.
-- **Completion offers nothing inside a comment**, and after
-  `loadmodule '`, `modparam('` and `route('` it offers what it offers
-  after `"`. Signature help counts arguments across `'a,b'`.
-- **Call hierarchy works on a line with non-ASCII text before the
-  route name.** The cursor column was read as a byte offset.
-
-## [0.20.0] — 2026-10-11
-
-**Large configs stay fast, the analyzer follows the preprocessor, rename
-follows every use of a route, and the tree-sitter grammar parses every
-config Kamailio accepts.**
-
-- **Requests no longer slow down with the square of the file size.**
-  Every scanner recomputed a line number by counting newlines from the
-  top of the file, once per match: `route_blocks` took 85 s on a
-  6000-route config and now takes under half a second. Inlay hints
-  re-read the loaded modules once per call, and converting a line
-  number to its text walked the document from the top for every
-  diagnostic, symbol, define, hint and edit; on a 3000-route document
-  inlay hints no longer time out, and seven common requests answer in
-  about 1.3 s together in the test suite's debug build.
-- **A quote or `/*` left open inside a switched-off `#!ifdef` no longer
-  hides the rest of the file.** The preprocessor reads nothing there
-  but the conditional directives, so the string or comment now ends at
-  the next one. Kamailio's own `misc/examples/pkg/sipcapture.cfg` lost
-  four false "route 'STORE' is not defined" warnings.
-- **The same route in the `#!ifdef` and `#!else` branch of one
-  conditional is not a duplicate.** Under two separate conditionals it
-  still is.
-- **Defines are applied the way the preprocessor applies them:**
-  `#!trydef` keeps a value already bound, `#!redefine` replaces it, and
-  a quoted value (`#!define R "MYROUTE"`) names the bare route.
-- **`#!ifexp` opens a level**, so its `#!endif` no longer closes the
-  `#!ifdef` around it, and `#!def`, `#!trydefine` and `#!redef` count
-  as defining for include tracking.
-- **Rename follows every use of a route name.** With
-  `#!define R MYROUTE`, renaming `route[MYROUTE]` also rewrites the
-  define's value, so `route(R)` still reaches it; references list it
-  too. Failure, onreply and branch routes can now be renamed, and the
-  `t_on_failure("x")`, `t_on_reply("x")` and `t_on_branch("x")`
-  strings that arm them follow. Event routes still cannot be renamed.
-- **Rename refuses a name that is already defined** in the same
-  namespace, naming the file that defines it; `kamailio -c` rejects the
-  result as a duplicate route.
-- **Formatting a CRLF file no longer doubles its carriage returns.**
-  Every reformatted line used to end in `\r\r\n`.
-- **`kamailio-lsp check --bin ... fn.cfg` works with a relative path.**
-  A bare file name exited 2 with "cannot run", and `sub/fn.cfg` was
-  handed to the checker from inside `sub/`.
-- **Nested block comments are comments.** Kamailio nests `/* */`;
-  `/* a /* b */ route[GONE] { exit; } */` no longer defines `GONE`.
-- **The tree-sitter grammar parses every config in the Kamailio 6.1.4
-  tree that `kamailio -c` accepts**, which the test suite now checks.
-  New: nested block comments (through `src/scanner.c`, which editors
-  building the grammar must compile along with `src/parser.c`),
-  directives anywhere, multi-line and adjacent strings, the full
-  operator set (`eq`/`ne`/`ieq`/`ine`, `^`, `<<`, `>>`, `~`,
-  `defined`, `(int)`/`(str)`), selects, `msg:len`, `$?`, IPv4 and IPv6
-  addresses, `listen` with `advertise`/`name`/`virtual`,
-  `socket = { ... }` blocks, `flags`/`avpflags`, custom variables,
-  `loadmodulex`, `modparamx`, `cfgengine`, and `include_file` inside a
-  route.
-- **The grammar ships `queries/highlights.scm` and `queries/folds.scm`.**
-  The Zed setup script in `docs/ZED.md` downloads the highlight query
-  into the extension it builds.
-
-## [0.19.7] — 2026-10-08
-
-**A release with no behavior change: the weekly dependency updates, and
-nothing else.**
-
-- **`tokio` 1.53.1 to 1.53.2**, the async runtime the language server runs
-  on, from the weekly cargo group in #34. A patch release of bug fixes; its
-  notes list fixes in `fs`, `io`, `process`, `rt`, `sync`, `task` and `time`.
-  Only its `Cargo.lock` entry changed.
-- **`@types/node` 26.6.3 to 26.6.4**, a compile-time stub with no runtime
-  half, from the weekly npm group in #35.
-- No source file changed.
-
-## [0.19.6] — 2026-10-01
-
-**A release with no behavior change: a security fix in a bundled dependency,
-and one weekly dependency update.**
-
-- **`brace-expansion` 5.0.9 to 5.0.12**, from #33. The extension bundles it
-  through `minimatch`, and 5.0.9 is affected by three advisories published
-  2026-09-29: GHSA-6j4f-fj2g-mc7p (high, fixed in 5.0.10), GHSA-qhr7-859c-m2p7
-  (high, fixed in 5.0.11) and GHSA-q2hr-2g5m-vwhr (moderate, fixed in 5.0.12).
-- **`vscode-languageclient` 10.1.1 to 10.1.2**, the language-client library
-  the extension bundles, and **`@types/node` 26.6.2 to 26.6.3**, a
-  compile-time stub, both from the weekly dependency group in #32. No source
-  file, Rust crate or `Cargo.lock` entry other than this package's own
-  version changed.
-- **`@types/vscode` stays at `^1.91.0`**, equal to `engines.vscode`: `vsce
-  package` refuses a manifest whose range exceeds the engine floor.
-
-## [0.19.5] — 2026-09-26
-
-**A release with no behavior change: one dependency update, and nothing
-else.**
-
-- **`@types/node` 26.6.1 to 26.6.2**, a compile-time stub with no
-  runtime half, from the weekly dependabot group (#31). No source file,
-  Rust dependency or `Cargo.lock` entry other than this crate's own
-  version changed.
-- **`@types/vscode` stays at `^1.91.0`**, equal to `engines.vscode`, for
-  the reason 0.19.2 recorded: `vsce package` refuses a manifest whose
-  range exceeds the engine floor.
-
-## [0.19.4] — 2026-09-15
-
-**A release with no behaviour change: the weekly dependency updates, and
-nothing else.**
-
-- **`@types/node` 26.4.1 to 26.6.1**, a compile-time stub with no
-  runtime half. No dependency PR was open against this tree — the weekly
-  group had proposed 26.5.1 on the sibling extension — so the range was
-  resolved here against this tree's own lock and went straight to 26.6.1,
-  the newest 26.x, rather than to a version the next run would supersede.
-  npm's `latest` tag for this package reads 22.20.3, which is not a
-  ceiling: DefinitelyTyped publishes a line per Node major, and 26.x is
-  where every current TypeScript dist-tag points.
-- **Five transitive Rust crates**, none of them named in this crate's
-  manifest: `bitflags` 2.13.1 to 2.13.2, `crossbeam-utils` 0.8.22 to
-  0.8.23, `mio` 1.2.2 to 1.2.3, `smallvec` 1.15.2 to 1.16.1 and `syn`
-  3.0.3 to 3.0.5. Traced on this tree rather than assumed from the
-  sibling's: `bitflags` arrives through `tower-lsp-server`'s `ls-types`,
-  `crossbeam-utils` through `dashmap`, `mio` through `tokio`, `smallvec`
-  through `parking_lot_core`, and `syn` through `serde_derive`, a
-  proc-macro that runs only at build time. `Cargo.toml` is unchanged.
-  The two trees are not identical — this one has no `roxmltree`, since
-  Kamailio's core documentation is not the XML the sibling parses — but
-  these five bumps are common to both.
-- **`@types/vscode` stays at `^1.91.0`**, equal to `engines.vscode`.
-  0.19.2 recorded why and it has not changed: `vsce package` refuses a
-  manifest whose range exceeds the engine floor, so a dependabot
-  `ignore` holds it rather than the weekly group deciding it.
-
-## [0.19.3] — 2026-09-09
-
-**Two settings that did nothing now work.**
-
-- **`kamailioLsp.versionInHints` and `kamailioLsp.kamailioVersion` had
-  no effect at all.** The server reads both when it starts, out of the
-  options the extension hands it, and the extension never put them
-  there. Setting either one in your editor changed nothing, and because
-  both are on the restart list, changing one restarted the server, which
-  then looked for the same missing value again. Until now the only way
-  to reach either feature was the `KAMAILIO_LSP_VERSION_IN_HINTS` and
-  `KAMAILIO_LSP_VERSION` environment variables. Set them in Settings
-  instead.
-- **Two gates so this cannot come back.** One drives the built extension
-  and checks every configuration name it reaches for against the
-  manifest that publishes them, in both directions, which is what found
-  the bug. The other compares the option names the server reads against
-  the keys the extension sends, since those were the same fact written
-  twice in two languages with nothing holding them together.
-
-## [0.19.2] — 2026-09-09
-
-**A release with no behaviour change: one compile-time dependency, and
-a gate so the next dependency bump cannot break the release job.**
-
-- **`@types/node` 26.4.0 to 26.4.1**, a compile-time stub with no
-  runtime half, landed here as the sibling extension took it.
-- **`@types/vscode` stays at `^1.91.0`.** `vsce package` refuses a
-  manifest whose `@types/vscode` range exceeds `engines.vscode`, and
-  the weekly dependency group proposes exactly that raise: the sibling
-  extension received it, and the same range raised on this tree was
-  confirmed to fail here with the same message. The range is not a
-  version to keep current. It is the API surface this extension
-  compiles against, and it has to equal the oldest VS Code release the
-  extension claims to run on, or the compiler will accept calls that
-  are absent there. Nothing is lost by holding it, because the caret
-  still resolves the newest 1.x.
-- **CI now packages the extension**, running the release job's own
-  `vsce package` command. A manifest in that state passes `tsc`,
-  passes the behaviour suites and passes every Rust gate; the refusal
-  would first have appeared on a pushed tag, after the release had
-  already built and uploaded the server binaries.
-
-Nothing that runs in your editor changed in this release.
-
-## [0.19.1] — 2026-09-02
-
-**A dependency release: the language client the extension talks to,
-and the type stubs it compiles against.**
-
-- **`vscode-languageclient` 10.1.0 to 10.1.1**, which carries LSP
-  3.18.3. Two fixes matter to how this extension behaves: diagnostic
-  pull state now survives a document being closed and reopened
-  quickly — the shape of a fragment being clicked through and come
-  back to — and the client's stream handlers are configurable.
-  Nothing in this extension's own code changed to meet it.
-- **`@types/node` 26.2.0 to 26.4.0**, a compile-time stub with no
-  runtime half.
-- **The lockfile agrees with the manifest again.** Its own `version`
-  field had drifted to 0.14.4 while the manifest read 0.19.0.
-  Regenerating the tree resynced it; `npm ci` compares the two, so
-  the pairing had been quietly untrue for several releases.
-
-## [0.19.0] — 2026-08-26
-
-**Core hovers carry the cookbook's worked example, and both socket
-syntaxes stop being invisible.**
-
-- **A hover now shows the example, which is where the form is.** The
-  cookbook documents 285 of its 330 core sections with an example of
-  usage and not one of them reached a hover. 209 parameters, 18
-  functions and 36 pseudo-variables now carry theirs. The default
-  already arrived: this cookbook writes it into the first paragraph
-  ("Default value is 8." in `children`), which is why nothing
-  synthesises a separate `Default:` line here.
-- **`listen=` modifiers and `socket = { }` attributes hover and
-  complete.** `advertise`, `name` and `virtual` on a `listen` line;
-  `bind`, `advertise`, `name`, `agname`, `workers`, `virtual` and
-  `vrf` inside the brace form. Two different syntaxes with two
-  different sets, each answering only where it applies. Membership is
-  read from Kamailio's own grammar — `workers` is offered even though
-  the cookbook's attribute list omits it, and says so.
-- **Spellings the cookbook skips now hover as the thing they are.**
-  Thirty-five of them: `wdir` for `workdir`, `seturi` for
-  `rewriteuri`, `dns_use_cache` for `use_dns_cache` and the rest. An
-  alias of a call is a call, not a parameter.
-- **Names no page describes are offered anyway, and say so.**
-  Twenty-nine globals the grammar accepts and the cookbook never
-  mentions.
+- **Completion inside `include_file "` and `import_file "` lists
+  directories and configuration files.**
+  - Effect: `.cfg`, `.inc` and `.m4` files complete from the main config's
+    directory, then the including file's; `/` opens the next directory.
+  - Was: the list offered keywords and function names there.
+  - Limit: Kamailio refuses an include name in single quotes, so
+    `include_file '` offers nothing.
+- **A warning when the include closure stops at 500 files.**
+  - Effect: the analyzed file carries "the include closure stopped at 500
+    files" on its first line, in the editor and in `kamailio-lsp check`.
+  - Was: a route defined only in a file past the bound was reported as
+    undefined, with no reason given.
+  - Limit: a configuration of exactly 500 files, or one whose next include
+    names a missing file, gets no warning.
+  - Docs: [An included file opened on its own](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#an-included-file-opened-on-its-own).
+- **Second names the C sources export are listed as aliases.**
+  - Effect: an export sharing a documented function's handler and
+    parameter count gets that function's documentation with an "Alias of"
+    note.
+  - Effect: `sl_reply`, `t_disable_e2e_cancel_reason`, `ds_list_exist`,
+    `avp_printf`, `set_attr`, `pv_www_authorize`, `pv_proxy_authorize`,
+    `www_authenticate` and `proxy_authenticate` are listed.
 
 ### Fixed
 
-- **A heading naming several parameters yields all of them.** The
-  cookbook documents families together —
-  `### tcp_source_ipv4, tcp_source_ipv6` and
-  `### dns_sctp_pref, dns_tcp_pref, dns_tls_pref, dns_udp_pref` — and
-  taking the first word produced a parameter literally named
-  `tcp_source_ipv4,`, comma included and impossible to hover, while
-  its siblings vanished entirely.
+- **Functions that are not script functions are no longer listed.**
+  - Was: completion and hover offered `tm`'s C API (`int t_suspend`,
+    `register_tmcb`) and `db2_ops`'s `@db.query...` selects.
+  - Was: `textops`' and `xprint`'s Developer Guide functions and
+    `app_java`'s "Common requirements" were offered too.
+- **Functions that were missing are now listed.**
+  - Effect: every function of `auth_web3`, plus
+    `rtpengine_subscribe_request` and `crypto_netio_in`, is listed.
+  - Was: the 6.1.5 `auth_web3` README is not valid UTF-8 and was skipped
+    whole.
+- **Formatting leaves a directive line exactly as it stands.**
+  - Was: trailing whitespace on `#!` lines was trimmed, though Kamailio
+    reads `#!def` followed by a space as a directive and without it as a
+    comment.
+- **A failed check never shows an empty message.**
+  - Was: when `kamailio -c` failed with no positioned error and its last
+    error line had no text after the prefix, the diagnostic was empty.
+  - Effect: the nearest earlier error line with a reason is used, or a
+    fixed message.
+
+## [0.21.6] — 2026-10-27
+
+### Changed
+
+- **The analyzer follows includes 10 levels deep and reads up to 500
+  files.**
+  - Was: it stopped at 8 levels and 64 files, so a deeper or later route
+    was reported as "not defined here or in included files".
+  - Effect: the depth is 10 levels below the main config, as in Kamailio
+    (`MAX_INCLUDE_DEPTH` in `cfg.lex`).
+
+### Fixed
+
+- **A top-level `name = value` after a blank line is listed once in the
+  outline.**
+  - Was: it was listed twice, the second entry with a range that ended
+    before it started.
+
+## [0.21.5] — 2026-10-26
+
+### Changed
+
+- **The server is built with tokio 1.54.1; the extension uses
+  vscode-languageclient 11.0.0.**
+  - Effect: the minimum VS Code version is unchanged (1.91).
+
+### Fixed
+
+- **An included file is part of a configuration only when Kamailio reads
+  it.**
+  - Effect: an `include_file` inside `#!ifdef NAME` counts as read only
+    when `NAME` is defined above it.
+  - Effect: `#!defexp`, `#!defexps`, `#!defenv`, `#!defenvs`, `#!substdef`
+    and `#!substdefs` count as defining the name.
+  - Was: a `#!define` in a skipped branch or a `/* */` comment counted, so
+    a file was checked through a configuration that never opens it.
+- **A `#!ifdef`, `#!else` or `#!endif` inside a comment or string is read
+  as text.**
+  - Was: a route commented out together with its `#!ifdef` was reported as
+    "defined more than once" and appeared in the outline.
+  - Limit: this applies to a `/* */` comment or a string outside every
+    conditional.
+
+## [0.21.4] — 2026-10-22
+
+### Changed
+
+- **No behavior change: the language server is rebuilt against tokio
+  1.53.3.**
+  - Effect: tokio moves from 1.53.2 to 1.53.3; server and extension code
+    are unchanged from 0.21.3.
+
+## [0.21.3] — 2026-10-19
+
+### Fixed
+
+- **"an `kamailio` binary" reads "a `kamailio` binary" in the extension's
+  README.**
+  - Effect: no behavior change; server and extension code are unchanged
+    from 0.21.2.
+
+## [0.21.2] — 2026-10-19
+
+### Changed
+
+- **The built-in catalog moves to Kamailio 6.1.5 and 6.0.8.**
+  - Effect: the `kamailioVersion` choices are `5.8.8`, `6.0.8` and
+    `6.1.5`.
+  - Effect: `topoh`'s `mask_cookie` parameter is known; on `6.0.8` it is
+    reported as existing only in 6.1.5.
+  - Limit: a setting of `6.0.7` or `6.1.4` is reported as unrecognized and
+    `6.1.5` is used.
+  - Docs: [Checking against a specific Kamailio release](https://github.com/NormB/kamailio-lsp/blob/main/docs/GETTING_STARTED.md#checking-against-a-specific-kamailio-release).
+- **Core docs come from the current kamailio-wiki 6.1.x cookbook.**
+  - Effect: the core parameter `dns_cache_mode`, new in 6.1.5, completes;
+    its hover says the cookbook does not describe it yet.
+- **The documentation states what the tests prove.**
+  - Effect: the real-binary proof runs against Kamailio 6.1.5; 6.0.8 and
+    5.8.8 are checked against their source trees.
+  - Effect: the readiness message example shows 65 core functions, as the
+    server reports.
+
+### Fixed
+
+- **A `//`, `#`, quote or brace inside a `$(...)` pseudo-variable no
+  longer breaks the outline.**
+  - Was: `$ru = $(ru{re.subst,/;t=[a-z]*//g});` made its route run to the
+    end of the file in the outline.
+  - Effect: inside `$(...)` or `$name(...)`, `//` and `#` start no
+    comment, a quote no string and a brace no block.
+
+## [0.21.1] — 2026-10-15
+
+### Changed
+
+- **No behavior change: the weekly dependency updates.**
+  - Effect: `serde_json` moves from 1.0.151 to 1.0.154 and `@types/node`
+    from 26.6.4 to 26.6.5; no source file changed.
+
+## [0.21.0] — 2026-10-11
+
+### Added
+
+- **`kamailio-lsp check --modules-path <dir>` passes the module directory
+  to the checker.**
+  - Effect: it is passed as `-L`, as the `modulesPath` setting does in the
+    editor.
+  - Docs: [CLI check mode](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#cli-check-mode).
+- **The outline nests `if`, `else`, `switch` and `while` blocks under
+  their route.**
+  - Effect: blocks are named by their condition; every `loadmodule`,
+    `modparam`, top-level parameter and `#!define` is listed.
+- **Folding covers blocks inside a route, `socket = { ... }` and `#!ifdef`
+  branches.**
+  - Effect: multi-line block comments and runs of `#` or `//` comment
+    lines fold too.
+  - Docs: [Folding](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#folding).
+- **Expand selection grows from a word to each enclosing block, the route
+  and the file.**
+  - Effect: the server answers `textDocument/selectionRange`.
+  - Docs: [Selection range](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#selection-range).
+
+### Changed
+
+- **A relative include resolves the way Kamailio resolves it.**
+  - Effect: it is looked up in the main config's directory first, where
+    `kamailio -c` runs, then beside the including file.
+  - Effect: document links follow the same rule.
+  - Was: a fragment `inc/a.cfg` that includes `inc/b.cfg` reported its
+    routes as undefined.
+  - Docs: [Where a relative include opens](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#where-a-relative-include-opens).
+- **The formatter indents what a `case` or `default` label guards one
+  level under it.**
+  - Was: the line after a label was left where it was.
+  - Docs: [Formatting](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#formatting).
+
+### Fixed
+
+- **A missing include is reported on the `include_file` line that names
+  it.**
+  - Was: it was reported at line 1, column 1.
+- **`if (!!$var(x))` is code.**
+  - Was: any `!!` or `#!` was taken as a preprocessor directive that
+    swallowed the rest of the line.
+  - Effect: a directive needs a directive keyword, as in Kamailio's lexer;
+    the tree-sitter grammar (0.3.1) follows the same rule.
+- **`check` reads configs with a latin-1 byte.**
+  - Was: it stopped with "cannot read".
+- **Workspace diagnostics agree with the include tracking.**
+  - Was: a fragment included as `sub/../frag.inc` was reported as a
+    program of its own, and a config with a latin-1 byte was skipped.
+- **`.inc` and `.m4` fragments edited on disk are noticed.**
+  - Was: the file watcher covered only `*.cfg`.
+- **Completion offers nothing inside a comment, and single quotes complete
+  like double quotes.**
+  - Effect: after `loadmodule '`, `modparam('` and `route('` it offers
+    what it offers after `"`.
+  - Effect: signature help counts arguments across `'a,b'`.
+- **Call hierarchy works on a line with non-ASCII text before the route
+  name.**
+  - Was: the cursor column was read as a byte offset.
+
+## [0.20.0] — 2026-10-11
+
+### Added
+
+- **Failure, onreply and branch routes can be renamed.**
+  - Effect: the `t_on_failure("x")`, `t_on_reply("x")` and
+    `t_on_branch("x")` strings that arm them follow.
+  - Effect: with `#!define R MYROUTE`, renaming `route[MYROUTE]` rewrites
+    the define's value; references list it too.
+  - Limit: event routes still cannot be renamed.
+- **The tree-sitter grammar parses every config in the Kamailio 6.1.4 tree
+  that `kamailio -c` accepts.**
+  - Effect: nested block comments, directives anywhere, multi-line and
+    adjacent strings, the full operator set and selects parse.
+  - Effect: IPv4 and IPv6 addresses, `socket = { ... }` blocks,
+    `loadmodulex`, `modparamx`, `cfgengine` and `include_file` inside a
+    route parse.
+  - Do: editors that build the grammar compile `src/scanner.c` along with
+    `src/parser.c`.
+- **The grammar ships `queries/highlights.scm` and `queries/folds.scm`.**
+  - Effect: the Zed setup script downloads the highlight query into the
+    extension it builds.
+  - Docs: [Zed setup](https://github.com/NormB/kamailio-lsp/blob/main/docs/ZED.md).
+
+### Changed
+
+- **Rename refuses a name that is already defined in the same namespace.**
+  - Effect: the refusal names the file that defines it; `kamailio -c`
+    rejects the result as a duplicate route.
+
+### Fixed
+
+- **Requests no longer slow down with the square of the file size.**
+  - Was: one scanner took 85 s on a 6000-route config; it now takes under
+    half a second.
+  - Effect: on a 3000-route document inlay hints no longer time out.
+- **An open quote or `/*` inside a switched-off `#!ifdef` no longer hides
+  the file's rest.**
+  - Effect: the string or comment ends at the next conditional directive,
+    as in the preprocessor.
+  - Effect: Kamailio's `misc/examples/pkg/sipcapture.cfg` lost four false
+    "route 'STORE' is not defined" warnings.
+- **One route in both the `#!ifdef` and `#!else` branch of a conditional
+  is no duplicate.**
+  - Was: the route was reported as defined twice.
+  - Limit: under two separate conditionals it still is.
+- **Defines are applied the way the preprocessor applies them.**
+  - Effect: `#!trydef` keeps a value already bound, `#!redefine` replaces
+    it, and a quoted value (`#!define R "MYROUTE"`) names the bare route.
+  - Effect: `#!ifexp` opens a level, so its `#!endif` no longer closes the
+    `#!ifdef` around it.
+  - Effect: `#!def`, `#!trydefine` and `#!redef` count as defining for
+    include tracking.
+- **Formatting a CRLF file no longer doubles its carriage returns.**
+  - Was: every reformatted line ended in `\r\r\n`.
+- **`kamailio-lsp check --bin ... fn.cfg` works with a relative path.**
+  - Was: a bare file name exited 2 with "cannot run", and `sub/fn.cfg` was
+    handed to the checker from inside `sub/`.
+- **Nested block comments are comments.**
+  - Effect: Kamailio nests `/* */`;
+    `/* a /* b */ route[GONE] { exit; } */` no longer defines `GONE`.
+
+## [0.19.7] — 2026-10-08
+
+### Changed
+
+- **No behavior change: the weekly dependency updates.**
+  - Effect: `tokio` moves from 1.53.1 to 1.53.2 and `@types/node` from
+    26.6.3 to 26.6.4; no source file changed.
+
+## [0.19.6] — 2026-10-01
+
+### Changed
+
+- **No behavior change: one weekly dependency update.**
+  - Effect: `vscode-languageclient` moves from 10.1.1 to 10.1.2 and
+    `@types/node` from 26.6.2 to 26.6.3; no source file changed.
+
+### Security
+
+- **`brace-expansion` moves from 5.0.9 to 5.0.12, which fixes three
+  advisories.**
+  - Was: the extension bundles it through `minimatch`, and 5.0.9 is
+    affected by three advisories published 2026-09-29.
+  - Effect: GHSA-6j4f-fj2g-mc7p (high, fixed in 5.0.10) and
+    GHSA-qhr7-859c-m2p7 (high, fixed in 5.0.11) no longer apply.
+  - Effect: GHSA-q2hr-2g5m-vwhr (moderate, fixed in 5.0.12) no longer
+    applies.
+
+## [0.19.5] — 2026-09-26
+
+### Changed
+
+- **No behavior change: one dependency update.**
+  - Effect: `@types/node`, a compile-time stub, moves from 26.6.1 to
+    26.6.2; no source file or Rust dependency changed.
+
+## [0.19.4] — 2026-09-15
+
+### Changed
+
+- **No behavior change: the weekly dependency updates.**
+  - Effect: `@types/node`, a compile-time stub, moves from 26.4.1 to
+    26.6.1.
+  - Effect: five transitive Rust crates are updated: `bitflags` to 2.13.2,
+    `crossbeam-utils` to 0.8.23, `mio` to 1.2.3, `smallvec` to 1.16.1 and
+    `syn` to 3.0.5.
+
+## [0.19.3] — 2026-09-09
+
+### Fixed
+
+- **`kamailioLsp.versionInHints` and `kamailioLsp.kamailioVersion` now
+  take effect.**
+  - Was: the extension never passed either setting to the server, so
+    setting one changed nothing.
+  - Do: set them in Settings instead of the
+    `KAMAILIO_LSP_VERSION_IN_HINTS` and `KAMAILIO_LSP_VERSION` environment
+    variables.
+  - Docs: [Admin guide: kamailioVersion](https://github.com/NormB/kamailio-lsp/blob/main/docs/ADMIN.md#kamailioversion-string).
+
+## [0.19.2] — 2026-09-09
+
+### Changed
+
+- **No behavior change: one compile-time dependency update.**
+  - Effect: `@types/node` moves from 26.4.0 to 26.4.1; nothing that runs
+    in the editor changed.
+
+## [0.19.1] — 2026-09-02
+
+### Changed
+
+- **`vscode-languageclient` moves from 10.1.0 to 10.1.1, which carries LSP
+  3.18.3.**
+  - Effect: diagnostic pull state survives a document being closed and
+    reopened quickly, and the client's stream handlers are configurable.
+  - Effect: `@types/node`, a compile-time stub, moves from 26.2.0 to
+    26.4.0.
+
+## [0.19.0] — 2026-08-26
+
+### Added
+
+- **A core hover shows the cookbook's example of usage.**
+  - Effect: 209 parameters, 18 functions and 36 pseudo-variables carry
+    their example.
+  - Limit: no separate `Default:` line is added; the cookbook writes the
+    default into the first paragraph.
+- **`listen=` modifiers and `socket = { }` attributes hover and
+  complete.**
+  - Effect: `advertise`, `name` and `virtual` apply on a `listen` line.
+  - Effect: `bind`, `advertise`, `name`, `agname`, `workers`, `virtual`
+    and `vrf` apply inside the brace form.
+  - Limit: `workers` is offered although the cookbook's attribute list
+    omits it, and its hover says so.
+- **Thirty-five spellings the cookbook skips hover as the thing they
+  are.**
+  - Effect: examples are `wdir` for `workdir`, `seturi` for `rewriteuri`
+    and `dns_use_cache` for `use_dns_cache`.
+  - Effect: an alias of a call is offered as a call, not a parameter.
+- **Twenty-nine globals no page describes are offered, and say so.**
+  - Effect: the grammar accepts them and the cookbook never mentions them.
+
+### Fixed
+
+- **A heading naming several parameters yields all of them.**
+  - Was: `### tcp_source_ipv4, tcp_source_ipv6` produced a parameter named
+    `tcp_source_ipv4,`, and its siblings were missing.
 - **A `socket = { ... }` written on one line closes on that line.**
-  The opener never counted its own braces, so a single-line block
-  stayed open for the rest of the file and `name`, `virtual`,
-  `workers` and `advertise` hovered as socket syntax in the middle of
-  a route body. An attribute on the opener's own line now hovers too,
-  which it never did.
-- A `#` at column zero inside an example is a configuration comment,
-  not a heading, and a section ending at one lost the rest of its
-  example.
+  - Was: the block stayed open for the rest of the file, and `name`,
+    `virtual`, `workers` and `advertise` hovered as socket syntax in route
+    bodies.
+  - Effect: an attribute on the opener's own line hovers too.
+- **A `#` at column zero inside an example is a configuration comment, not
+  a heading.**
+  - Was: a section ending at one lost the rest of its example.
 
 ## [0.18.0] — 2026-08-26
 
-**Routing blocks and control statements hover, thirty-five variables
-that hovered blank now say something, and `xlog(` offers its levels.**
+### Added
 
-- **`request_route`, `branch_route` and the other six hover.** So do
-  `if`, `switch`, `while`, and the `else`, `case` and `default` that
-  are explained inside them. The cookbook documents every one, under
-  "Routing Blocks" and "Script Statements" on the same `core.md` the
-  parameters and functions already came from — and the harvester read
-  two sections of that page and walked past those two. Control
-  keywords used to complete as the word "keyword" with nothing under
-  it; they carry their documentation now.
-- **Thirty-five pseudo-variables had an entry and no text.**
-  `$avp`, `$var`, `$hdr`, `$sht` and thirty-one more are documented
-  with a section of their own rather than as entries under a
-  category, and the walker emitted them the moment it read the
-  heading — before their body had been read, and it never came back
-  for it. A blank hover reads as a broken server, and the variables
-  it hit are the ones configurations are written with.
-- **Typing `xlog(` offers the log levels, quoted.** `L_ALERT`,
-  `L_BUG`, `L_CRIT`, `L_ERR`, `L_WARN`, `L_NOTICE`, `L_INFO`,
-  `L_DBG` — read from the `switch` in your own tree's
-  `src/modules/xlog/xlog.c`, so it is the set your release accepts.
-  `xlogl` and `xlogm` too; `xdbg`, `xinfo`, `xerr`, `xnotice` and
-  `xwarn` carry their level in the name and take a format alone, so
-  they offer none. The quotes come with the level unless you have
-  typed the opening one, and a `$` still offers pseudo-variables,
-  which that argument also accepts.
-- **Ctrl+Alt+H turns the hovers and completion off** (Cmd+Alt+H on
-  macOS), and the same keys turn them back on. For reading someone
-  else's configuration, or showing one to a room, when the popups are
-  in the way. It applies at once — no restart — the status bar reads
-  `Kamailio hints off` so a quiet editor is not mistaken for a broken
-  one, and diagnostics are left alone. `kamailioLsp.assistance` is
-  the setting behind it.
+- **Routing blocks and control statements hover.**
+  - Effect: `request_route`, `branch_route` and the other six hover, as do
+    `if`, `switch`, `while`, `else`, `case` and `default`.
+  - Was: control keywords completed as the word "keyword" with nothing
+    under it.
+- **Typing `xlog(` offers the log levels, quoted.**
+  - Effect: `L_ALERT`, `L_BUG`, `L_CRIT`, `L_ERR`, `L_WARN`, `L_NOTICE`,
+    `L_INFO` and `L_DBG` are read from the tree's
+    `src/modules/xlog/xlog.c`.
+  - Effect: `xlogl` and `xlogm` offer them too; a `$` still offers
+    pseudo-variables.
+  - Limit: `xdbg`, `xinfo`, `xerr`, `xnotice` and `xwarn` carry their
+    level in the name and offer none.
+- **Ctrl+Alt+H turns hovers and completion off and on (Cmd+Alt+H on
+  macOS).**
+  - Effect: it applies without a restart; the status bar reads
+    `Kamailio hints off`, and diagnostics are left alone.
+  - Do: the setting behind it is `kamailioLsp.assistance`.
+  - Docs: [Turning the popups off](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#turning-the-popups-off).
+
+### Fixed
+
+- **Thirty-five pseudo-variables that hovered blank now show their text.**
+  - Was: `$avp`, `$var`, `$hdr`, `$sht` and thirty-one more had an entry
+    and no text.
 
 ## [0.17.0] — 2026-08-25
 
-**Hover stops repeating the release, and you decide whether it says it
-at all.**
+### Changed
 
-- **The release is no longer under every hover.** Kamailio 0.x showed it on
-  the status bar the whole time a config is open, and every warning
-  that turns on the release names it — so repeating it under each
-  hover and completion item was the same fact a third time. It is off
-  by default now.
-- **`versionInHints` turns it back on.** The note is not useless:
-  reading a hover in isolation, or pasting one into a ticket, is
-  exactly when you want the provenance travelling with the text. What
-  was wrong was having it in front of everyone who does not.
-- **The note now says which catalogue it describes, and names the
-  release you are actually using.** It used to be baked into the
-  catalogue as it loaded, so it named whatever the vendored file
-  carried regardless of your choice. Module documentation follows
-  `kamailioVersion`; core documentation is a single vendored artefact at
-  6.1.x and does not move with that setting, so it says so rather
-  than claiming a release those docs did not come from.
-- **Choosing a release is documented.** `GETTING_STARTED.md` covers
-  the dropdown, `settings.json`, the environment variable `check`
-  reads, and pointing at your own tree for a build that is not
-  shipped.
+- **The release is no longer under every hover and completion item.**
+  - Was: each hover repeated the release that the status bar and the
+    release warnings already name.
+  - Do: set `versionInHints` to turn the note back on.
+  - Docs: [Admin guide: versionInHints](https://github.com/NormB/kamailio-lsp/blob/main/docs/ADMIN.md#versioninhints-boolean).
+- **Choosing a release is documented.**
+  - Effect: `GETTING_STARTED.md` covers the dropdown, `settings.json`, the
+    environment variable `check` reads, and pointing at your own tree.
+  - Docs: [Checking against a specific Kamailio release](https://github.com/NormB/kamailio-lsp/blob/main/docs/GETTING_STARTED.md#checking-against-a-specific-kamailio-release).
+
+### Fixed
+
+- **The release note names the catalog it describes and the release in
+  use.**
+  - Was: it named the release the vendored file carried, whatever
+    `kamailioVersion` selected.
+  - Limit: core documentation is one vendored artifact at 6.1.x and does
+    not follow `kamailioVersion`; the note says so.
 
 ## [0.16.0] — 2026-08-25
 
-**The `modparam` check now knows what a module actually exports, and
-you can tell it which Kamailio release you run.** What a module
-accepts was read out of its README, and the README is not the
-authority.
+### Added
 
-- **Parameters come from the module's own code.** A module declares
-  what `modparam` accepts in a C table, and that table is what
-  Kamailio checks against when it starts. The catalogue is now built
-  from it, which fixes both directions at once for `kazoo`: its README
-  documents `amqp_consumer_ack_timeout`, a parameter Kamailio has
-  never exported and the server used to offer in completion, while the
-  `amqp_consumer_ack_timeout_sec` and `_micro` it really has went
-  unmentioned and were warned about. 243 parameters no README mentions
-  are now available — including `msilo`'s `sc_status` and
-  `ndb_cassandra`'s `port` — and 19 entries the READMEs invented are
-  gone, among them `slack`'s `slack url`, `mohqueue`'s `db_qtable and
-  db_ctable`, and the `uid_auth_db` columns whose README documents the
-  old `auth_db` module's parameters rather than its own.
-- **The release in use is on the status bar.** While a Kamailio config
-  is in front of you, the status bar names the catalogue your
-  `modparam` lines are being checked against — `Kamailio 6.1.4`, or
-  the configured source tree when you have pointed at one. Previously
-  the only way to find out was to write something wrong and read the
-  warning. The server tells the editor directly, so it is right even
-  when the release was chosen for you by a workspace setting.
-- **The release is a dropdown, not a text box.** `kamailioVersion`
-  lists exactly the releases the shipped catalogue can answer for, so
-  it cannot be mistyped into a value the server has to reject.
+- **Choose the release you run: the catalog covers Kamailio 5.8.8, 6.0.7
+  and 6.1.4.**
+  - Do: pick the release with `kamailioLsp.kamailioVersion`, a dropdown of
+    the releases the shipped catalog covers.
+  - Effect: a warning names that release, and the releases where the
+    parameter exists, as in "it exists in 5.8.8, 6.0.7".
+  - Docs: [Admin guide: kamailioVersion](https://github.com/NormB/kamailio-lsp/blob/main/docs/ADMIN.md#kamailioversion-string).
+- **The status bar names the release in use.**
+  - Effect: it shows the catalog `modparam` lines are checked against,
+    such as `Kamailio 6.1.4`, or the configured source tree.
 
-- **Choose the release you run.** The built-in catalogue now covers
-  Kamailio 5.8.8, 6.0.7 and 6.1.4, and `kamailioLsp.kamailioVersion`
-  picks which one your configuration is judged against. A warning
-  names that release, and when the parameter exists in another one it
-  says which: *"'ignore_user' is not exported by module 'rr' in
-  Kamailio 6.1.4 — it exists in 5.8.8, 6.0.7"*. That is the difference
-  between a warning you have to investigate and one that explains
-  itself.
-- **`kamailio-lsp check` runs the same `modparam` check the editor
-  does.** A CI job or git hook previously ran only the analyzer, so a
-  configuration naming a parameter no module exports passed there
-  while the editor warned about it. Expect `check` to report warnings
-  it did not report before; they were always true.
-- **A warning arrived with a gap in the middle of the sentence**, from
-  a line continuation that kept its indentation. It reads as a
-  sentence now.
+### Changed
+
+- **`modparam` parameters come from each module's own C table.**
+  - Effect: 243 parameters no README mentions are available, including
+    `msilo`'s `sc_status` and `ndb_cassandra`'s `port`.
+  - Effect: 19 entries the READMEs invented are gone, among them `slack`'s
+    `slack url`.
+  - Effect: `kazoo`'s `amqp_consumer_ack_timeout_sec` and `_micro` are
+    accepted; `amqp_consumer_ack_timeout`, never exported, is no longer
+    offered.
+- **`kamailio-lsp check` runs the same `modparam` check the editor does.**
+  - Was: a CI job or git hook ran only the analyzer, so an unknown
+    parameter passed there.
+  - Effect: `check` reports warnings it did not report before.
+
+### Fixed
+
+- **A warning no longer has a gap in the middle of the sentence.**
+  - Was: a line continuation kept its indentation inside the message.
 
 ## [0.15.1] — 2026-08-25
 
-**A split configuration whose fragments are named `.inc` now works,
-and its `modparam` lines stop being contradicted.** 0.15.0 taught the
-server to analyse an included file in the context of its root, but
-both halves of the feature still guessed at filenames, and the module
-catalogue behind the `modparam` check was missing sixty-one
-parameters the documentation does describe.
+### Fixed
 
-- **A fragment gets the language whatever it is called.** The
-  extension asked the server about a plain-text file only when it was
-  named `*.cfg` — the same filename guess the request exists to avoid.
-  A tree of `include/*.inc` fragments got no colours, no completion
-  and no diagnostics. The suffix test is gone: any plain-text file is
-  asked about, and one nothing includes is still left alone.
-- **The workspace sweep looks for `.inc` and `.m4` too.** It collected
-  `*.cfg` only, so in a tree whose root or fragments are named
-  anything else no fragment ever resolved a root and every one of them
-  was analysed alone. It is still a search for configurations, not a
-  read of every file in the folder.
-- **Sixty-one parameters the READMEs document are back in the
-  catalogue**, each of which the server had been reporting as a
-  parameter that does not exist:
-  - `kazoo` groups its parameters into sub-sections (`4.1. amqp
-    related`, the parameters at `4.1.1.`). All thirty were thrown
-    away, and the four group headings were harvested in their place.
-  - `carrierroute` and `matrix` put their database parameters in a
-    chapter of their own — `Chapter 2. Module parameter for database
-    access.` — whose items restart at `1.`.
-  - `ims_qos` and `ims_qos_npn` write the type with no parentheses at
-    all (`terminate_dialog_on_rx_failure integer`), so the type ended
-    up inside the name.
-  - `rtpengine` restarts its numbering nine parameters before the end
-    of its chapter, `ping_interval` and `enable_dmq` among them.
-- **A module whose documentation could not be read no longer accuses
-  your configuration.** An empty parameter list is not evidence that a
-  parameter does not exist; a module that exports functions but no
-  parameters was read, and still is checked.
-
-The catalogue is now checked against the READMEs' own `modparam`
-examples — 2,500 of them across the pinned 6.1.4 tree — so a harvest
-that silently loses parameters fails CI rather than reaching you as a
-warning about a parameter that exists. The seventeen that remain are
-gaps in Kamailio's own documentation, listed by name and by reason in
-that gate rather than waved through by a count.
+- **A fragment gets the language whatever it is called.**
+  - Was: the extension asked the server only about files named `*.cfg`,
+    so `include/*.inc` fragments got no colors, completion or diagnostics.
+  - Effect: any plain-text file is asked about; one nothing includes is
+    left alone.
+- **The workspace sweep looks for `.inc` and `.m4` files too.**
+  - Was: it collected `*.cfg` only, so fragments in other trees resolved
+    no root and were analyzed alone.
+  - Limit: it is a search for configurations, not a read of every file in
+    the folder.
+- **Sixty-one parameters the READMEs document are back in the catalog.**
+  - Was: the server reported each as a parameter that does not exist.
+  - Effect: `kazoo`'s thirty grouped parameters and the database
+    parameters of `carrierroute` and `matrix` are read.
+  - Effect: `ims_qos` and `ims_qos_npn` parameters and nine `rtpengine`
+    parameters, `ping_interval` and `enable_dmq` among them, are read.
+- **A module whose documentation could not be read no longer causes
+  `modparam` warnings.**
+  - Effect: an empty parameter list is not taken as evidence; a module
+    that exports functions but no parameters is still checked.
 
 ## [0.15.0] — 2026-08-25
 
-**Opening an included file on its own now works.** A configuration
-split across `include_file`/`import_file` is the normal shape of a
-real deployment, and until now every file in one except the root was
-second-class: no colours, and a screenful of warnings about routes
-its parent defines.
+### Added
 
-- **It gets the language.** The extension still refuses to claim every
-  `.cfg` on your disk — that hijacks unrelated tools' config files —
-  but a fragment named `carrier-routes.cfg` is no longer left as plain
-  text. It asks the server whether anything includes the file and sets
-  the language when something does, leaving files another extension
-  already claims alone. Turn it off with `kamailioLsp.associateIncludedFiles`.
-- **It is analysed as part of its root.** Routes, modules and defines
-  the parent brings are in scope, so they stop reading as undefined —
-  on the configuration this was developed against, splitting it across
-  sixty files produced seventy-five false warnings before and none
-  after. `kamailio -c` runs on the root, with each error routed back to
-  the file it actually names.
-- **Navigation spans the whole configuration.** Go to definition,
-  references, rename, call hierarchy, workspace symbols, reference
-  counts and route completion all reach across the include boundary
-  from inside a fragment.
-- **`kamailio-lsp check` agrees with the editor.** The command a git hook and
-  a CI job run now finds the root the same way, so a correct split
-  configuration no longer fails the build under `--strict`.
-- **New request `kamailio/analysisRoot`** for editors other than VS Code:
-  what is this document a piece of? The root's URI, or `null` when it
-  is a program in its own right.
+- **An included file opened on its own gets the language.**
+  - Effect: the extension asks the server whether anything includes the
+    file; files another extension claims are left alone.
+  - Do: turn it off with `kamailioLsp.associateIncludedFiles`.
+  - Limit: the extension still does not claim every `.cfg` file.
+- **An included file is analyzed as part of its root.**
+  - Effect: routes, modules and defines of the parent are in scope, so
+    they are not reported as undefined.
+  - Effect: `kamailio -c` runs on the root, and each error goes to the
+    file it names.
+  - Do: open the folder, not the single file; the root is found by reading
+    the configs under the workspace folders.
+  - Limit: a workspace past 500 configs, or a config too large or
+    unreadable, is reported in the output channel.
+  - Docs: [An included file opened on its own](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#an-included-file-opened-on-its-own).
+- **Navigation spans the whole configuration from inside a fragment.**
+  - Effect: go to definition, references, rename, call hierarchy,
+    workspace symbols, reference counts and route completion cross the
+    include boundary.
+- **`kamailio-lsp check` finds the root the same way the editor does.**
+  - Effect: a correct split configuration no longer fails under
+    `--strict`.
+- **New request `kamailio/analysisRoot` for editors other than VS Code.**
+  - Effect: it returns the root's URI for a document, or `null` when the
+    document is a program in its own right.
+- **A file behind an unmet `#!ifdef` is not part of the configuration.**
+  - Effect: Kamailio never opens it, so the config that would have
+    included it does not claim it.
+  - Limit: OpenSIPS differs, and its extension differs to match.
 
-**One thing to do:** open the folder, not the single file. The root is
-found by reading the configs under your workspace folders, so with a
-single file open there is nothing to read. Folders added after startup
-are picked up.
+### Fixed
 
-- **A file behind an unmet `#!ifdef` is not part of your
-  configuration.** Kamailio never opens it — it does not even report
-  syntax errors in it — so it is not claimed by the config that would
-  have included it. (OpenSIPS differs and its extension differs to
-  match; both are measured against their own binary.)
-
-Limits are announced rather than silent: a workspace past 500 configs,
-and any config too large or unreadable to include in the graph, say so
-in the output channel.
-
-Also fixed, and unrelated to the above: a failed `kamailio -c` run that
-reported no position used to render as `check failed in , line 1: …`,
-naming an empty file and a line the parser never gave.
+- **A failed `kamailio -c` run that reported no position no longer names
+  an empty file.**
+  - Was: the message began `check failed in , line 1:`, a file and a line
+    the parser never gave.
 
 ## [0.14.4] — 2026-08-24
 
-Documentation only; the server and the extension behave exactly as
-0.14.3 did.
+### Changed
 
-- **What this extension does with your configuration is now written
-  down.** Someone evaluating it asked whether anything parsed from
-  their `kamailio.cfg` is sent to a cloud service or a language model
-  — a fair question about a file that carries customer names,
-  credentials and dial plans, and one no page here answered. The
-  answer was already no: no HTTP client is linked into the server, the
-  transport is stdin/stdout, the only program it runs is your own
-  `kamailio` binary, and hover and completion text is parsed from
-  Kamailio's documentation on disk rather than generated. This
-  listing, the README and `SECURITY.md` now say so — with the two
-  caveats that matter, that `trace.server` echoes cfg text into the
-  editor's output channel and that your editor's own telemetry is not
-  this server's to control.
-- **The no-network property is now a reportable security claim.**
-  `SECURITY.md` puts any path by which configuration content, file
-  paths or environment values reach the network in scope, which makes
-  the guarantee falsifiable instead of promotional.
+- **Documentation only: the pages state what the extension does with your
+  configuration.**
+  - Effect: the listing, the README and `SECURITY.md` state that the
+    server links no HTTP client and runs only your `kamailio` binary.
+  - Effect: `SECURITY.md` puts any path by which configuration content,
+    file paths or environment values reach the network in scope.
+  - Limit: `trace.server` echoes cfg text into the editor's output
+    channel, and the editor's own telemetry is outside the server's
+    control.
+  - Docs: [Data handling](https://github.com/NormB/kamailio-lsp/blob/main/SECURITY.md#data-handling).
 
 ## [0.14.3] — 2026-08-24
 
-Nothing changes for VS Code users; this fixes the tree-sitter grammar
-for everyone else.
+### Fixed
 
-- **The grammar could not be built by any editor it was offered to.**
-  `src/` was gitignored, so the generated `src/parser.c` was in no
-  commit — and that is the file every consumer builds from, none of
-  them running the CLI: nvim-treesitter fetches
-  `files = { "src/parser.c" }`, Helix and Zed compile that path
-  directly. The README has pointed Neovim, Helix and Zed users at this
-  grammar all along and not one of them could have used it. The
-  generated output is now committed, which is the conventional layout
-  for a tree-sitter grammar, and a gate regenerates and compares so it
-  cannot go stale.
-- **The Zed guide drops a workaround it never needed.** It was cloning
-  the repository and giving the grammar directory a git root of its
-  own, on the belief that Zed required one. Zed takes a `path` for a
-  grammar in a subdirectory — as do Helix (`subpath`) and
-  nvim-treesitter (`location`) — so the guide now points at the public
-  repository directly.
+- **The tree-sitter grammar can be built by the editors it is offered
+  to.**
+  - Was: the generated `src/parser.c` was in no commit, and
+    nvim-treesitter, Helix and Zed build from that file.
+  - Limit: nothing changes for VS Code users.
+- **The Zed guide points at the public repository directly.**
+  - Was: it cloned the repository to give the grammar directory a git
+    root of its own, which Zed does not need.
+  - Effect: Zed takes a `path` for a grammar in a subdirectory, as do
+    Helix (`subpath`) and nvim-treesitter (`location`).
+  - Docs: [Zed setup](https://github.com/NormB/kamailio-lsp/blob/main/docs/ZED.md).
 
 ## [0.14.2] — 2026-08-24
 
-Tests, CI and packaging; the server behaves exactly as 0.14.1 did.
+### Changed
 
-- **The preprocessor directive list is now derived from Kamailio's own
-  `cfg.lex`** rather than hand-maintained beside it. The old
-  arrangement is the one that goes stale: Kamailio adds a directive,
-  the list does not, and the server is silently blind to it with every
-  test still green. The gate checks behaviour — each name-binding
-  directive must actually bind a name.
-- **The client dependency tree is pinned.** There was no lockfile, so
-  every build resolved whatever was current and `npm audit` could not
-  run at all. Locked, audited clean, and CI and release now install
-  from the lock instead of resolving afresh.
-- CI gained an advisory gate (`cargo audit --deny warnings`) and an
-  MSRV job that builds with the exact toolchain `rust-version` claims,
-  because a declared MSRV nothing checks is a wish.
+- **No behavior change: the extension's dependency tree is pinned by a
+  lockfile.**
+  - Effect: the server behaves exactly as 0.14.1 did; release builds
+    install the client's dependencies from the lock.
 
 ## [0.14.1] — 2026-08-24
 
-Documentation only; the server behaves exactly as 0.14.0 did.
+### Added
 
-- **Every editor is documented, not just VS Code.** The server speaks
-  LSP 3.17 over stdio, so any LSP client can drive it, and
-  `docs/EDITORS.md` now has worked examples for Neovim, coc.nvim,
-  Helix, Emacs, Vim, Sublime Text, Kate and JetBrains (via LSP4IJ) —
-  plus using `check` in CI or a git hook with no editor at all.
-- **Zed has a step-by-step guide**, `docs/ZED.md`. Zed cannot be
-  pointed at a language server from settings alone; it needs a small
-  WebAssembly extension, and the guide's shell block builds one,
-  including giving the tree-sitter grammar the repository of its own
-  that Zed requires. Its language config also carries
-  `first_line_pattern`, so a config opening with `#!KAMAILIO`,
-  `#!OPENSER`, `#!SER`, `#!MAXCOMPAT` or `#!ALL` is recognised whatever
-  it is named.
-- **The examples were wrong in ways that mattered.** They named only
-  `kamailio.cfg` and `#!KAMAILIO`, understating both halves of the
-  association; they told Helix to claim *every* `.cfg` file, which is
-  the one thing this extension refuses to do; and they presented
-  `kamailioWiki` as the way to get documentation, which stopped being
-  true in 0.14.0. All corrected, and gated so they cannot drift again.
+- **Every editor is documented, not just VS Code.**
+  - Effect: `docs/EDITORS.md` has worked examples for Neovim, coc.nvim,
+    Helix, Emacs, Vim, Sublime Text, Kate and JetBrains (via LSP4IJ).
+  - Effect: it also covers `check` in CI or a git hook with no editor.
+  - Docs: [Editor and tool setup](https://github.com/NormB/kamailio-lsp/blob/main/docs/EDITORS.md).
+- **Zed has a step-by-step guide.**
+  - Effect: `docs/ZED.md` builds the small WebAssembly extension Zed needs
+    to run a language server.
+  - Effect: its language config carries `first_line_pattern`, so a config
+    opening with `#!KAMAILIO`, `#!OPENSER`, `#!SER`, `#!MAXCOMPAT` or
+    `#!ALL` is recognized.
+  - Docs: [Zed setup](https://github.com/NormB/kamailio-lsp/blob/main/docs/ZED.md).
+
+### Fixed
+
+- **The editor examples match the files the extension claims.**
+  - Was: they named only `kamailio.cfg` and `#!KAMAILIO`, told Helix to
+    claim every `.cfg` file, and presented `kamailioWiki` as the way to
+    get documentation.
+  - Limit: documentation only; the server behaves exactly as 0.14.0 did.
 
 ## [0.14.0] — 2026-08-24
 
-- **Every module's functions and parameters now ship with the
-  extension.** 0.13.0 gave you the core language before you configured
-  anything; that left the half a real config is actually made of.
-  `is_method` is a `textops` function, not core, so with nothing
-  configured `loadmodule "` offered nothing at all and a module call
-  completed to the core entries and stopped. 254 modules, 1224
-  functions and 2185 parameters harvested from the Kamailio 6.1.4 tree
-  now ship alongside. Module functions still appear only inside a
-  config that `loadmodule`s them — the built-ins never invite a call
-  your config cannot make.
-- **The two halves keep their own provenance**, because they come from
-  different places: the core language from the 6.1.x cookbook, the
-  modules from the 6.1.4 tree. The startup line says so, and hover on
-  any built-in entry names the version it came from.
-- **What the built-ins cannot know is what you compiled.** The module
-  list is what 6.1.4 documents, not what exists on your system; the
-  `-c` checker still reports a module it cannot load. Set `kamailioSrc`
-  (or `kamailioWiki`) and your own checkout replaces the matching
-  built-in catalogue wholesale — never merged, because blending two
-  versions is wrong in a way neither is alone.
-- **Hover now reads the syntax before it guesses.** A global
-  `log_facility=LOG_LOCAL0` and `modparam("acc", "log_facility", …)`
-  are two different things that share a name, and your config already
-  says which one is on screen: the first is the core parameter, the
-  second is that module's. Previously, with a catalogue loaded, the
-  global hovered as the module's parameter — and a module you had not
-  even loaded could shadow the language. Both are fixed, and signature
-  help resolved in the same wrong order.
+### Added
+
+- **Every module's functions and parameters ship with the extension.**
+  - Effect: 254 modules, 1224 functions and 2185 parameters harvested from
+    the Kamailio 6.1.4 tree complete with nothing configured.
+  - Effect: the core language comes from the 6.1.x cookbook and the
+    modules from the 6.1.4 tree; hover names the version.
+  - Limit: module functions appear only in a config that `loadmodule`s
+    them; the list is what 6.1.4 documents, not what your system has.
+  - Do: set `kamailioSrc` (or `kamailioWiki`) and your own checkout
+    replaces the matching built-in catalog; the two are never merged.
+  - Docs: [Documentation before you configure anything](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#documentation-before-you-configure-anything).
+
+### Fixed
+
+- **Hover and signature help read the syntax before choosing an entry.**
+  - Was: a global `log_facility=LOG_LOCAL0` hovered as a module's
+    `log_facility` parameter, and a module not loaded could shadow the
+    core language.
+  - Effect: the global is the core parameter, and `log_facility` inside
+    `modparam("acc", ...)` is that module's.
 
 ## [0.13.1] — 2026-08-24
 
-Documentation and test work; the server behaves exactly as 0.13.0 did.
+### Fixed
 
-- **The getting-started guide understated which files are claimed.**
-  Its "No colors" row named only `kamailio.cfg` and `#!KAMAILIO`, while
-  the extension also claims `kamailio*.cfg` and `*.kamailio.cfg` and
-  honours every script-type marker the lexer defines — `#!OPENSER`,
-  `#!SER`, `#!MAXCOMPAT`, `#!ALL`. Corrected, and the gate that should
-  have caught it now reads that page too and demands the whole marker
-  set rather than the one everybody remembers.
-- **`README.md` still presented `kamailioWiki` as the only way to get
-  core-language documentation**, and the guide told you to go and set a
-  source folder when completion showed no docs. Wrong since 0.13.0.
-  Both now say the core language is documented out of the box, and a
-  new gate holds every page a new user reads to that claim.
-- Internally: the built-in catalogue is now proven over real LSP
-  stdio rather than only at the library level, and test fixtures clean
-  themselves up when a test fails instead of only when it passes.
+- **The getting-started guide names every file the extension claims.**
+  - Was: its "No colors" row named only `kamailio.cfg` and `#!KAMAILIO`.
+  - Effect: `kamailio*.cfg`, `*.kamailio.cfg` and the markers `#!OPENSER`,
+    `#!SER`, `#!MAXCOMPAT` and `#!ALL` are listed.
+- **`README.md` and the guide say the core language is documented out of
+  the box.**
+  - Was: they presented `kamailioWiki` as the only way to get
+    core-language documentation, wrong since 0.13.0.
+  - Limit: documentation only; the server behaves exactly as 0.13.0 did.
 
 ## [0.13.0] — 2026-08-24
 
-- **The core language completes out of the box.** `debug`, `children`,
-  `listen` and the rest used to offer nothing until you had cloned
-  kamailio-wiki — 19 control-flow keywords was the whole vocabulary. A
-  catalogue harvested from the 6.1.x cookbook (43 functions, 222
-  parameters, 292 pseudo-variables) now ships with the extension.
-  Hover on any built-in entry says which version it came from; set
-  `kamailioWiki` and your own checkout wins, because only that is
-  exact for the version you run. Module documentation is still
-  tree-only — what modules exist depends on what you built.
-- **`exit` no longer completes as `exit()`.** It is documented among
-  the core functions, so with a checkout configured it inserted a
-  snippet for a statement written `exit;`. Statement keywords stay
-  statements.
-- **Hover no longer comes back empty for `exit` and friends**, where a
-  bare keyword used to beat the documented entry purely by arriving
-  first.
+### Added
+
+- **The core language completes out of the box.**
+  - Effect: a catalog harvested from the 6.1.x cookbook ships: 43
+    functions, 222 parameters and 292 pseudo-variables.
+  - Was: `debug`, `children`, `listen` and the rest offered nothing until
+    kamailio-wiki was cloned.
+  - Do: set `kamailioWiki` and your own checkout wins; hover on a built-in
+    entry says which version it came from.
+  - Limit: module documentation still needs a source tree.
+
+### Fixed
+
+- **`exit` no longer completes as `exit()`.**
+  - Was: with a checkout configured it inserted a call snippet for a
+    statement written `exit;`.
+- **Hover no longer comes back empty for `exit` and similar keywords.**
+  - Was: a bare keyword beat the documented entry by arriving first.
 
 ## [0.12.0] — 2026-08-24
 
-- **Wider config recognition**: `kamailio*.cfg` and `*.kamailio.cfg`
-  join `kamailio.cfg`, so `kamailio-local.cfg` and split configs work.
-  The first-line rule now covers every script-type marker the parser
-  accepts — `#!SER`, `#!KAMAILIO`, `#!OPENSER`, `#!MAXCOMPAT`, `#!ALL`
-  — not just `#!KAMAILIO`. The generic `.cfg` extension is still
-  deliberately not claimed.
-- **Corrects the 0.11.3 note**, which said only files named exactly
-  `kamailio.cfg` were claimed. That was wrong: a config opening with
-  `#!KAMAILIO` already worked under any name.
-- **The installer now tells you it opts you out of updates.**
-  `install.sh` sideloads a VSIX, and an editor never offers updates
-  for a sideloaded extension — an install can sit many releases behind
-  with nothing indicating it. The installers and the Getting Started
-  guide now say so, and name the two ways out.
+### Added
+
+- **`kamailio*.cfg` and `*.kamailio.cfg` are recognized.**
+  - Effect: `kamailio-local.cfg` and split configs get language support.
+  - Effect: the first-line rule covers `#!SER`, `#!KAMAILIO`, `#!OPENSER`,
+    `#!MAXCOMPAT` and `#!ALL`.
+  - Limit: the generic `.cfg` extension is still not claimed.
+
+### Changed
+
+- **The installers say that a sideloaded extension receives no updates.**
+  - Effect: the installers and the Getting Started guide state it and name
+    the two ways out.
+
+### Fixed
+
+- **The 0.11.3 note is corrected.**
+  - Was: it said only files named exactly `kamailio.cfg` were claimed; a
+    config opening with `#!KAMAILIO` already worked under any name.
 
 ## [0.11.3] — 2026-08-23
 
-- **Says which files it recognises.** Only files named exactly
-  `kamailio.cfg` are claimed — the generic `.cfg` extension is
-  deliberately left alone so unrelated tools' config files are not
-  hijacked. That was true all along and documented nowhere, so a
-  split config or a `kamailio-local.cfg` silently got no language
-  support and no explanation. The listing now states the rule and how
-  to widen it with `files.associations`.
+### Changed
+
+- **The listing says which files the extension recognizes.**
+  - Effect: it says only files named exactly `kamailio.cfg` are claimed,
+    and how to widen that with `files.associations`.
+  - Limit: 0.12.0 corrects this note; a config opening with `#!KAMAILIO`
+    already worked under any name.
 
 ## [0.11.2] — 2026-08-23
 
-- **This listing now describes what the extension actually does.** It
-  had fallen seven features behind — formatting, call hierarchy,
-  preprocessor symbols, inlay hints, include links, pull diagnostics,
-  watched files and refactorings were all shipped and none of them
-  were mentioned here.
-- `docs/ADMIN.md` gains the missing `inlayHintParameterNames` and
-  `inlayHintDefineValues` options.
-- The documentation gate now covers this page too, and the two checks
-  that were supposed to catch the omissions — but derived their lists
-  by hand, or scanned for text that rustfmt had wrapped — now derive
-  from the source and ignore whitespace.
+### Fixed
+
+- **The marketplace listing describes what the extension does.**
+  - Was: formatting, call hierarchy, preprocessor symbols, inlay hints,
+    include links, pull diagnostics, watched files and refactorings were
+    not mentioned.
+  - Effect: `docs/ADMIN.md` gains the missing `inlayHintParameterNames`
+    and `inlayHintDefineValues` options.
 
 ## [0.11.1] — 2026-08-23
 
-- **Formatter: continuation lines keep their own indentation.** A real
-  993-line production config showed the formatter wanting to change 25
-  lines, every one wrongly — hanging argument indents, conditions
-  broken across lines, and the body of a braceless `if`. Dedenting a
-  braceless `if` body was the worst of it: the parse does not change,
-  but the body reads as though it runs unconditionally. A line is now
-  re-indented only when the previous code line actually ended a
-  statement.
-- The corpus sweep now checks the formatter too: all 89 real configs
-  in the source tree must format idempotently and preserve content.
+### Fixed
+
+- **The formatter keeps the indentation of continuation lines.**
+  - Was: on a 993-line production config it wanted to change 25 lines,
+    all wrongly, including the body of a braceless `if`.
+  - Effect: a line is re-indented only when the previous code line ended
+    a statement.
 
 ## [0.11.0] — 2026-08-23
 
-- **Extract into a route**: select whole lines inside a route body and
-  the lightbulb lifts them into a `route[EXTRACTED]` of their own,
-  leaving a `route(EXTRACTED);` call behind at the same indentation.
-  It refuses a selection whose braces do not balance, one covering the
-  block's own braces, and — deliberately — **one containing `return`**:
-  `return` leaves the route it is written in, so moving it into a new
-  route would make the statements after the extracted call start
-  running when they did not before.
-- **Remove duplicate `loadmodule` lines**: a second load of the same
-  module is a hard parse error, not untidiness. Every occurrence after
-  the first is removed, and nothing is reordered — load order decides
-  module initialisation order.
+### Added
+
+- **Extract into a route: selected lines move into a `route[EXTRACTED]` of
+  their own.**
+  - Effect: a `route(EXTRACTED);` call is left behind at the same
+    indentation.
+  - Limit: it refuses unbalanced braces, a selection covering the block's
+    own braces, and one containing `return`.
+  - Docs: [Refactorings](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#refactorings).
+- **Remove duplicate `loadmodule` lines.**
+  - Effect: every occurrence after the first is removed and nothing is
+    reordered; a second load of a module is a parse error.
 
 ## [0.10.0] — 2026-08-23
 
-- **Pull diagnostics**: `textDocument/diagnostic` and
-  `workspace/diagnostic`. The workspace sweep reports problems across
-  the project without opening a file, and reports carry a result id so
-  an unchanged document comes back `unchanged` rather than resending.
-- **Only root configs appear in the workspace sweep.** A config that
-  another config includes is a fragment, not a program — checked alone
-  it would flag every route its parent defines as undefined. Roots are
-  the files nothing else includes, and their closures already cover
-  the fragments. The sweep stops at 500 configs and logs that it did.
-- Pushing stops when the client pulls, so nothing is reported twice.
+### Added
+
+- **Pull diagnostics: `textDocument/diagnostic` and
+  `workspace/diagnostic`.**
+  - Effect: the workspace sweep reports problems across the project
+    without opening a file; an unchanged document comes back `unchanged`.
+  - Effect: only root configs appear in the sweep; a config another
+    config includes is covered by its root.
+  - Effect: pushing stops when the client pulls, so nothing is reported
+    twice.
+  - Limit: the sweep stops at 500 configs and logs that it did.
+  - Docs: [Pull diagnostics](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#pull-diagnostics).
 
 ## [0.9.0] — 2026-08-23
 
-- **Watched files**: an include, the Kamailio module tree or the wiki
-  checkout changing on disk — a git checkout, a rebuild, another tool
-  — now re-checks and re-harvests without the buffer being touched.
-  Until now the server kept answering from a stale read until you
-  happened to edit the file.
-- A re-check driven by a watched file publishes even when the result
-  is clean, which differs from opening a file on purpose: if the
-  warning on screen is no longer true, saying nothing would leave it
-  there.
+### Added
+
+- **Watched files: an include, module tree or wiki checkout changing on
+  disk is noticed.**
+  - Effect: a git checkout, a rebuild or another tool re-checks and
+    re-harvests without the buffer being touched.
+  - Effect: a re-check driven by a watched file publishes even when the
+    result is clean, so a stale warning is cleared.
+  - Docs: [Watched files](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#watched-files).
 
 ## [0.8.0] — 2026-08-23
 
-- **Inlay hints**, in two independently switchable kinds:
-  - **Parameter names** at documented call sites, so
-    `t_relay("udp", 1)` reads as
+### Added
+
+- **Inlay hints label arguments with documented parameter names.**
+  - Effect: `t_relay("udp", 1)` reads as
     `t_relay(flags: "udp", outbound_proxy: 1)` without the document
-    changing. Only calls the catalogue knows are hinted — which is
-    what keeps `if`, `while` and `route` out — and a call with more
-    arguments than the signature documents is hinted only as far as
+    changing.
+  - Limit: only calls the catalog knows are hinted, and only as far as
     the signature goes.
-  - **Preprocessor values**: every use of a `#!define`d name carries
-    what it expands to, including inside `#!ifdef`. The definition
-    site is not hinted, and a name inside a string is not a use.
-  The editor asks for the visible range and only that is computed.
-  `kamailioLsp.inlayHints.parameterNames` and
-  `kamailioLsp.inlayHints.defineValues` turn them off, live.
+  - Do: `kamailioLsp.inlayHints.parameterNames` turns them off, live.
+  - Docs: [Inlay hints](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#inlay-hints).
+- **Inlay hints show what a `#!define`d name expands to.**
+  - Effect: every use carries its value, including inside `#!ifdef`.
+  - Limit: the definition site is not hinted, and a name inside a string
+    is not a use.
+  - Do: `kamailioLsp.inlayHints.defineValues` turns them off, live.
 
 ## [0.7.0] — 2026-08-23
 
-- **Preprocessor symbols**: the server reads `#!define` and its
-  relatives. Hover a name for what it binds and which directive bound
-  it, Ctrl+Click to jump there (including from an `#!ifdef` operand),
-  complete them wherever code is legal, and find them in the outline
-  beside the route blocks.
-- **Fixes a wrong diagnostic**: a route reached through an alias
-  (`#!define RELAY MYROUTE` + `route(RELAY)`) was flagged as undefined,
-  and the documented workaround was to rename the route or turn the
-  analyzer off. Kamailio accepts that config; the analyzer now expands
-  through the define table — across included files — before deciding.
-  If the expansion names no route either, the warning still fires and
-  names both the alias and what it expands to.
-- Every defining form in kamailio's `cfg.lex` is recognised, behind
-  either `#!` or `!!`: `define`/`def`, `trydefine`/`trydef`,
-  `redefine`/`redef`, `defexp`, `defexps`, `defenv`, `defenvs`,
-  `trydefenv`, `trydefenvs`, plus `substdef`/`substdefs` — whose
-  delimited form binds a name too. Backslash-continued directives keep
-  their whole value.
+### Added
+
+- **Preprocessor symbols: the server reads `#!define` and its relatives.**
+  - Effect: hover a name for what it binds, Ctrl+Click to jump there,
+    complete it where code is legal, and find it in the outline.
+  - Effect: every defining form in Kamailio's `cfg.lex` is recognized
+    behind `#!` or `!!`, and backslash-continued directives keep their
+    whole value.
+  - Docs: [Preprocessor symbols](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#preprocessor-symbols).
+
+### Fixed
+
+- **A route reached through a `#!define` alias is no longer flagged as
+  undefined.**
+  - Was: `#!define RELAY MYROUTE` with `route(RELAY)` was flagged;
+    Kamailio accepts that config.
+  - Effect: the analyzer expands through the define table, across included
+    files, before deciding.
+  - Limit: if the expansion names no route, the warning names both the
+    alias and what it expands to.
 
 ## [0.6.0] — 2026-08-23
 
-- **Call hierarchy**: `textDocument/prepareCallHierarchy`,
-  `callHierarchy/incomingCalls` and `callHierarchy/outgoingCalls`.
-  Shift+Alt+H on a route name opens the route call graph — who calls
-  `route[X]`, and what `route[X]` calls — across the include closure,
-  so a caller in an included file shows up with that file's URI.
-  Several calls from one block collapse into a single entry carrying
-  each call site's range. A route called but defined nowhere is still
-  listed as an outgoing edge, marked `undefined`, rather than dropped.
-  The graph is the main route table: `request_route` and
-  `failure_route` show up as callers when they call `route(X)`, but
-  asking for *their* callers declines, because they are armed by the
-  core or by a module-function string the server does not track and
-  "no callers" would be a confident wrong answer.
+### Added
+
+- **Call hierarchy: Shift+Alt+H on a route name opens the route call
+  graph.**
+  - Effect: it shows who calls `route[X]` and what `route[X]` calls,
+    across the include closure.
+  - Effect: a route called but defined nowhere is listed as an outgoing
+    edge, marked `undefined`.
+  - Limit: asking for the callers of `request_route` or `failure_route`
+    declines; they are armed by the core or a module-function string.
+  - Docs: [Call hierarchy](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#call-hierarchy).
 
 ## [0.5.0] — 2026-08-23
 
-- **Formatting**: `textDocument/formatting` and
-  `textDocument/rangeFormatting`. Shift+Alt+F and format-on-save now
-  re-indent a `kamailio.cfg` by brace depth and strip trailing
-  whitespace, following the editor's tab settings.
-  The formatter is deliberately line-preserving — it rewrites the
-  leading and trailing whitespace of a line and nothing else, never
-  joins, splits or reorders lines, never touches a string or comment
-  body (either comment style), and never emits an edit for a line that
-  is already correct, so folding and cursor position survive. `#!` and
-  `!!` directives keep their column, and a backslash-continued
-  `#!define` keeps its own layout. Proven against a real 6.1.4 binary:
-  the positioned parse errors `kamailio -c` reports are unchanged by
-  formatting.
-- **A skipped test is now a failed test.** Thirteen tests used to opt
-  out silently when no Kamailio tree, wiki checkout or binary was
-  present, so CI reported green while the proofs behind this
-  extension's version claims never ran. They are hard failures now,
-  `scripts/proof-env.sh` provisions what they need, and CI runs that
-  same script — a green build means the proofs really ran, against a
-  real 6.1.4 tree and binary.
+### Added
+
+- **Formatting: Shift+Alt+F and format-on-save re-indent a `kamailio.cfg`
+  by brace depth.**
+  - Effect: `textDocument/formatting` and `textDocument/rangeFormatting`
+    strip trailing whitespace and follow the editor's tab settings.
+  - Effect: `#!` and `!!` directives keep their column, and a
+    backslash-continued `#!define` keeps its own layout.
+  - Limit: it rewrites only the leading and trailing whitespace of a
+    line; it never joins, splits or reorders lines.
+  - Docs: [Formatting](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#formatting).
 
 ## [0.4.1] — 2026-08-23
 
-- **Documentation drift gate**: the README and the features page are
-  now checked against the server itself — every capability advertised
-  in `initialize`, every initialization option and environment
-  variable the server reads, and every VS Code setting the client
-  contributes must appear in the docs, or the build fails.
-- Fixes the drift that gate found: the README never mentioned include
-  links (Ctrl+Click on `include_file`/`import_file`), `prepareRename`,
-  `semanticTokens/range`, or live reconfiguration — all shipped
-  earlier and all invisible to anyone reading the front page.
-- Documents `KAMAILIO_LSP_TRACE_INDEX`, an environment variable the
-  server has read all along and no page mentioned.
+### Fixed
+
+- **The README names features that shipped earlier.**
+  - Was: it did not mention include links, `prepareRename`,
+    `semanticTokens/range` or live reconfiguration.
+- **`KAMAILIO_LSP_TRACE_INDEX` is documented.**
+  - Was: the server read this environment variable all along and no page
+    mentioned it.
 
 ## [0.4.0] — 2026-08-23
 
-- **Language-server stack moved to `tower-lsp-server`**: `tower-lsp`
-  has had no release since 0.20.0 (August 2023); the maintained
-  community fork replaces it. No behaviour changes — the protocol
-  suite (raw JSON-RPC over stdio) passes unchanged, and
-  `workspace/symbol` still answers with the same array on the wire.
-  Dropping the `url` crate takes its whole ICU/idna tree with it: the
-  server now builds from 66 dependencies instead of 95.
-- **Version-proven against Kamailio 6.1.4**, the current stable line,
-  alongside 6.0.x: a real 6.1.4 tree, a fresh kamailio-wiki checkout,
-  and a 6.1.4 binary. Every behavioural citation in the suite was
-  re-verified against that binary, and the 6.1.4 diagnostic shapes
-  are captured verbatim beside the 6.0.1 ones.
-- Nothing pins a Kamailio version: module docs come from the tree you
-  point at and core docs from the newest stable cookbook in your wiki
-  checkout — a selection that is now covered by a test (newest stable
-  wins, `devel` never does).
+### Changed
+
+- **The language-server stack moves to `tower-lsp-server`.**
+  - Was: `tower-lsp` has had no release since 0.20.0 (August 2023).
+  - Effect: no behavior changes; the server builds from 66 dependencies
+    instead of 95.
+- **Proven against Kamailio 6.1.4, the current stable line, alongside
+  6.0.x.**
+  - Effect: the 6.1.4 diagnostic shapes are captured verbatim beside the
+    6.0.1 ones.
+- **Nothing pins a Kamailio version.**
+  - Effect: module docs come from the tree you point at and core docs from
+    the newest stable cookbook in your wiki checkout; `devel` never wins.
 
 ## [0.3.0] — 2026-08-20
 
-- **Per-version memoization** (internal): the per-document
-  computations (route blocks, references, semantic spans) are cached
-  per (document, version) and shared by the hot handlers — semantic
-  tokens (full and range), code lenses, document symbols, references
-  — instead of being recomputed per request; stale versions evict in
-  place and closed documents drop their entry.
-- **Semantic tokens range**: `textDocument/semanticTokens/range` is
-  served (and advertised) alongside `full` — editors can request
-  just the visible slice of a large config.
-- **Grammar↔scanner drift gate** (internal): corpus-driven tests
-  prove the tree-sitter grammar and the server's scanner agree on
-  route definitions (total and named), `loadmodule`, and `modparam`
-  counts; extending one without the other fails CI.
-- **Prepare rename**: F2 is validated server-side before the rename
-  box opens — exact range + placeholder on renamable route names,
-  blocked outright off-symbol and on per-kind names (`event_route`
-  etc.) that cannot be renamed.
-- **Include links**: `include_file`/`import_file` paths are
-  clickable document links, resolved against the including file's
-  directory (absolute paths pass through; missing targets still
-  link).
-- **Dynamic settings**: changing `diagnostics.analyzer`,
-  `completion.snippets`, `codeLens.references`,
-  `diagnostics.maxProblems`, or `checkTimeoutMs` no longer restarts
-  the language server — the client pushes
-  `workspace/didChangeConfiguration` and the server applies the
-  change live, republishing diagnostics for open files. Path
-  settings (server/kamailio binary, source/wiki trees, cache dir)
-  still restart automatically.
-- **Content-aware catalog cache**: the harvest cache is now keyed by
-  a manifest of every file it reads (size + mtime per module README
-  and cookbook page) plus a schema version — editing a doc file
-  re-harvests; before, only directory-level changes did.
-- **Harvest status**: the post-initialize harvest reports LSP
-  `workDoneProgress` (busy indicator in supporting editors), and a
-  configured source/wiki tree that yields zero symbols raises a
-  visible warning naming the path.
-- **Checker cwd parity**: the server now runs `kamailio -c` from the
-  configuration's own directory (as the CLI always did), so relative
-  `include_file`/`import_file` paths resolve identically in editor
-  and CI runs.
-- **Latest-wins checks**: a newer save supersedes an in-flight
-  `kamailio -c` run on the same document — the stale child process
-  is killed instead of blocking the fresh check behind it.
+### Added
+
+- **Semantic tokens answer range requests.**
+  - Effect: `textDocument/semanticTokens/range` is served alongside
+    `full`, so editors can request the visible slice of a large config.
+- **Prepare rename: F2 is validated before the rename box opens.**
+  - Effect: renamable route names get an exact range and placeholder;
+    off-symbol and per-kind names such as `event_route` are blocked.
+- **Include links: `include_file`/`import_file` paths are clickable
+  document links.**
+  - Effect: paths resolve against the including file's directory; absolute
+    paths pass through and missing targets still link.
+  - Docs: [Include links](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#include-links).
+- **Five settings apply without restarting the language server.**
+  - Effect: `diagnostics.analyzer`, `completion.snippets`,
+    `codeLens.references`, `diagnostics.maxProblems` and `checkTimeoutMs`
+    apply live, and open files are re-diagnosed.
+  - Limit: path settings (server and kamailio binary, source and wiki
+    trees, cache dir) still restart it automatically.
+- **The documentation harvest reports progress.**
+  - Effect: supporting editors show a busy indicator
+    (`workDoneProgress`); a configured tree that yields zero symbols
+    raises a warning naming the path.
+
+### Changed
+
+- **The server runs `kamailio -c` from the configuration's own
+  directory.**
+  - Effect: relative `include_file`/`import_file` paths resolve
+    identically in editor and CI runs.
+- **A newer save supersedes an in-flight `kamailio -c` run on the same
+  document.**
+  - Effect: the stale child process is ended instead of blocking the fresh
+    check.
+
+### Fixed
+
+- **Editing a documentation file re-harvests the catalog.**
+  - Was: only directory-level changes did.
 
 ## [0.2.1] — 2026-08-20
 
-- Internal: drift gates for the release workflow; ground-truth
-  re-audit against the current Kamailio 6.0 branch head and the
-  packaged 6.0.1 parser (no cfg.y/cfg.lex drift, all gates green).
-  No functional changes.
+### Changed
+
+- **No functional changes: internal release checks only.**
+  - Effect: nothing in the server or the extension behaves differently.
 
 ## [0.2.0] — 2026-08-20
 
-- **Workspace symbols**: Ctrl+T searches route definitions across
-  every open file and its include closure (case-insensitive,
-  capped).
-- **Code lenses**: named callable `route` blocks show a reference
-  count (closure-wide); `failure_route` and friends carry none —
-  their arming isn't `route()`-countable. Setting
-  `kamailioLsp.codeLens.references`.
-- **Quick fixes**: "Load module 'X'" when the parser says
-  `unknown command, missing loadmodule?` (Kamailio names no function
-  in the message, so it is read from the call under the diagnostic)
-  and "Create route[x]" (stub with an `exit;` body) for undefined
-  targets.
-- **Catalog-pinned validation**: modparam parameters the configured
-  source tree does not document warn as you type; unknown modules
-  stay silent. Found and fixed a real harvest gap along the way:
-  presence-style `db_url(str)` headings (no space before the type)
-  now parse.
-- **Semantic tokens** for route names and pseudo-variables —
-  including inside single- OR double-quoted strings, which produce
-  the same STRING token (cfg.lex) and interpolate identically.
-- **CLI**: `kamailio-lsp check [--strict] [--bin <kamailio>]
-  <file>...` — analyzer + real-parser findings as grep-able
-  `file:line:col` lines with include-error remapping; exit codes
-  0/1/2 for CI and git hooks.
+### Added
+
+- **Workspace symbols: Ctrl+T searches route definitions.**
+  - Effect: the search spans every open file and its include closure,
+    case-insensitive and capped.
+- **Code lenses show a reference count on named callable `route` blocks.**
+  - Effect: counts span the include closure.
+  - Limit: `failure_route` and similar blocks carry none; their arming is
+    not countable through `route()`.
+  - Do: the setting is `kamailioLsp.codeLens.references`.
+- **Quick fixes: "Load module 'X'" and "Create route[x]".**
+  - Effect: the first appears when the parser says
+    `unknown command, missing loadmodule?`; the second stubs an undefined
+    target with an `exit;` body.
+- **Catalog-pinned validation of `modparam` parameters.**
+  - Effect: parameters the configured source tree does not document warn
+    as you type; unknown modules stay silent.
+  - Effect: `db_url(str)` headings, with no space before the type, now
+    parse.
+- **Semantic tokens for route names and pseudo-variables.**
+  - Effect: pseudo-variables are marked inside single- or double-quoted
+    strings, which interpolate identically.
+- **CLI: `kamailio-lsp check [--strict] [--bin <kamailio>] <file>...`.**
+  - Effect: analyzer and real-parser findings print as `file:line:col`
+    lines; exit codes 0/1/2 serve CI and git hooks.
+  - Docs: [CLI check mode](https://github.com/NormB/kamailio-lsp/blob/main/docs/FEATURES.md#cli-check-mode).
 
 ## [0.1.3] — 2026-08-20
 
-- **References and rename cross the include closure**: renaming a
-  route defined in an `include_file` rewrites every file, and
-  Shift+F12 lists the include's definition.
-- **Route namespaces**: `route(X)` is satisfied only by `route[X]`
-  blocks (Kamailio keeps per-kind route tables — a `failure_route[X]`
-  no longer masks an undefined target); duplicate-definition warnings
-  are per kind; purely numeric `route(N)` calls are runtime dispatch
-  and never warn; `route(` completion offers only callable names;
-  renaming `failure_route`/`branch_route`/... names is rejected with
-  an explanation (their call sites are module-function arguments).
-- **Single-quoted strings** (`loadmodule 'tm.so'`, `route['SQ']`,
-  `xlog('hi')`) are recognized everywhere: analysis, completion
-  contexts, tree-sitter, and TextMate highlighting — with Kamailio's
-  real semantics (no escapes, may span lines).
-- **Signature help labels** split on top-level commas only — nested
-  calls, bracket groups (`t_relay([host, port])`), and quoted commas
-  stay whole.
-- Release workflow: a failed Open VSX publish no longer bypasses the
-  rerun tolerance (exit-status capture under `bash -e`).
+### Changed
+
+- **References and rename cross the include closure.**
+  - Effect: renaming a route defined in an `include_file` rewrites every
+    file, and Shift+F12 lists the include's definition.
+- **`route(X)` is satisfied only by `route[X]` blocks.**
+  - Effect: a `failure_route[X]` no longer masks an undefined target;
+    duplicate-definition warnings are per kind.
+  - Effect: numeric `route(N)` calls never warn, and `route(` completion
+    offers only callable names.
+  - Limit: renaming `failure_route`, `branch_route` and similar names is
+    rejected with an explanation.
+
+### Fixed
+
+- **Single-quoted strings are recognized everywhere.**
+  - Effect: `loadmodule 'tm.so'`, `route['SQ']` and `xlog('hi')` work in
+    analysis, completion, tree-sitter and TextMate highlighting.
+  - Effect: Kamailio's semantics apply: no escapes, and a string may span
+    lines.
+- **Signature help labels split on top-level commas only.**
+  - Effect: nested calls, bracket groups (`t_relay([host, port])`) and
+    quoted commas stay whole.
 
 ## [0.1.2] — 2026-08-20
 
-- **Rename is parser-safe**: new names are gated on the charset
-  Kamailio accepts for unquoted route names (`[A-Za-z_][A-Za-z0-9_]*`
-  — dotted/dashed/colon names only parse quoted), and event-route
-  names (`event_route[mod:event]`) are excluded from rename entirely
-  (the module defines the event); references/highlights on them keep
-  working.
-- **Errors inside included files now surface**: Kamailio reports them
-  against the include path as written (often relative), which used to
-  be filtered out — a broken include showed a clean editor. They now
-  attach to the `include_file` directive with the real file and line
-  in the message, with a root-level fallback when nothing else could
-  be attached.
-- **Preprocessor-aware analysis**: `#!`/`!!` directives (indented
-  too) are no longer treated as comments — multi-line `#!define`
-  bodies can't leak phantom routes/modules, `#!include_file` and
-  `!!import_file` are followed, and `//` line comments are
-  recognized.
-- **Six more modules documented**: READMEs titled `Exported
-  parameters` (nat_traversal, call_control) and nested chapters
-  (kafka, keepalive, lrkproxy, seas) now harvest.
-- **All load forms recognized**: `loadmodule("x.so")`,
-  `loadmodule("x", "opts")`, `loadmodulex`, `modparamx`; `xlog` is no
-  longer offered as a core keyword (it is a module function).
-- **Grammars match the lexer**: tree-sitter drops `!~`/`%`/`+=`/`-=`/
-  `break(arg)`/named `request_route`, gains `and`/`or`/`not`/`mod`/
-  `|`/`&`, paren-less `return`, `!!` directives, `//` comments; the
-  TextMate directive set is now the real one (no `defval`; `def`,
-  `trydefine`, `redef`, `trydefenv(s)`, prefixed includes, indented
-  directives).
-- **Untrusted workspaces** additionally restrict
-  `kamailioLsp.serverPath` and `kamailioLsp.modulesPath`, closing a
-  workspace-settings code-execution vector.
-- Docs: the diagnostics demo misspells a real Kamailio parameter
-  (`fr_tmer` vs tm's `fr_timer`) and quotes the message the squiggle
-  actually shows (`Can't set module parameter`); realistic module
-  counts; assorted wording fixes.
+### Changed
+
+- **Rename accepts only names Kamailio parses unquoted.**
+  - Effect: new names must match `[A-Za-z_][A-Za-z0-9_]*`.
+  - Limit: event-route names (`event_route[mod:event]`) cannot be renamed;
+    references and highlights on them keep working.
+- **All load forms are recognized.**
+  - Effect: `loadmodule("x.so")`, `loadmodule("x", "opts")`, `loadmodulex`
+    and `modparamx` are read.
+  - Effect: `xlog` is no longer offered as a core keyword; it is a module
+    function.
+- **The grammars match the lexer.**
+  - Effect: tree-sitter gains `and`/`or`/`not`/`mod`/`|`/`&`, paren-less
+    `return`, `!!` directives and `//` comments.
+  - Effect: tree-sitter drops `!~`/`%`/`+=`/`-=`/`break(arg)`/named
+    `request_route`; the TextMate directive set is the real one.
+
+### Fixed
+
+- **Errors inside included files appear in the editor.**
+  - Was: Kamailio reports them against the include path as written, which
+    was filtered out, so a broken include showed a clean editor.
+  - Effect: they attach to the `include_file` directive, with the real
+    file and line in the message.
+- **`#!` and `!!` directives are no longer treated as comments.**
+  - Effect: multi-line `#!define` bodies leak no phantom routes or
+    modules, and `#!include_file` and `!!import_file` are followed.
+  - Effect: `//` line comments are recognized.
+- **Six more modules are documented.**
+  - Effect: nat_traversal, call_control, kafka, keepalive, lrkproxy and
+    seas now harvest.
+- **The documentation's diagnostics demo is corrected.**
+  - Effect: it misspells a real parameter (`fr_tmer` for tm's `fr_timer`)
+    and quotes the message shown, `Can't set module parameter`.
+
+### Security
+
+- **Untrusted workspaces also restrict `kamailioLsp.serverPath` and
+  `kamailioLsp.modulesPath`.**
+  - Effect: this closes a workspace-settings code-execution vector.
 
 ## [0.1.1] — 2026-08-20
 
-- Documentation: the check flag is Kamailio's lowercase `-c`
-  everywhere (a leftover uppercase `-C` was OpenSIPS's flag), and the
-  example diagnostic now quotes Kamailio's real message
-  (`parameter <fr_timeot> of type <2:int> not found in module <tm>`).
+### Fixed
+
+- **The documentation uses Kamailio's lowercase `-c` check flag
+  everywhere.**
+  - Was: a leftover uppercase `-C` was OpenSIPS's flag.
+  - Effect: the example diagnostic quotes Kamailio's message,
+    `parameter <fr_timeot> of type <2:int> not found in module <tm>`.
 
 ## [0.1.0] — 2026-08-20
 
-- Initial release: diagnostics via `kamailio -c --all-errors`
-  (line/column ranges and multi-line spans, versioned against the
-  buffer, serialized, time-bounded, output-capped),
-  context-sensitive completion (modules, parameters, exported
-  functions of loaded modules, core functions/parameters,
-  pseudo-variables after `$`), hover documentation, go-to-definition
-  for routes, and document symbols.
-- Documentation harvested from a Kamailio source tree
-  (`src/modules/<name>/README`) and a kamailio-wiki checkout
-  (core cookbook + pseudo-variables), cached per (tree, wiki) pair.
-- Workspace-trust gate: diagnostics stay off in untrusted folders
-  (checking a config loads its modules); settings changes restart
-  the server live.
-- Static snippets for route blocks, preprocessor directives,
-  `loadmodule`/`modparam`, control flow, `xlog`, `sl_send_reply`;
-  function completions insert tabstop snippets.
-- **Signature help**: the innermost unclosed call's signature with
-  the active parameter highlighted, on `(` and `,` — module exports
-  first, then core functions (commas inside strings don't advance the
-  parameter).
-- **References, rename, highlights** for route names: Shift+F12
-  lists every call site and the definition, F2 renames everywhere
-  (quoted call sites rewritten inside the quotes, illegal names
-  rejected — `:` is legal for event-route names), occurrences
-  highlight with the definition as a write.
-- **Include awareness**: `include_file`/`import_file` are followed
-  (open buffers preferred over disk, cycle-safe, capped) — completion
-  sees included modules and routes, and go-to-definition jumps into
-  the include. Dotted and colon-carrying route names resolve whole.
-- **Instant analyzer warnings** between saves, debounced as you
-  type: undefined `route()` targets and duplicate route definitions.
-  Setting `kamailioLsp.diagnostics.analyzer`.
-- **Folding** for every route-family block, and the
-  outline/breadcrumbs carry full block extents (nested document
-  symbols).
-- Completion quality: duplicate labels collapse to the most
-  informative item, a typed `$token` is replaced instead of doubled,
-  and `route(` completes route names.
-- Tree-sitter grammar (`tree-sitter-kamailio`) with corpus tests.
-- Version-proven against Kamailio 6.0.x (binary 6.0.1, branch 6.0
-  tree, wiki cookbooks 6.0.x).
+### Added
+
+- **Initial release: diagnostics via `kamailio -c --all-errors`.**
+  - Effect: diagnostics carry line and column ranges, are versioned
+    against the buffer, time-bounded and output-capped.
+- **Context-sensitive completion, hover, go to definition and document
+  symbols.**
+  - Effect: modules, parameters, functions of loaded modules, core
+    functions and parameters, and pseudo-variables after `$` complete.
+  - Effect: documentation is harvested from a Kamailio source tree and a
+    kamailio-wiki checkout, cached per pair.
+- **Diagnostics stay off in untrusted folders.**
+  - Effect: checking a config loads its modules, so an untrusted folder
+    gets no diagnostics.
+  - Effect: settings changes restart the server live.
+- **Static snippets and tabstop snippets.**
+  - Effect: static snippets cover route blocks, preprocessor directives,
+    `loadmodule`/`modparam`, control flow, `xlog` and `sl_send_reply`.
+  - Effect: function completions insert tabstop snippets.
+- **Signature help.**
+  - Effect: the innermost unclosed call's signature shows on `(` and `,`,
+    with the active parameter highlighted.
+  - Effect: module exports are looked up first, then core functions;
+    commas inside strings do not advance the parameter.
+- **References, rename and highlights for route names.**
+  - Effect: Shift+F12 lists every call site and the definition; F2
+    renames everywhere and rejects illegal names.
+  - Effect: occurrences highlight, with the definition as a write.
+- **Include awareness: `include_file`/`import_file` are followed.**
+  - Effect: completion sees included modules and routes, and go to
+    definition jumps into the include.
+  - Effect: open buffers are preferred over disk, cycles are safe, and
+    dotted and colon-carrying route names resolve whole.
+- **Analyzer warnings appear between saves, debounced as you type.**
+  - Effect: undefined `route()` targets and duplicate route definitions
+    are reported.
+  - Do: the setting is `kamailioLsp.diagnostics.analyzer`.
+- **Folding for every route-family block.**
+  - Effect: the outline and breadcrumbs carry full block extents.
+- **Completion collapses duplicate labels and replaces a typed `$token`.**
+  - Effect: duplicate labels collapse to the most informative item, and
+    `route(` completes route names.
+- **Tree-sitter grammar (`tree-sitter-kamailio`) with corpus tests.**
+  - Effect: the grammar ships in the repository as `tree-sitter-kamailio`.
+- **Proven against Kamailio 6.0.x.**
+  - Effect: binary 6.0.1, the branch 6.0 tree and the 6.0.x wiki cookbooks
+    were used.
