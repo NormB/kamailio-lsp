@@ -2,6 +2,19 @@
 
 All notable changes to the Kamailio Routing Script extension.
 
+## [0.22.3] — 2026-11-26
+
+### Changed
+
+- **The extension and the server take upstream bug-fix releases.**
+  - Effect: the client library is now vscode-languageclient 11.0.1,
+    which fixes a server start that fails or is retried.
+  - Effect: the server uses regex 1.13.2, which fixes wrong match
+    offsets for some alternations and two panics.
+  - Limit: minimatch 10.2.6 stays, because vscode-languageclient 11.0.1
+    still requires it.
+  - Docs: [Advisories recorded as not affecting kamailio-lsp](https://github.com/NormB/kamailio-lsp/blob/main/SECURITY.md#advisories-recorded-as-not-affecting-kamailio-lsp).
+
 ## [0.22.2] — 2026-11-14
 
 ### Changed
