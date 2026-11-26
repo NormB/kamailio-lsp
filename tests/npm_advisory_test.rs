@@ -11,7 +11,7 @@
 //! names the only package allowed to pull the affected one.
 //!
 //! The current record, GHSA-g3hv-75wg-m249 in minimatch, holds because
-//! minimatch is reached only through vscode-languageclient 11.0.0, which
+//! minimatch is reached only through vscode-languageclient 11.0.1, which
 //! calls it on two paths: file-operation globs the server registers, and
 //! the `pattern` of a document or notebook filter. The rules here keep
 //! both closed: the server's file-operation globs and filter patterns
@@ -55,7 +55,7 @@ struct NotAffected {
 const NOT_AFFECTED: &[NotAffected] = &[NotAffected {
     id: "GHSA-g3hv-75wg-m249",
     via: "vscode-languageclient",
-    via_version: "11.0.0",
+    via_version: "11.0.1",
 }];
 
 /// The lockfile names this test reads.
@@ -271,8 +271,23 @@ fn lockfile_problems(
                 ignore.id
             ));
         }
-        if ignore.reason.as_deref().is_none_or(|r| r.trim().is_empty()) {
-            problems.push(format!("{} is ignored without a reason", ignore.id));
+        match ignore.reason.as_deref() {
+            None => problems.push(format!("{} is ignored without a reason", ignore.id)),
+            Some(r) if r.trim().is_empty() => {
+                problems.push(format!("{} is ignored without a reason", ignore.id));
+            }
+            Some(r) => {
+                // The reason OSV-Scanner shows states the analysis; it must
+                // name the parent version this test holds it to.
+                for record in not_affected.iter().filter(|n| n.id == ignore.id) {
+                    if !names_version(r, record.via, record.via_version) {
+                        problems.push(format!(
+                            "{}'s reason does not name {} {}, the version the analysis read",
+                            ignore.id, record.via, record.via_version
+                        ));
+                    }
+                }
+            }
         }
         match ignore.until {
             None => problems.push(format!("{} is ignored without an ignoreUntil", ignore.id)),
@@ -328,6 +343,26 @@ fn lockfile_problems(
         }
     }
     problems
+}
+
+/// Whether `text` names `package` at exactly `version`: `"{package}
+/// {version}"` with no package-name character before it and no further
+/// version character after it, so `11.0.10`, `11.0.1-rc.1` and
+/// `my-package 11.0.1` do not count. A sentence's full stop may follow.
+fn names_version(text: &str, package: &str, version: &str) -> bool {
+    let needle = format!("{package} {version}");
+    let name_char = |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '@' | '/');
+    text.match_indices(&needle).any(|(at, _)| {
+        let before_ok = text[..at].chars().next_back().is_none_or(|c| !name_char(c));
+        let mut after = text[at + needle.len()..].chars();
+        let after_ok = match after.next() {
+            None => true,
+            Some(c) if c.is_ascii_alphanumeric() => false,
+            Some('.' | '-' | '+') => after.next().is_none_or(|c| !c.is_ascii_alphanumeric()),
+            Some(_) => true,
+        };
+        before_ok && after_ok
+    })
 }
 
 /// The struct literals named `ty` in Rust source, from the name to the
@@ -602,13 +637,20 @@ fn lockfile(entries: &[(&str, &str)]) -> String {
     )
 }
 
-/// The client's shape: vscode-languageclient 11.0.0 pulling `minimatch`.
+/// The `packages` entry of the parent the not-affected record covers, at
+/// the version the analysis read, requiring `minimatch`.
+fn analyzed_parent() -> String {
+    format!(
+        "{{\"version\": \"{}\", \"dependencies\": {{\"minimatch\": \"^10.2.6\"}}}}",
+        NOT_AFFECTED[0].via_version
+    )
+}
+
+/// The client's shape: the analyzed vscode-languageclient pulling
+/// `minimatch`.
 fn client_lock(minimatch: &str) -> String {
     lockfile(&[
-        (
-            "node_modules/vscode-languageclient",
-            "{\"version\": \"11.0.0\", \"dependencies\": {\"minimatch\": \"^10.2.6\"}}",
-        ),
+        ("node_modules/vscode-languageclient", &analyzed_parent()),
         (
             "node_modules/minimatch",
             &format!("{{\"version\": \"{minimatch}\"}}"),
@@ -619,9 +661,13 @@ fn client_lock(minimatch: &str) -> String {
 const DAY: (u32, u32, u32) = (2026, 11, 3);
 
 fn ignore(until: (u32, u32, u32)) -> Ignore {
+    let record = &NOT_AFFECTED[0];
     Ignore {
-        id: "GHSA-g3hv-75wg-m249".into(),
-        reason: Some("not reached".into()),
+        id: record.id.into(),
+        reason: Some(format!(
+            "reached only through {} {}, which never compiles a pattern",
+            record.via, record.via_version
+        )),
         until: Some(until),
     }
 }
@@ -698,10 +744,7 @@ fn a_record_that_outlives_the_affected_version_fails() {
 #[test]
 fn another_parent_of_the_affected_package_fails() {
     let lock = lockfile(&[
-        (
-            "node_modules/vscode-languageclient",
-            "{\"version\": \"11.0.0\", \"dependencies\": {\"minimatch\": \"^10.2.6\"}}",
-        ),
+        ("node_modules/vscode-languageclient", &analyzed_parent()),
         (
             "node_modules/glob",
             "{\"version\": \"10.4.5\", \"optionalDependencies\": {\"minimatch\": \"^9.0.4\"}}",
@@ -725,6 +768,57 @@ fn another_parent_of_the_affected_package_fails() {
         found.len() == 1 && found[0].starts_with("vscode-languageclient 11.1.0 pulls"),
         "a parent version the analysis did not read: {found:?}"
     );
+}
+
+#[test]
+fn a_reason_that_names_the_analyzed_version_passes() {
+    let record = &NOT_AFFECTED[0];
+    for reason in [
+        format!("{} {}", record.via, record.via_version),
+        format!("only {} {}.", record.via, record.via_version),
+        format!("({} {}), the latest", record.via, record.via_version),
+        format!("{} {}, which", record.via, record.via_version),
+    ] {
+        let found = problems(
+            &client_lock("10.2.6"),
+            &[Ignore {
+                reason: Some(reason.clone()),
+                ..ignore((2027, 2, 1))
+            }],
+        );
+        assert_eq!(found, Vec::<String>::new(), "reason {reason:?}");
+    }
+}
+
+#[test]
+fn a_reason_that_names_another_version_fails() {
+    let record = &NOT_AFFECTED[0];
+    for reason in [
+        format!("{} 0.0.1", record.via),
+        format!("{} {}0", record.via, record.via_version),
+        format!("{} {}.2", record.via, record.via_version),
+        format!("{} {}-rc.1", record.via, record.via_version),
+        format!("my-{} {}", record.via, record.via_version),
+        record.via.to_string(),
+        record.via_version.to_string(),
+        "not reached".to_string(),
+    ] {
+        let found = problems(
+            &client_lock("10.2.6"),
+            &[Ignore {
+                reason: Some(reason.clone()),
+                ..ignore((2027, 2, 1))
+            }],
+        );
+        assert!(
+            found.len() == 1
+                && found[0].contains(&format!(
+                    "does not name {} {}",
+                    record.via, record.via_version
+                )),
+            "reason {reason:?} must be refused: {found:?}"
+        );
+    }
 }
 
 #[test]
